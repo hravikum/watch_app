@@ -20,7 +20,12 @@ from typing import Iterable
 
 from sqlalchemy.orm import Session
 
+from watch_app.extraction.entities import (
+    extract_maker_names,
+    invalidate_vocab_cache,
+)
 from watch_app.extraction.resolver import resolve_or_create_maker
+from watch_app.extraction.seed import load_seed_makers
 from watch_app.scoring.presets import PRESETS
 from watch_app.scoring.ranker import rank_all_makers
 from watch_app.sources.base import RawMention, Source
@@ -66,11 +71,20 @@ def _ingest_mention(
     use_llm: bool,
 ) -> int:
     """Ingest one RawMention. Returns the number of Mention rows written."""
-    if use_llm and not raw.candidate_names:
-        # Local import so skipping --use-llm doesn't require the anthropic SDK path.
-        from watch_app.extraction.entities_llm import populate_candidates_from_llm
+    # If the source didn't tell us which makers this is about, try to figure
+    # it out. Priority: LLM (if enabled) → rule-based extractor (free).
+    if not raw.candidate_names:
+        if use_llm:
+            # Local import so skipping --use-llm doesn't require the anthropic SDK path.
+            from watch_app.extraction.entities_llm import populate_candidates_from_llm
 
-        populate_candidates_from_llm(session, raw)
+            populate_candidates_from_llm(session, raw)
+
+        if not raw.candidate_names:
+            # Rule-based fallback using the known-makers vocabulary.
+            title = raw.title or ""
+            body = raw.raw_text or raw.excerpt or ""
+            raw.candidate_names = extract_maker_names(session, title, body)
 
     if not raw.candidate_names:
         logger.debug("Skipping mention with no candidates: %s", raw.url)
@@ -117,9 +131,25 @@ def run_scan(
     if sources is None:
         sources = default_sources()
 
-    stats = {"mentions_written": 0, "makers_scored": 0, "sources_run": 0}
+    stats = {
+        "mentions_written": 0,
+        "makers_scored": 0,
+        "sources_run": 0,
+        "seed_created": 0,
+        "seed_updated": 0,
+    }
 
     with session_scope() as session:
+        # Load curated known-makers first, so the rule-based extractor has
+        # its vocabulary populated from the very first source.
+        seed_stats = load_seed_makers(session)
+        stats["seed_created"] = seed_stats["created"]
+        stats["seed_updated"] = seed_stats["updated"]
+        session.flush()
+        # Any change to the Makers table invalidates the extractor's cached
+        # vocabulary. Drop it so _get_vocab rebuilds on the next call.
+        invalidate_vocab_cache()
+
         for source in sources:
             logger.info("Fetching from source: %s", source.name)
             source_row = _upsert_source_row(session, source)

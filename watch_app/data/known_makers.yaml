@@ -1,0 +1,390 @@
+# Curated seed list of independent watchmakers.
+#
+# These are loaded into the Makers table on every scan (idempotent upsert).
+# They also form the vocabulary used by the rule-based entity extractor.
+#
+# Sources:
+# - Louis Vuitton Watch Prize for Independent Creatives (editions 1 & 2)
+# - GPHG nominees and winners — recent independents
+# - The AHCI (Académie Horlogère des Créateurs Indépendants) roster
+# - Well-recognized indie maisons with a presence in SJX / Monochrome / Hodinkee coverage
+#
+# Adding a maker here:
+#   - canonical_name: the name we prefer to display. Use the maker's own
+#     preferred spelling, including diacritics.
+#   - aliases: alternate spellings the extractor should also recognize.
+#     Include a diacritic-stripped version only if it differs enough to
+#     not be caught by our normalization (usually not needed).
+#   - country: ISO country name (used for filtering later).
+#   - founded_year: when the atelier started operating (may be approximate).
+#   - is_independent: defaults to true. Set to false for large conglomerate-
+#     owned houses included here as context for the extractor.
+
+makers:
+  # --- LV Watch Prize edition 1 (2023/24) — winner + finalists ---
+  - canonical_name: "Raúl Pagès"
+    aliases: ["Raul Pages"]
+    country: "Switzerland"
+    founded_year: 2014
+  - canonical_name: "Simon Brette"
+    country: "France"
+    founded_year: 2022
+  - canonical_name: "Petermann Bédat"
+    aliases: ["Petermann Bedat"]
+    country: "Switzerland"
+    founded_year: 2017
+  - canonical_name: "Cyril Brivet-Naudot"
+    country: "France"
+    founded_year: 2018
+  - canonical_name: "Andreas Strehler"
+    country: "Switzerland"
+    founded_year: 2002
+
+  # --- LV Watch Prize edition 2 (2025/26) — finalists ---
+  - canonical_name: "Hazemann & Monnin"
+    aliases: ["Hazemann and Monnin", "Alexandre Hazemann", "Victor Monnin"]
+    country: "France"
+    founded_year: 2024
+  - canonical_name: "Daizoh Makihara"
+    aliases: ["Daizoh Makihara Watchcraft"]
+    country: "Japan"
+    founded_year: 2017
+  - canonical_name: "Fam Al Hut"
+    aliases: ["Xinyan Dai"]
+    country: "China"
+    founded_year: 2023
+  - canonical_name: "Bernhard Lederer"
+    aliases: ["Lederer"]
+    country: "Switzerland"
+    founded_year: 2008
+  - canonical_name: "Quiet Club"
+    aliases: ["Norifumi Seki"]
+    country: "Japan"
+    founded_year: 2023
+
+  # --- LV Watch Prize edition 2 — other 2025/26 semifinalists ---
+  - canonical_name: "Anton Suhanov"
+    country: "Russia"
+    founded_year: 2015
+  - canonical_name: "J.N. Shapiro"
+    aliases: ["Joshua Shapiro", "Shapiro Watches"]
+    country: "United States"
+    founded_year: 2018
+  - canonical_name: "Kallinich Claeys"
+    country: "Germany"
+    founded_year: 2019
+  - canonical_name: "Auffret Paris"
+    aliases: ["Théo Auffret", "Theo Auffret", "Auffret"]
+    country: "France"
+    founded_year: 2018
+  - canonical_name: "Masa & Co."
+    aliases: ["Masa and Co", "SOHKOKU"]
+    country: "Japan"
+
+  # --- AHCI members and long-established independents ---
+  - canonical_name: "Philippe Dufour"
+    country: "Switzerland"
+    founded_year: 1992
+  - canonical_name: "F.P. Journe"
+    aliases: ["FP Journe", "François-Paul Journe", "Francois-Paul Journe"]
+    country: "Switzerland"
+    founded_year: 1999
+  - canonical_name: "Kari Voutilainen"
+    aliases: ["Voutilainen"]
+    country: "Finland"
+    founded_year: 2002
+  - canonical_name: "Vianney Halter"
+    country: "France"
+    founded_year: 1994
+  - canonical_name: "Antoine Preziuso"
+    country: "Switzerland"
+    founded_year: 1983
+  - canonical_name: "Konstantin Chaykin"
+    country: "Russia"
+    founded_year: 2003
+  - canonical_name: "Roger Smith"
+    aliases: ["R.W. Smith", "Roger W. Smith"]
+    country: "United Kingdom"
+    founded_year: 2001
+  - canonical_name: "Kikuo Ibe"
+    country: "Japan"
+  - canonical_name: "Hajime Asaoka"
+    country: "Japan"
+    founded_year: 2009
+  - canonical_name: "Masahiro Kikuno"
+    country: "Japan"
+    founded_year: 2011
+  - canonical_name: "Naoya Hida"
+    aliases: ["Naoya Hida & Co.", "Naoya Hida and Co"]
+    country: "Japan"
+    founded_year: 2018
+  - canonical_name: "Kudoke"
+    aliases: ["Stefan Kudoke"]
+    country: "Germany"
+    founded_year: 2007
+  - canonical_name: "Habring²"
+    aliases: ["Habring", "Habring2"]
+    country: "Austria"
+    founded_year: 2004
+  - canonical_name: "Grönefeld"
+    aliases: ["Gronefeld"]
+    country: "Netherlands"
+    founded_year: 2008
+  - canonical_name: "Christiaan van der Klaauw"
+    aliases: ["CvdK", "Van der Klaauw"]
+    country: "Netherlands"
+    founded_year: 1974
+
+  # --- Independent indies with strong enthusiast / press presence ---
+  - canonical_name: "MB&F"
+    aliases: ["Maximilian Büsser & Friends"]
+    country: "Switzerland"
+    founded_year: 2005
+  - canonical_name: "H. Moser & Cie."
+    aliases: ["H. Moser", "Moser"]
+    country: "Switzerland"
+    founded_year: 1828
+  - canonical_name: "Urwerk"
+    country: "Switzerland"
+    founded_year: 1997
+  - canonical_name: "De Bethune"
+    country: "Switzerland"
+    founded_year: 2002
+  - canonical_name: "Greubel Forsey"
+    country: "Switzerland"
+    founded_year: 2004
+  - canonical_name: "Laurent Ferrier"
+    country: "Switzerland"
+    founded_year: 2008
+  - canonical_name: "Ressence"
+    country: "Belgium"
+    founded_year: 2010
+  - canonical_name: "Czapek"
+    aliases: ["Czapek & Cie.", "Czapek Genève"]
+    country: "Switzerland"
+    founded_year: 2012
+  - canonical_name: "Atelier Akrivia"
+    aliases: ["Akrivia", "Rexhep Rexhepi"]
+    country: "Switzerland"
+    founded_year: 2012
+  - canonical_name: "Ming"
+    aliases: ["Ming Thein"]
+    country: "Malaysia"
+    founded_year: 2017
+  - canonical_name: "Kurono Tokyo"
+    aliases: ["Hajime Asaoka Kurono"]
+    country: "Japan"
+    founded_year: 2019
+  - canonical_name: "Furlan Marri"
+    country: "Switzerland"
+    founded_year: 2020
+  - canonical_name: "Atelier de Chronométrie"
+    aliases: ["ADC"]
+    country: "Spain"
+    founded_year: 2016
+  - canonical_name: "Urban Jürgensen"
+    aliases: ["Urban Jurgensen"]
+    country: "Switzerland"
+    founded_year: 1773
+
+  # --- Newer / smaller ateliers showing up in LV Prize / GPHG / press ---
+  - canonical_name: "Bexei"
+    aliases: ["Aaron Becsei", "Becsei"]
+    country: "Hungary"
+    founded_year: 2005
+  - canonical_name: "Sylvain Pinaud"
+    country: "France"
+    founded_year: 2020
+  - canonical_name: "Rémy Cools"
+    aliases: ["Remy Cools"]
+    country: "France"
+    founded_year: 2021
+  - canonical_name: "Luca Soprana"
+    country: "Italy"
+  - canonical_name: "Otsuka Lotec"
+    country: "Japan"
+    founded_year: 2010
+  - canonical_name: "Garrick"
+    aliases: ["Garrick England", "Garrick Watchmakers"]
+    country: "United Kingdom"
+    founded_year: 2014
+  - canonical_name: "Struthers"
+    aliases: ["Rebecca Struthers", "Craig Struthers"]
+    country: "United Kingdom"
+    founded_year: 2012
+  - canonical_name: "Fears"
+    aliases: ["Fears Watches", "Fears Brunswick"]
+    country: "United Kingdom"
+    founded_year: 1846
+  - canonical_name: "Anordain"
+    aliases: ["Anordain Ltd"]
+    country: "United Kingdom"
+    founded_year: 2015
+  - canonical_name: "Studio Underd0g"
+    aliases: ["Studio Underdog"]
+    country: "United Kingdom"
+    founded_year: 2020
+  - canonical_name: "Baltic"
+    aliases: ["Baltic Watches"]
+    country: "France"
+    founded_year: 2017
+  - canonical_name: "Cyril Vonlanthen"
+    country: "Switzerland"
+  - canonical_name: "Sartory Billard"
+    country: "France"
+    founded_year: 2015
+  - canonical_name: "BA111OD"
+    country: "Switzerland"
+    founded_year: 2020
+  - canonical_name: "Louis Erard"
+    country: "Switzerland"
+    founded_year: 1931
+  - canonical_name: "Farer"
+    aliases: ["Farer Universal"]
+    country: "United Kingdom"
+    founded_year: 2015
+  - canonical_name: "Lang & Heyne"
+    aliases: ["Lang and Heyne"]
+    country: "Germany"
+    founded_year: 2001
+  - canonical_name: "Moritz Grossmann"
+    country: "Germany"
+    founded_year: 2008
+  - canonical_name: "Tutima"
+    country: "Germany"
+    founded_year: 1927
+  - canonical_name: "Nomos"
+    aliases: ["Nomos Glashütte", "Nomos Glashutte"]
+    country: "Germany"
+    founded_year: 1990
+  - canonical_name: "Benu Watchmaking"
+    country: "Germany"
+  - canonical_name: "Sinn"
+    aliases: ["Sinn Spezialuhren"]
+    country: "Germany"
+    founded_year: 1961
+  - canonical_name: "Glashütte Original"
+    aliases: ["Glashutte Original"]
+    country: "Germany"
+    founded_year: 1845
+  - canonical_name: "Armin Strom"
+    country: "Switzerland"
+    founded_year: 2006
+  - canonical_name: "Arnold & Son"
+    aliases: ["Arnold and Son"]
+    country: "United Kingdom"
+    founded_year: 1764
+  - canonical_name: "Andersen Genève"
+    aliases: ["Andersen Geneve", "Svend Andersen"]
+    country: "Switzerland"
+    founded_year: 1980
+  - canonical_name: "Charles Frodsham"
+    country: "United Kingdom"
+    founded_year: 1834
+  - canonical_name: "Daniel Roth"
+    country: "Switzerland"
+  - canonical_name: "Gerald Charles"
+    aliases: ["Gérald Charles"]
+    country: "Switzerland"
+    founded_year: 2000
+  - canonical_name: "Gérald Genta"
+    aliases: ["Gerald Genta"]
+    country: "Switzerland"
+  - canonical_name: "Angelus"
+    country: "Switzerland"
+    founded_year: 1891
+  - canonical_name: "Parmigiani Fleurier"
+    country: "Switzerland"
+    founded_year: 1996
+  - canonical_name: "Chronoswiss"
+    country: "Switzerland"
+    founded_year: 1981
+  - canonical_name: "Ulysse Nardin"
+    country: "Switzerland"
+    founded_year: 1846
+  - canonical_name: "Louis Moinet"
+    country: "Switzerland"
+    founded_year: 2004
+
+  # --- Notable Japanese artisans / small houses ---
+  - canonical_name: "Grand Seiko"
+    country: "Japan"
+    founded_year: 1960
+    is_independent: false
+    # Included so the extractor recognizes them but doesn't treat them as indies.
+  - canonical_name: "Credor"
+    country: "Japan"
+    is_independent: false
+
+  # --- Conglomerate brands included for extractor disambiguation only ---
+  - canonical_name: "Rolex"
+    country: "Switzerland"
+    is_independent: false
+  - canonical_name: "Patek Philippe"
+    country: "Switzerland"
+    is_independent: false
+  - canonical_name: "Audemars Piguet"
+    country: "Switzerland"
+    is_independent: false
+  - canonical_name: "Vacheron Constantin"
+    country: "Switzerland"
+    is_independent: false
+  - canonical_name: "A. Lange & Söhne"
+    aliases: ["A. Lange and Sohne", "Lange & Sohne", "Lange"]
+    country: "Germany"
+    is_independent: false
+  - canonical_name: "Jaeger-LeCoultre"
+    aliases: ["JLC"]
+    country: "Switzerland"
+    is_independent: false
+  - canonical_name: "Breguet"
+    country: "Switzerland"
+    is_independent: false
+  - canonical_name: "IWC"
+    aliases: ["IWC Schaffhausen"]
+    country: "Switzerland"
+    is_independent: false
+  - canonical_name: "Omega"
+    country: "Switzerland"
+    is_independent: false
+  - canonical_name: "Cartier"
+    country: "France"
+    is_independent: false
+  - canonical_name: "Zenith"
+    country: "Switzerland"
+    is_independent: false
+  - canonical_name: "TAG Heuer"
+    country: "Switzerland"
+    is_independent: false
+  - canonical_name: "Panerai"
+    country: "Italy"
+    is_independent: false
+  - canonical_name: "Piaget"
+    country: "Switzerland"
+    is_independent: false
+  - canonical_name: "Bvlgari"
+    aliases: ["Bulgari"]
+    country: "Italy"
+    is_independent: false
+  - canonical_name: "Chopard"
+    country: "Switzerland"
+    is_independent: false
+  - canonical_name: "Hermès"
+    aliases: ["Hermes"]
+    country: "France"
+    is_independent: false
+  - canonical_name: "Louis Vuitton"
+    country: "France"
+    is_independent: false
+  - canonical_name: "Tudor"
+    country: "Switzerland"
+    is_independent: false
+  - canonical_name: "Breitling"
+    country: "Switzerland"
+    is_independent: false
+  - canonical_name: "Blancpain"
+    country: "Switzerland"
+    is_independent: false
+  - canonical_name: "Franck Muller"
+    country: "Switzerland"
+    is_independent: false
