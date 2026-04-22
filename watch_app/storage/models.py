@@ -99,7 +99,11 @@ class Mention(Base):
     """
 
     __tablename__ = "mentions"
-    __table_args__ = (UniqueConstraint("source_id", "url", name="uq_mention_source_url"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "source_id", "url", "maker_id", name="uq_mention_source_url_maker"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     maker_id: Mapped[int] = mapped_column(ForeignKey("makers.id"), index=True)

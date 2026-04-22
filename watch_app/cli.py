@@ -18,14 +18,14 @@ import sys
 import typer
 from rich.console import Console
 from rich.table import Table
-from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from watch_app.config import get_settings
 from watch_app.pipeline.orchestrator import run_scan
 from watch_app.scoring.presets import PRESETS
+from watch_app.scoring.queries import fetch_top_makers
 from watch_app.storage.db import session_scope
-from watch_app.storage.models import Maker, Mention, Score
+from watch_app.storage.models import Maker, Mention
 
 
 app = typer.Typer(
@@ -103,21 +103,7 @@ def top(
         raise typer.Exit(1)
 
     with session_scope() as session:
-        # Latest score per maker under this preset.
-        # SQLite supports correlated subqueries; this is the portable way.
-        subq = (
-            select(Score.maker_id, Score.value, Score.rank, Score.computed_at)
-            .where(Score.preset == preset_name)
-            .order_by(Score.computed_at.desc())
-        ).subquery()
-
-        rows = (
-            session.query(Maker, subq.c.value, subq.c.rank)
-            .join(subq, subq.c.maker_id == Maker.id)
-            .order_by(subq.c.rank.asc())
-            .limit(limit)
-            .all()
-        )
+        rows = fetch_top_makers(session, preset_name, limit=limit)
 
         if not rows:
             console.print(
@@ -128,15 +114,17 @@ def top(
         table = Table(title=f"Top makers — preset: {preset_name}")
         table.add_column("#", style="dim", width=4)
         table.add_column("Maker")
+        table.add_column("Mentions", justify="right")
         table.add_column("Score", justify="right")
         table.add_column("Country", style="dim")
 
-        for maker, value, rank in rows:
+        for row in rows:
             table.add_row(
-                str(rank),
-                maker.canonical_name,
-                f"{value:.2f}",
-                maker.country or "—",
+                str(row["rank"]),
+                row["canonical_name"],
+                str(row["mention_count"]),
+                f"{row['score']:.2f}",
+                row["country"] or "—",
             )
 
         console.print(table)

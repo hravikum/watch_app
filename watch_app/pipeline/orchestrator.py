@@ -29,7 +29,6 @@ from watch_app.extraction.seed import load_seed_makers
 from watch_app.scoring.presets import PRESETS
 from watch_app.scoring.ranker import rank_all_makers
 from watch_app.sources.base import RawMention, Source
-from watch_app.sources.dummy import DummySource
 from watch_app.storage.db import session_scope
 from watch_app.storage.models import Mention, Source as SourceRow
 
@@ -40,10 +39,25 @@ logger = logging.getLogger(__name__)
 def default_sources() -> list[Source]:
     """Return the list of sources to run by default.
 
-    Phase 0: just the dummy. Phase 1 will load this from config/sources.yaml
-    and return the real sources (GPHG, Monochrome RSS, Hodinkee, etc.).
+    Phase 1C: the five RSS-based sources. Each is lightweight (one HTTP call)
+    and runs in a few seconds. More sources (GPHG, Reddit) come in later chunks.
+
+    Tests and ad-hoc runs can import DummySource directly and pass it via the
+    `sources=` argument of run_scan().
     """
-    return [DummySource()]
+    from watch_app.sources.media.fratello import FratelloSource
+    from watch_app.sources.media.hodinkee import HodinkeeSource
+    from watch_app.sources.media.monochrome import MonochromeSource
+    from watch_app.sources.media.quill_and_pad import QuillAndPadSource
+    from watch_app.sources.media.sjx import SJXSource
+
+    return [
+        SJXSource(),
+        MonochromeSource(),
+        FratelloSource(),
+        HodinkeeSource(),
+        QuillAndPadSource(),
+    ]
 
 
 def _upsert_source_row(session: Session, source: Source) -> SourceRow:
