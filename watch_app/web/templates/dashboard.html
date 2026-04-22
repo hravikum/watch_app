@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Watch App{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+  <h1 class="text-3xl font-semibold tracking-tight mb-2">Top Makers</h1>
+  <p class="text-stone-600">
+    Ranked independent watchmakers under the selected scoring preset.
+  </p>
+</div>
+
+<!-- Preset toggle. Clicking a button hits /makers/top?preset=... and swaps
+     the fragment below into #makers-slot. No full-page reload. -->
+<div class="mb-6 flex gap-2">
+  {% for preset in presets %}
+    <button
+      class="px-4 py-2 text-sm font-medium rounded-md border transition
+             {% if preset == current_preset %}
+               bg-stone-900 text-white border-stone-900
+             {% else %}
+               bg-white text-stone-700 border-stone-300 hover:border-stone-400
+             {% endif %}"
+      hx-get="/makers/top?preset={{ preset }}"
+      hx-target="#makers-slot"
+      hx-swap="innerHTML"
+    >
+      {{ preset.replace('_', ' ').title() }}
+    </button>
+  {% endfor %}
+</div>
+
+<div id="makers-slot">
+  {% include "_makers_table.html" %}
+</div>
+{% endblock %}

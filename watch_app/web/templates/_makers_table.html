@@ -1,0 +1,36 @@
+{# Swappable fragment — returned both from the dashboard render and from the
+   /makers/top endpoint when the user toggles a preset. #}
+
+{% if makers %}
+<div class="bg-white border border-stone-200 rounded-lg overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-stone-100 text-stone-600 uppercase text-xs tracking-wide">
+      <tr>
+        <th class="px-4 py-3 text-left w-12">#</th>
+        <th class="px-4 py-3 text-left">Maker</th>
+        <th class="px-4 py-3 text-left">Country</th>
+        <th class="px-4 py-3 text-right">Mentions</th>
+        <th class="px-4 py-3 text-right">Score</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in makers %}
+      <tr class="border-t border-stone-100 hover:bg-stone-50">
+        <td class="px-4 py-3 text-stone-400">{{ m.rank }}</td>
+        <td class="px-4 py-3 font-medium">{{ m.name }}</td>
+        <td class="px-4 py-3 text-stone-600">{{ m.country or "—" }}</td>
+        <td class="px-4 py-3 text-right text-stone-600">{{ m.mention_count }}</td>
+        <td class="px-4 py-3 text-right font-mono">{{ "%.2f"|format(m.score) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="bg-white border border-stone-200 rounded-lg p-8 text-center text-stone-500">
+  <p class="mb-2">No makers scored yet.</p>
+  <p class="text-sm">
+    Run <code class="bg-stone-100 px-2 py-1 rounded">make scan</code> to populate the database.
+  </p>
+</div>
+{% endif %}
