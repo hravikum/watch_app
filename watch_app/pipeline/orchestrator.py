@@ -137,10 +137,16 @@ def _ingest_mention(
 def run_scan(
     sources: Iterable[Source] | None = None,
     use_llm: bool = False,
+    normalize: bool = True,
 ) -> dict[str, int]:
     """Run a full scan: ingest all sources, then recompute scores.
 
-    Returns: {"mentions_written": N, "makers_scored": M, "sources_run": S}
+    Args:
+        sources: Sources to run. Defaults to default_sources().
+        use_llm: Enable LLM-backed entity extraction.
+        normalize: Whether to z-score normalize signals before composing scores.
+
+    Returns: {"mentions_written": N, "makers_scored": M, "sources_run": S, ...}
     """
     if sources is None:
         sources = default_sources()
@@ -187,7 +193,7 @@ def run_scan(
         # Score under every preset so the UI can flip between them without
         # re-running.
         for preset_name in PRESETS:
-            created = rank_all_makers(session, preset_name)
+            created = rank_all_makers(session, preset_name, normalize=normalize)
             stats["makers_scored"] = len(created)  # same count per preset
 
     return stats

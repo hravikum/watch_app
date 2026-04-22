@@ -69,12 +69,20 @@ def scan(
         "--use-llm",
         help="Use Claude for entity extraction (costs API credits).",
     ),
+    normalize: bool = typer.Option(
+        True,
+        "--normalize/--no-normalize",
+        help=(
+            "Z-score normalize signals before composing scores. "
+            "Default on. Disable to see raw-weight behavior."
+        ),
+    ),
 ) -> None:
     """Run a scan: fetch from sources, extract, resolve, score."""
     console.print(
-        f"[cyan]Scanning[/cyan] (use_llm={use_llm})..."
+        f"[cyan]Scanning[/cyan] (use_llm={use_llm}, normalize={normalize})..."
     )
-    stats = run_scan(use_llm=use_llm)
+    stats = run_scan(use_llm=use_llm, normalize=normalize)
     console.print(
         f"[green]Done.[/green] "
         f"sources_run={stats['sources_run']} "
