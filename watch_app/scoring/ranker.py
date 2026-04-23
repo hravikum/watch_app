@@ -92,8 +92,28 @@ def _normalize_signals(
     return normalized
 
 
-def _composite(signals: dict[str, float], preset: Preset) -> float:
-    """Weighted sum over signals, optionally multiplied by independent flag."""
+def _composite(
+    signals: dict[str, float],
+    preset: Preset,
+    *,
+    raw_signals: dict[str, float] | None = None,
+) -> float:
+    """Weighted sum over signals, with optional eligibility gates.
+
+    `signals` is the per-maker dict used for weighting (may be normalized).
+    `raw_signals` is the un-normalized version, used only for eligibility
+    checks like max_mentions_for_eligibility where the raw value matters.
+    If `raw_signals` is None we fall back to `signals` — safe when normalize
+    is off.
+    """
+    # Eligibility gate: makers failing this filter get a zero score and drop
+    # out of the ranking regardless of how well they score on other signals.
+    eligibility_source = raw_signals if raw_signals is not None else signals
+    cap = preset.max_mentions_for_eligibility
+    if cap is not None:
+        if eligibility_source.get("mention_count", 0.0) > cap:
+            return 0.0
+
     total = sum(
         value * preset.weights.get(sig, 0.0) for sig, value in signals.items()
     )
@@ -133,7 +153,11 @@ def rank_all_makers(
     maker_by_id = {m.id: m for m in makers}
     scored: list[tuple[Maker, float]] = []
     for mid, sigs in effective_signals.items():
-        composite = _composite(sigs, preset)
+        composite = _composite(
+            sigs,
+            preset,
+            raw_signals=signals_by_maker[mid],
+        )
         scored.append((maker_by_id[mid], composite))
 
     # Rank: highest score = 1. Ties get consecutive ranks — we break arbitrarily

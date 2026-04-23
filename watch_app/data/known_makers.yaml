@@ -283,6 +283,8 @@ makers:
     founded_year: 1834
   - canonical_name: "Daniel Roth"
     country: "Switzerland"
+    is_independent: false
+    # Revived under LVMH's Louis Vuitton watchmaking group in 2022.
   - canonical_name: "Gerald Charles"
     aliases: ["Gérald Charles"]
     country: "Switzerland"
@@ -290,6 +292,8 @@ makers:
   - canonical_name: "Gérald Genta"
     aliases: ["Gerald Genta"]
     country: "Switzerland"
+    is_independent: false
+    # Revived under Bulgari (LVMH) in 2024.
   - canonical_name: "Angelus"
     country: "Switzerland"
     founded_year: 1891
@@ -388,3 +392,82 @@ makers:
   - canonical_name: "Franck Muller"
     country: "Switzerland"
     is_independent: false
+  - canonical_name: "Van Cleef & Arpels"
+    aliases: ["Van Cleef and Arpels"]
+    country: "France"
+    is_independent: false
+    # Richemont-owned.
+  - canonical_name: "Gucci"
+    country: "Italy"
+    is_independent: false
+    # Kering-owned.
+  - canonical_name: "Dior Montres"
+    aliases: ["Dior"]
+    country: "France"
+    is_independent: false
+    # LVMH-owned.
+  - canonical_name: "Tiffany & Co."
+    aliases: ["Tiffany and Co", "Tiffany & Co"]
+    country: "United States"
+    is_independent: false
+    # LVMH-owned since 2021.
+  - canonical_name: "Jacob & Co."
+    aliases: ["Jacob & Co", "Jacob and Co"]
+    country: "United States"
+    is_independent: false
+    # Founder-owned conglomerate; high-end branded watches.
+  - canonical_name: "Chanel"
+    country: "France"
+    is_independent: false
+    # Wertheimer family conglomerate; watches since 1987.
+
+  # --- GPHG 2025 nominees not already listed ---
+  # Added after the GPHG source was built and surfaced these brands.
+  - canonical_name: "Miki Eleta"
+    country: "Switzerland"
+    founded_year: 2000
+    # Self-taught Bosnian-Swiss clockmaker, maker of kinetic sculptures.
+  - canonical_name: "Fiona Krüger"
+    aliases: ["Fiona Kruger"]
+    country: "Switzerland"
+    founded_year: 2013
+    # Scottish-born, Swiss-based; often collaborates with other makers (GPHG 2025 is a collab with Denis Flageollet).
+  - canonical_name: "Behrens"
+    country: "China"
+    founded_year: 2013
+    # Shenzhen-based; known for unconventional time displays.
+  - canonical_name: "Christopher Ward"
+    aliases: ["Christopher Ward London"]
+    country: "United Kingdom"
+    founded_year: 2004
+    # English direct-to-consumer brand; independently owned, in-house movements (Cal. SH21 etc.)
+  - canonical_name: "Trilobe"
+    country: "France"
+    founded_year: 2018
+    # Paris-based; non-pointing hour display system.
+  - canonical_name: "L'Épée 1839"
+    aliases: ["L'Epée 1839", "L'Epee 1839", "L Epee 1839"]
+    country: "Switzerland"
+    founded_year: 1839
+    # Clock manufacturer; frequent collaborator with MB&F.
+  - canonical_name: "Atelier Wen"
+    country: "China"
+    founded_year: 2018
+    # Beijing-based; Chinese-made movements and dials with cultural references.
+  - canonical_name: "Bovet"
+    aliases: ["Bovet 1822"]
+    country: "Switzerland"
+    founded_year: 1822
+    # Historic maison, now independently owned by Pascal Raffy; complicated movements.
+  - canonical_name: "M.A.D. Editions"
+    aliases: ["MAD Editions"]
+    country: "Switzerland"
+    founded_year: 2021
+    # MB&F's more accessible sub-brand, headed by Max Büsser.
+  - canonical_name: "Denis Flageollet"
+    country: "Switzerland"
+    # Co-founder of De Bethune; independent work emerging under own name.
+  - canonical_name: "Amida"
+    country: "Switzerland"
+    founded_year: 1925
+    # Historic Swiss brand (1925), revived. Original Digitrend watch from the 1970s is being reissued.

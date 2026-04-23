@@ -40,6 +40,11 @@ class Preset:
     #: ranking entirely. Only rising_star uses this; hidden_gem leaves it off.
     independent_multiplier: bool = False
 
+    #: If set, makers with mention_count strictly greater than this value get
+    #: a zero score under this preset. Used by hidden_gem to enforce the
+    #: semantic that "hidden" requires actually being obscure. None = no cap.
+    max_mentions_for_eligibility: int | None = None
+
 
 PRESETS: dict[str, Preset] = {
     "rising_star": Preset(
@@ -64,22 +69,26 @@ PRESETS: dict[str, Preset] = {
     "hidden_gem": Preset(
         name="hidden_gem",
         weights={
-            # Dominant signal: obscurity = 1/(1+mentions). Peaks at zero mentions.
-            # Under z-score normalization this cleanly separates the long tail
-            # of zero-mention makers from the heavily-covered ones.
+            # Dominant signal — and under z-score normalization, an overwhelmingly
+            # dominant one. We want zero-mention makers to win decisively over
+            # 1-mention makers. An earlier version of this preset used 0.3/0.5
+            # weights on the other two signals, which is enough to flip the
+            # ordering when 1-mention GPHG nominees get high recency/prestige
+            # values. Crushing those two weights keeps them as pure tie-breakers
+            # within the large zero-mention population.
             "obscurity": 1.0,
-            # If a prestige outlet did notice them, that's a positive signal
-            # (the right people are starting to see it). Mild weight so it
-            # refines the ordering within the obscure tail rather than
-            # pulling heavily-covered makers into the rankings.
-            "prestige_weighted_mentions": 0.3,
-            # Emergence matters — makers newly appearing in our data are the
-            # most interesting "hidden gems" among the obscure tail.
-            "first_seen_recency": 0.5,
-            # Everything else at zero: source_diversity and velocity are
-            # inherently at odds with hidden.
+            # Tiny positive weight — if two makers are tied on obscurity (both
+            # zero mentions), whoever's had even a quiet prestige nod edges
+            # ahead.
+            "prestige_weighted_mentions": 0.05,
+            # Also a tiny weight — emergence refines ordering within the obscure
+            # tail, doesn't pull well-covered makers into the rankings.
+            "first_seen_recency": 0.05,
         },
         independent_multiplier=False,
+        # A maker with 3+ mentions isn't "hidden" by any reasonable definition.
+        # This is a hard gate; even with favorable signal mix, they're out.
+        max_mentions_for_eligibility=2,
     ),
 }
 

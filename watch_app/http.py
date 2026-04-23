@@ -145,6 +145,7 @@ def get(
     *,
     use_cache: bool = True,
     timeout: float = DEFAULT_TIMEOUT,
+    user_agent: str | None = None,
 ) -> httpx.Response | CachedResponse:
     """Fetch a URL, using cache and rate-limiting.
 
@@ -154,6 +155,9 @@ def get(
 
     Use `use_cache=False` to force a fresh fetch (rare — usually you want
     cached).
+
+    `user_agent` overrides the default crawler UA. Useful for sites that
+    need a browser-like UA to return full HTML.
     """
     if use_cache:
         cached = _read_cache(url)
@@ -166,7 +170,7 @@ def get(
     response = httpx.get(
         url,
         timeout=timeout,
-        headers={"User-Agent": USER_AGENT, "Accept": "*/*"},
+        headers={"User-Agent": user_agent or USER_AGENT, "Accept": "*/*"},
         follow_redirects=True,
     )
     if response.status_code < 400:

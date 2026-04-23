@@ -39,12 +39,14 @@ logger = logging.getLogger(__name__)
 def default_sources() -> list[Source]:
     """Return the list of sources to run by default.
 
-    Phase 1C: the five RSS-based sources. Each is lightweight (one HTTP call)
-    and runs in a few seconds. More sources (GPHG, Reddit) come in later chunks.
+    Current roster:
+    - 5 RSS-based media sources (SJX, Monochrome, Fratello, Hodinkee, Quill & Pad)
+    - 3 GPHG editions (2023, 2024, 2025) — award nominations
 
     Tests and ad-hoc runs can import DummySource directly and pass it via the
     `sources=` argument of run_scan().
     """
+    from watch_app.sources.awards.gphg import GPHGSource
     from watch_app.sources.media.fratello import FratelloSource
     from watch_app.sources.media.hodinkee import HodinkeeSource
     from watch_app.sources.media.monochrome import MonochromeSource
@@ -57,6 +59,9 @@ def default_sources() -> list[Source]:
         FratelloSource(),
         HodinkeeSource(),
         QuillAndPadSource(),
+        GPHGSource(2025),
+        GPHGSource(2024),
+        GPHGSource(2023),
     ]
 
 
