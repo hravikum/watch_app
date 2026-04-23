@@ -2,12 +2,17 @@
 
 Each test gets a fresh in-memory SQLite database. The global engine in
 watch_app.storage.db is swapped out so code under test uses our fixture DB.
+
+Uses StaticPool so the single in-memory DB is shared across all connections
+— important for the web tests, where FastAPI handlers open their own
+sessions via session_scope().
 """
 from __future__ import annotations
 
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from watch_app.storage import db as db_module
 from watch_app.storage.models import Base
@@ -19,6 +24,7 @@ def test_engine():
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
         future=True,
     )
     Base.metadata.create_all(engine)

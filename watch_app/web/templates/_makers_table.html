@@ -1,36 +1,52 @@
 {# Swappable fragment — returned both from the dashboard render and from the
-   /makers/top endpoint when the user toggles a preset. #}
+   /makers/top endpoint when the user toggles a preset. Each row is a clickable
+   link into the maker detail page. #}
 
 {% if makers %}
-<div class="bg-white border border-stone-200 rounded-lg overflow-hidden">
+<div class="bg-white border border-stone-200 rounded-xl overflow-hidden shadow-sm">
   <table class="w-full text-sm">
-    <thead class="bg-stone-100 text-stone-600 uppercase text-xs tracking-wide">
+    <thead class="bg-stone-50 text-stone-500 uppercase text-[11px] tracking-[0.1em] font-medium">
       <tr>
-        <th class="px-4 py-3 text-left w-12">#</th>
-        <th class="px-4 py-3 text-left">Maker</th>
-        <th class="px-4 py-3 text-left">Country</th>
-        <th class="px-4 py-3 text-right">Mentions</th>
-        <th class="px-4 py-3 text-right">Score</th>
+        <th class="px-5 py-3 text-left w-12">#</th>
+        <th class="px-5 py-3 text-left">Maker</th>
+        <th class="px-5 py-3 text-left w-36">Country</th>
+        <th class="px-5 py-3 text-right w-24">Mentions</th>
+        <th class="px-5 py-3 text-right w-20">Score</th>
       </tr>
     </thead>
     <tbody>
       {% for m in makers %}
-      <tr class="border-t border-stone-100 hover:bg-stone-50">
-        <td class="px-4 py-3 text-stone-400">{{ m.rank }}</td>
-        <td class="px-4 py-3 font-medium">{{ m.name }}</td>
-        <td class="px-4 py-3 text-stone-600">{{ m.country or "—" }}</td>
-        <td class="px-4 py-3 text-right text-stone-600">{{ m.mention_count }}</td>
-        <td class="px-4 py-3 text-right font-mono">{{ "%.2f"|format(m.score) }}</td>
+      <tr
+        class="border-t border-stone-100 hover:bg-stone-50 cursor-pointer transition-colors group"
+        onclick="window.location='/makers/{{ m.maker_id }}';"
+      >
+        <td class="px-5 py-3 text-stone-400 tabular text-xs">{{ m.rank }}</td>
+        <td class="px-5 py-3 font-medium group-hover:text-stone-900">
+          <a
+            href="/makers/{{ m.maker_id }}"
+            class="hover:underline decoration-stone-400 underline-offset-2"
+            onclick="event.stopPropagation();"
+          >{{ m.name }}</a>
+        </td>
+        <td class="px-5 py-3 text-stone-500 text-[13px]">{{ m.country or "—" }}</td>
+        <td class="px-5 py-3 text-right text-stone-500 tabular">{{ m.mention_count }}</td>
+        <td class="px-5 py-3 text-right font-mono text-[13px] tabular
+                   {% if m.score == 0 %}text-stone-300{% elif m.score > 2 %}text-stone-900 font-semibold{% else %}text-stone-600{% endif %}">
+          {{ "%.2f"|format(m.score) }}
+        </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+<p class="mt-3 text-xs text-stone-400">
+  Click a row to see full details.
+</p>
 {% else %}
-<div class="bg-white border border-stone-200 rounded-lg p-8 text-center text-stone-500">
+<div class="bg-white border border-stone-200 rounded-xl p-10 text-center text-stone-500">
   <p class="mb-2">No makers scored yet.</p>
   <p class="text-sm">
-    Run <code class="bg-stone-100 px-2 py-1 rounded">make scan</code> to populate the database.
+    Run <code class="bg-stone-100 px-2 py-1 rounded text-stone-700 text-xs">make scan</code> to populate the database.
   </p>
 </div>
 {% endif %}
