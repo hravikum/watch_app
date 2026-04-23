@@ -30,7 +30,7 @@ from watch_app.scoring.presets import PRESETS
 from watch_app.scoring.ranker import rank_all_makers
 from watch_app.sources.base import RawMention, Source
 from watch_app.storage.db import session_scope
-from watch_app.storage.models import Mention, Source as SourceRow
+from watch_app.storage.models import Mention, ScanRun, Source as SourceRow
 
 
 logger = logging.getLogger(__name__)
@@ -143,6 +143,7 @@ def run_scan(
     sources: Iterable[Source] | None = None,
     use_llm: bool = False,
     normalize: bool = True,
+    trigger: str = "manual",
 ) -> dict[str, int]:
     """Run a full scan: ingest all sources, then recompute scores.
 
@@ -150,8 +151,16 @@ def run_scan(
         sources: Sources to run. Defaults to default_sources().
         use_llm: Enable LLM-backed entity extraction.
         normalize: Whether to z-score normalize signals before composing scores.
+        trigger: Who invoked this scan — "manual", "scheduled", or "test".
+            Recorded in the ScanRun row.
 
-    Returns: {"mentions_written": N, "makers_scored": M, "sources_run": S, ...}
+    Returns: {"mentions_written": N, "makers_scored": M, "sources_run": S, ...,
+             "scan_run_id": ID}.
+
+    Every call creates exactly one ScanRun row, recording timing, status, and
+    counts. If the scan fails partway, the row is marked status='failed' with
+    the exception message, and the row survives in its own transaction (we
+    don't rollback history on failure).
     """
     if sources is None:
         sources = default_sources()
@@ -164,41 +173,70 @@ def run_scan(
         "seed_updated": 0,
     }
 
-    with session_scope() as session:
-        # Load curated known-makers first, so the rule-based extractor has
-        # its vocabulary populated from the very first source.
-        seed_stats = load_seed_makers(session)
-        stats["seed_created"] = seed_stats["created"]
-        stats["seed_updated"] = seed_stats["updated"]
-        session.flush()
-        # Any change to the Makers table invalidates the extractor's cached
-        # vocabulary. Drop it so _get_vocab rebuilds on the next call.
-        invalidate_vocab_cache()
+    # Step 1: Create the ScanRun row in its own transaction so it survives
+    # any subsequent failure.
+    with session_scope() as meta_session:
+        run_row = ScanRun(trigger=trigger, status="running")
+        meta_session.add(run_row)
+        meta_session.flush()
+        scan_run_id = run_row.id
+    stats["scan_run_id"] = scan_run_id
 
-        for source in sources:
-            logger.info("Fetching from source: %s", source.name)
-            source_row = _upsert_source_row(session, source)
+    try:
+        with session_scope() as session:
+            # Load curated known-makers first, so the rule-based extractor has
+            # its vocabulary populated from the very first source.
+            seed_stats = load_seed_makers(session)
+            stats["seed_created"] = seed_stats["created"]
+            stats["seed_updated"] = seed_stats["updated"]
+            session.flush()
+            # Any change to the Makers table invalidates the extractor's cached
+            # vocabulary. Drop it so _get_vocab rebuilds on the next call.
+            invalidate_vocab_cache()
 
-            try:
-                raws = list(source.fetch())
-            except Exception:
-                logger.exception("Source %s failed; skipping", source.name)
-                continue
+            for source in sources:
+                logger.info("Fetching from source: %s", source.name)
+                source_row = _upsert_source_row(session, source)
 
-            for raw in raws:
-                stats["mentions_written"] += _ingest_mention(
-                    session=session,
-                    raw=raw,
-                    source_row=source_row,
-                    use_llm=use_llm,
-                )
+                try:
+                    raws = list(source.fetch())
+                except Exception:
+                    logger.exception("Source %s failed; skipping", source.name)
+                    continue
 
-            stats["sources_run"] += 1
+                for raw in raws:
+                    stats["mentions_written"] += _ingest_mention(
+                        session=session,
+                        raw=raw,
+                        source_row=source_row,
+                        use_llm=use_llm,
+                    )
 
-        # Score under every preset so the UI can flip between them without
-        # re-running.
-        for preset_name in PRESETS:
-            created = rank_all_makers(session, preset_name, normalize=normalize)
-            stats["makers_scored"] = len(created)  # same count per preset
+                stats["sources_run"] += 1
+
+            # Score under every preset so the UI can flip between them without
+            # re-running.
+            for preset_name in PRESETS:
+                created = rank_all_makers(session, preset_name, normalize=normalize)
+                stats["makers_scored"] = len(created)  # same count per preset
+    except Exception as e:
+        # Record failure in its own transaction.
+        with session_scope() as meta_session:
+            failed = meta_session.get(ScanRun, scan_run_id)
+            if failed is not None:
+                failed.status = "failed"
+                failed.finished_at = datetime.now(timezone.utc)
+                failed.error_message = f"{type(e).__name__}: {e}"[:4000]
+        raise
+
+    # Mark completed with final counts in its own transaction.
+    with session_scope() as meta_session:
+        completed = meta_session.get(ScanRun, scan_run_id)
+        if completed is not None:
+            completed.status = "completed"
+            completed.finished_at = datetime.now(timezone.utc)
+            completed.sources_run = stats["sources_run"]
+            completed.mentions_written = stats["mentions_written"]
+            completed.makers_scored = stats["makers_scored"]
 
     return stats

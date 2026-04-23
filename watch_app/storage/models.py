@@ -188,3 +188,45 @@ class LLMCache(Base):
 
     def __repr__(self) -> str:
         return f"<LLMCache key={self.cache_key[:8]}... model={self.model}>"
+
+
+class ScanRun(Base):
+    """Record of one invocation of run_scan().
+
+    Every scan (manual or scheduled) creates exactly one ScanRun row. The row
+    is created at scan start with status='running', then updated to 'completed'
+    or 'failed' when the scan ends. If the scan process crashes hard (power
+    loss, kill -9), the row may be left in 'running' indefinitely — that's a
+    useful signal when reviewing history.
+
+    We store counts (sources_run, mentions_written, makers_scored) so the
+    `history` CLI can show trends at a glance.
+    """
+
+    __tablename__ = "scan_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, index=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="running", index=True)
+    # Counters — nullable so they're empty while status='running'
+    sources_run: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    mentions_written: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    makers_scored: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # How the scan was invoked ('manual', 'scheduled', or 'test')
+    trigger: Mapped[str] = mapped_column(String(20), default="manual")
+    # Populated only on failure
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    def __repr__(self) -> str:
+        return (
+            f"<ScanRun id={self.id} started={self.started_at} "
+            f"status={self.status!r}>"
+        )
+
+    @property
+    def duration_seconds(self) -> float | None:
+        """Return run duration in seconds, or None if still running."""
+        if self.finished_at is None:
+            return None
+        return (self.finished_at - self.started_at).total_seconds()

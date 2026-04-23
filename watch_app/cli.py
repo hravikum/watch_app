@@ -77,14 +77,24 @@ def scan(
             "Default on. Disable to see raw-weight behavior."
         ),
     ),
+    trigger: str = typer.Option(
+        "manual",
+        "--trigger",
+        help=(
+            "Recorded in the scan history to distinguish invocation source. "
+            "Use 'scheduled' from a launchd/cron job, 'manual' from the CLI."
+        ),
+    ),
 ) -> None:
     """Run a scan: fetch from sources, extract, resolve, score."""
     console.print(
-        f"[cyan]Scanning[/cyan] (use_llm={use_llm}, normalize={normalize})..."
+        f"[cyan]Scanning[/cyan] "
+        f"(use_llm={use_llm}, normalize={normalize}, trigger={trigger})..."
     )
-    stats = run_scan(use_llm=use_llm, normalize=normalize)
+    stats = run_scan(use_llm=use_llm, normalize=normalize, trigger=trigger)
     console.print(
         f"[green]Done.[/green] "
+        f"run_id={stats['scan_run_id']} "
         f"sources_run={stats['sources_run']} "
         f"mentions_written={stats['mentions_written']} "
         f"makers_scored={stats['makers_scored']}"
@@ -190,6 +200,180 @@ def serve(
         host=host,
         port=port,
         reload=True,
+    )
+
+
+@app.command()
+def history(
+    limit: int = typer.Option(20, "--limit", help="Max runs to show."),
+) -> None:
+    """Show recent scan run history."""
+    from watch_app.storage.models import ScanRun
+
+    with session_scope() as session:
+        runs = (
+            session.query(ScanRun)
+            .order_by(ScanRun.started_at.desc())
+            .limit(limit)
+            .all()
+        )
+
+        if not runs:
+            console.print("[yellow]No scan runs recorded yet.[/yellow]")
+            return
+
+        table = Table(title=f"Last {len(runs)} scan runs")
+        table.add_column("ID", style="dim", width=6)
+        table.add_column("Started", width=19)
+        table.add_column("Duration", justify="right", width=10)
+        table.add_column("Status", width=10)
+        table.add_column("Trigger", style="dim", width=10)
+        table.add_column("Mentions", justify="right", width=9)
+        table.add_column("Makers", justify="right", width=8)
+
+        for r in runs:
+            if r.finished_at:
+                dur = r.duration_seconds
+                dur_str = f"{dur:.1f}s" if dur is not None else "—"
+            else:
+                dur_str = "(running)"
+            status_color = {
+                "completed": "green",
+                "failed": "red",
+                "running": "yellow",
+            }.get(r.status, "white")
+            table.add_row(
+                str(r.id),
+                r.started_at.strftime("%Y-%m-%d %H:%M:%S"),
+                dur_str,
+                f"[{status_color}]{r.status}[/{status_color}]",
+                r.trigger,
+                str(r.mentions_written) if r.mentions_written is not None else "—",
+                str(r.makers_scored) if r.makers_scored is not None else "—",
+            )
+
+        console.print(table)
+
+        # If any recent runs failed, show the latest error.
+        failed = [r for r in runs if r.status == "failed" and r.error_message]
+        if failed:
+            console.print()
+            console.print(
+                f"[red]Most recent failure (run {failed[0].id}):[/red] "
+                f"{failed[0].error_message}"
+            )
+
+
+@app.command()
+def schedule() -> None:
+    """Print instructions for setting up a daily scheduled scan via launchd.
+
+    Uses a LaunchAgent (per-user) which runs when you're logged in and
+    catches up on missed runs if your Mac was asleep or off at the
+    scheduled time — better than cron for a laptop.
+    """
+    import os
+    from pathlib import Path
+
+    # Figure out the user's python and the project root.
+    project_root = Path(__file__).resolve().parent.parent
+    venv_python = project_root / "venv" / "bin" / "python"
+    launchagents_dir = Path.home() / "Library" / "LaunchAgents"
+    plist_path = launchagents_dir / "com.user.watchapp.scan.plist"
+
+    plist_contents = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.user.watchapp.scan</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>{venv_python}</string>
+        <string>-m</string>
+        <string>watch_app.cli</string>
+        <string>scan</string>
+        <string>--trigger</string>
+        <string>scheduled</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>{project_root}</string>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>7</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>{project_root}/data/scan.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>{project_root}/data/scan.err.log</string>
+
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>
+"""
+
+    console.print(
+        "[bold cyan]Setting up daily scans via launchd[/bold cyan]\n"
+    )
+    console.print(
+        "This will schedule a scan every day at 7:00 AM (local time).\n"
+        "launchd catches up if your Mac was asleep at 7am.\n"
+    )
+
+    # Check that venv exists; complain if not.
+    if not venv_python.exists():
+        console.print(
+            f"[red]Warning:[/red] expected venv python at {venv_python} "
+            f"but it doesn't exist. Create the venv first:\n"
+            f"  cd {project_root} && python3 -m venv venv && "
+            f"./venv/bin/pip install -r requirements.txt\n"
+        )
+
+    console.print(
+        f"[bold]Step 1.[/bold] Save the plist below to:\n"
+        f"    [green]{plist_path}[/green]\n"
+    )
+    console.print("--- BEGIN PLIST ---")
+    console.print(plist_contents)
+    console.print("--- END PLIST ---\n")
+
+    console.print(
+        f"[bold]Step 2.[/bold] Load it into launchd:\n"
+        f"    [cyan]launchctl unload {plist_path} 2>/dev/null || true[/cyan]\n"
+        f"    [cyan]launchctl load {plist_path}[/cyan]\n"
+    )
+    console.print(
+        f"[bold]Step 3.[/bold] Verify it's loaded:\n"
+        f"    [cyan]launchctl list | grep watchapp[/cyan]\n"
+        f"(should show 'com.user.watchapp.scan' with exit code '-' until first run)\n"
+    )
+    console.print(
+        f"[bold]Step 4.[/bold] Test it runs now (optional):\n"
+        f"    [cyan]launchctl start com.user.watchapp.scan[/cyan]\n"
+        f"    [cyan]watch-app history[/cyan]  (after a few seconds)\n"
+    )
+    console.print(
+        f"[bold]To disable later:[/bold]\n"
+        f"    [cyan]launchctl unload {plist_path}[/cyan]\n"
+    )
+
+    # Also offer to write the file automatically.
+    console.print(
+        f"[dim]Shortcut: to save the plist automatically, run:\n"
+        f"    watch-app schedule > /tmp/_wa.txt && "
+        f"sed -n '/BEGIN PLIST/,/END PLIST/p' /tmp/_wa.txt | "
+        f"sed '1d;$d' > {plist_path}\n"
+        f"(The sed pipeline strips the BEGIN/END markers.)[/dim]"
     )
 
 

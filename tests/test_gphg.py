@@ -106,6 +106,22 @@ def test_nomos_glashutte_canonical():
     assert _title_case_brand("NOMOS GLASHÜTTE") == "Nomos"
 
 
+def test_xrby_tagline_maps_to_brand_name():
+    """GPHG emits 'XRBY LA MONTRE D'ART' (brand + tagline); we consolidate
+    under 'XRBY' which is the brand's own styling."""
+    assert _title_case_brand("XRBY LA MONTRE D'ART") == "XRBY"
+
+
+def test_all_caps_brands_preserve_styling():
+    """Brands that style themselves all-caps (HYT, DOXA, MING, MB&F, XRBY)
+    must not be title-cased — that would break visual identity."""
+    assert _title_case_brand("HYT") == "HYT"
+    assert _title_case_brand("DOXA") == "DOXA"
+    assert _title_case_brand("MING") == "MING"
+    assert _title_case_brand("MB&F") == "MB&F"
+    assert _title_case_brand("XRBY") == "XRBY"
+
+
 # ---------- GPHGSource tests ----------
 
 

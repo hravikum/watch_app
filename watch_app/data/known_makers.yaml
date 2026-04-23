@@ -421,6 +421,33 @@ makers:
     is_independent: false
     # Wertheimer family conglomerate; watches since 1987.
 
+  # --- Additional conglomerate brands surfaced by GPHG scraper during 2A ---
+  # Added to correct rising_star ranking contamination. Each was auto-created
+  # as independent by the scraper (default) and ranked inappropriately until
+  # being promoted here.
+  - canonical_name: "Hublot"
+    country: "Switzerland"
+    is_independent: false
+    # LVMH-owned since 2008.
+  - canonical_name: "Chaumet"
+    country: "France"
+    is_independent: false
+    # LVMH; historically jewelry, watches now part of the portfolio.
+  - canonical_name: "Fabergé"
+    aliases: ["Faberge"]
+    country: "Switzerland"
+    is_independent: false
+    # Rosy Blue (Indian conglomerate) since 2013.
+  - canonical_name: "Frédérique Constant"
+    aliases: ["Frederique Constant"]
+    country: "Switzerland"
+    is_independent: false
+    # Citizen Watch Co. (Japanese) since 2016.
+  - canonical_name: "Raymond Weil"
+    country: "Switzerland"
+    is_independent: false
+    # Acquired by Genus Group in 2024; no longer independent.
+
   # --- GPHG 2025 nominees not already listed ---
   # Added after the GPHG source was built and surfaced these brands.
   - canonical_name: "Miki Eleta"

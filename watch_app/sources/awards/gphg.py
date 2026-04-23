@@ -189,6 +189,15 @@ _BRAND_CAPITALIZATION: dict[str, str] = {
     "HERMÈS": "Hermès",
     "ANDERSEN GENÈVE": "Andersen Genève",
     "FIONA KRÜGER": "Fiona Krüger",
+    # XRBY is styled all-caps per the brand's own usage; the full string
+    # GPHG emits ("XRBY LA MONTRE D'ART") is a tagline rather than the
+    # actual brand name, so we consolidate under just "XRBY".
+    "XRBY LA MONTRE D'ART": "XRBY",
+    "XRBY": "XRBY",
+    # HYT styles the brand in all-caps (often "H⁰").
+    "HYT": "HYT",
+    # DOXA is all-caps as a stylistic choice.
+    "DOXA": "DOXA",
 }
 
 
