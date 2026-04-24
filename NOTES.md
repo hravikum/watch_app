@@ -1,0 +1,170 @@
+# NOTES — future work and thinking
+
+A running log of ideas and decisions. Things too small to be issues, too
+important to lose in chat. Update freely; there's no ceremony here.
+
+## When returning after a break
+
+Before building anything new, spend 30 minutes just looking:
+
+1. Open the dashboard (`make serve` → http://localhost:8000)
+2. Check the top 20 under both presets. Does the ordering match your
+   intuition? Are there indies you'd personally expect to see that aren't
+   there? Absences tell you about source gaps.
+3. Run `python -m watch_app.cli history` to confirm scheduled scans ran.
+   Any failed status? Any missing days?
+4. Check `sqlite3 data/watch_app.db "SELECT COUNT(*) FROM mentions;"` —
+   is it growing? Roughly 5–25 new mentions per day is the expected rate.
+5. Sanity-check that velocity_90d and first_seen_recency are now doing
+   real work. Open a detail page for a maker who's ranked high on
+   rising_star — are those two signals contributing, or is it still
+   mostly prestige_weighted_mentions carrying them?
+
+Only after that review should you pick what to build next.
+
+## Near-term candidates (roughly prioritized)
+
+### Reddit source — top pick for actual discovery value
+r/watchmaking and r/horology surface indie makers earlier than trade
+media. Literally before editors know. This is the highest-signal addition
+for the actual discovery goal.
+
+- Medium effort, probably 1–2 chunks
+- Needs: Reddit API credentials, OAuth flow, careful thinking about
+  prestige weight (forum buzz is noisier than SJX — maybe 0.4–0.5?)
+- Titles are often lousy or jokey; excerpts matter more than for RSS
+- Watch out for duplicate mentions (same post on multiple subreddits)
+
+### Source auditing view on the methodology page
+Extend /methodology to show per-source stats: mention count contributed,
+prestige weight, which makers it surfaced first. Helps answer "is
+Fratello actually pulling weight or mostly noise?" — lets you tune
+prestige weights based on evidence instead of guesses.
+
+- Low effort, ~half a chunk
+- Purely additive — reads existing data, no new sources
+- Good candidate when you want to *understand* rather than expand
+
+### Rank-change tracking
+Persist snapshots of the top-N per preset and render "Risers this week"
+and "New this week" views. This is what turns the app from snapshot
+viewer into trend tracker.
+
+- DON'T BUILD until you have 2+ weeks of scan data — otherwise the
+  "change" is just noise from initial data accumulation
+- Medium effort once data exists, ~1 chunk
+- Schema addition: a RankSnapshot table or just a materialized view
+  over the existing Score.computed_at timestamps
+
+### YouTube RSS
+Every YouTube channel has a feed:
+`https://www.youtube.com/feeds/videos.xml?channel_id=<ID>`
+The indie watch YouTube scene (Bark & Jack, Teddy Baldassarre's indie
+videos, Watchfinder's indie-focused content) publishes regularly and
+often surfaces lesser-known makers.
+
+- Tractable — no API keys, same RSS infrastructure we already have
+- Low-medium effort, ~1 chunk
+- Main work: curating channel list, figuring out prestige weights per
+  channel (Bark & Jack 0.9? A random review channel 0.4?)
+
+### Models per brand (the big one, deferred)
+Discussed: surface specific watches (F.P. Journe Chronomètre à Résonance,
+Simon Brette Chronomètre Artisans) under each maker. Useful for answering
+"what's this brand actually making right now?"
+
+Full build is 3–4 chunks: new Model table, sources emitting model-level
+data, resolution layer, UI. Not small.
+
+Recommended minimal v1: just parse model names from GPHG HTML (already
+ingested) and show them under a "GPHG-nominated models" heading on the
+maker detail page. That's ~1 chunk. Expand only if it proves valuable.
+
+**Trigger for building this:** if you find yourself repeatedly wanting
+to know "which watch were they writing about" when browsing mentions.
+If the existing "click through to the article" behavior works, don't
+build it.
+
+## Sitting in the backlog (worth doing eventually)
+
+### Fuzzy matching in the resolver
+"Bovet 1822" vs "Bovet" — right now these are distinct until you
+manually add an alias. Same for typos and spelling variants. Not broken,
+just annoying. Could use rapidfuzz or similar for a soft-match pass
+before falling back to auto-create.
+
+### "Personal interest" state per maker
+Mark makers as "already know" / "boring" / "keep eye on" so your top-20
+reflects your taste, not just the data. Requires user state — local
+config file or simple auth. Nice but not urgent.
+
+### Automated seed entry
+Paste a Wikipedia-style paragraph about a maker, have an LLM extract
+canonical name, country, founded year, aliases, is_independent, and
+append to the YAML. Quality-of-life for adding new seeds fast.
+Non-trivial LLM integration.
+
+### Cleanup of the XRBY / "Xrby La Montre D'Art" duplicate
+Hotfix 2A left an orphaned DB row from before the title-casing fix
+shipped. SQL to merge is in CHUNK_2A_HOTFIX_NOTES.md. Harmless but
+untidy.
+
+## Explicitly NOT doing
+
+### Instagram ingestion
+Instagram's API has been hostile to developers for years. Scraping is
+fragile, ToS-violating, and brittle. Not worth it for a local tool.
+
+### Charts on the dashboard
+Still premature. Revisit when there are 3+ weeks of scan data and
+rank-change tracking is in place.
+
+### Search, filters, pagination
+Top-20 fits on screen. Don't add these until the dataset makes
+browsing painful — which it isn't.
+
+### Public deployment
+Haven't decided if this is a personal tool or something to share.
+Deploying locks in "something to share" with real operational baggage
+(hosting, rate limits, abuse, cost). Keep local until the identity is
+clear.
+
+### Default-on LLM extraction
+The rule-based extractor works. LLM is available via `--use-llm` when
+needed. Making it default costs money for marginal value at current
+scale.
+
+## Open questions to sit with
+
+**What is this tool actually for?** Two identities pull in different
+directions:
+1. Personal discovery tool — rewards browsing polish, trends, maybe
+   a notifications feature
+2. Defensible public ranking — rewards more/better sources, source
+   quality auditing, methodology transparency
+
+Both are valid, they lead to different priorities. The choice doesn't
+have to be made now, but watch for it when picking future features.
+
+**Is the two-preset split still the right framing?** rising_star and
+hidden_gem might converge or diverge interestingly over time with more
+data. If the same names keep topping both, maybe there's only one
+meaningful preset. If they stay distinct, the split is doing work.
+
+**Are the prestige weights calibrated right?** SJX at 1.0, Monochrome
+at 0.9, Hodinkee at 0.7 — these are guesses from Phase 1. After a few
+weeks of data, a source-auditing view could validate or challenge them.
+
+## Chunk delivery log
+
+For quick reference on what shipped when:
+- 0   Phase 0 scaffolding (dummy source, initial schema)
+- 1A  HTTP client + seed YAML + rule-based extractor
+- 1B+ GPHG scraper + expanded seed (+2 hotfixes)
+- 1C  5 RSS sources: SJX, Monochrome, Fratello, Hodinkee, Quill & Pad (+2 hotfixes)
+- 1D  7-signal scoring system with z-score normalization, two presets (+2 hotfixes)
+- 2A  ScanRun table + history CLI + launchd schedule command (+1 hotfix)
+- 2B  UI polish + maker detail pages
+- 2C  README rewrite
+- 2D  /methodology page with live worked examples
+- 2E  README refresh post-methodology
