@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+{% block title %}Scoring Methodology — Watch App{% endblock %}
+
+{% block content %}
+
+{# --- Back link --- #}
+<a href="/" class="inline-flex items-center gap-1 text-sm text-stone-500 hover:text-stone-900 mb-6 transition">
+  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+  </svg>
+  Back to dashboard
+</a>
+
+{# --- Header --- #}
+<div class="mb-10">
+  <h1 class="text-3xl font-semibold tracking-tight">Scoring Methodology</h1>
+  <p class="mt-3 text-stone-600 text-[15px] leading-relaxed max-w-2xl">
+    How makers get ranked under each preset. This page reflects the live
+    configuration — weights pulled directly from
+    <code class="text-stone-500 text-[13px]">watch_app/scoring/presets.py</code>,
+    signals from
+    <code class="text-stone-500 text-[13px]">watch_app/scoring/signals.py</code>.
+  </p>
+</div>
+
+{# --- Section: Signals --- #}
+<section class="mb-12">
+  <h2 class="text-xs uppercase tracking-[0.15em] font-medium text-stone-500 mb-4">Signals</h2>
+  <p class="text-sm text-stone-600 mb-5 max-w-2xl leading-relaxed">
+    Seven raw signals are computed per maker on every scan. Each captures
+    a distinct dimension of coverage or notability. All except the
+    independence flag are continuous values that get z-score normalized
+    before composition.
+  </p>
+
+  <div class="bg-white border border-stone-200 rounded-xl overflow-hidden">
+    {% for name, meta in signal_descriptions.items() %}
+    <div class="p-5 {% if not loop.last %}border-b border-stone-100{% endif %}">
+      <div class="flex items-baseline justify-between gap-4 flex-wrap">
+        <div class="font-medium text-stone-900">{{ meta.label }}</div>
+        <code class="text-xs text-stone-500 bg-stone-50 px-2 py-1 rounded border border-stone-200">
+          {{ name }}
+        </code>
+      </div>
+      <div class="mt-2 text-sm text-stone-600 leading-relaxed max-w-2xl">
+        {{ meta.description }}
+      </div>
+      <div class="mt-2">
+        <span class="text-[11px] uppercase tracking-widest text-stone-400">Formula:&nbsp;</span>
+        <code class="text-[13px] text-stone-700 font-mono">{{ meta.formula }}</code>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+{# --- Section: Normalization --- #}
+<section class="mb-12">
+  <h2 class="text-xs uppercase tracking-[0.15em] font-medium text-stone-500 mb-4">Normalization</h2>
+  <div class="bg-white border border-stone-200 rounded-xl p-5 max-w-3xl">
+    <p class="text-sm text-stone-700 leading-relaxed">
+      Raw signal values live on wildly different scales —
+      <code class="text-stone-500 text-[13px]">mention_count</code> might reach 50 while
+      <code class="text-stone-500 text-[13px]">source_diversity</code> tops out around 5 and
+      <code class="text-stone-500 text-[13px]">first_seen_recency</code> is bounded at 1.0.
+      Combining them with fixed weights only makes sense if they're comparable.
+    </p>
+    <p class="mt-3 text-sm text-stone-700 leading-relaxed">
+      Each signal is z-score normalized across the current maker population
+      before composition: <code class="text-[13px] text-stone-700 font-mono">z = (raw − mean) / stddev</code>.
+      After normalization every signal has mean 0 and stddev 1, so a weight of
+      0.6 means &ldquo;roughly six tenths of a standard deviation&rdquo; regardless of the
+      signal's raw scale.
+    </p>
+    <p class="mt-3 text-sm text-stone-700 leading-relaxed">
+      The independence flag is the exception — it's a 0/1 gate, not a
+      continuous signal, so z-scoring it would break its multiplier semantics.
+      It's passed through unchanged.
+    </p>
+  </div>
+</section>
+
+{# --- Section: Presets --- #}
+<section class="mb-12">
+  <h2 class="text-xs uppercase tracking-[0.15em] font-medium text-stone-500 mb-4">Presets</h2>
+
+  <div class="space-y-5">
+    {% for preset_name, preset in presets.items() %}
+    <div class="bg-white border border-stone-200 rounded-xl p-5">
+      <div class="flex items-baseline justify-between flex-wrap gap-2">
+        <h3 class="text-lg font-semibold tracking-tight">
+          {{ preset_name.replace('_', ' ').title() }}
+        </h3>
+        <code class="text-xs text-stone-500">{{ preset_name }}</code>
+      </div>
+
+      {# Weights table — only signals with non-zero weight. #}
+      <div class="mt-4">
+        <div class="text-[11px] uppercase tracking-widest text-stone-500 mb-2">Weighted signals</div>
+        <table class="w-full text-sm">
+          <tbody>
+            {% set weighted = [] %}
+            {% for name, weight in preset.weights.items() %}
+              {% if weight != 0 %}
+                {% set _ = weighted.append((name, weight)) %}
+              {% endif %}
+            {% endfor %}
+            {% for name, weight in weighted %}
+            <tr class="{% if not loop.first %}border-t border-stone-100{% endif %}">
+              <td class="py-2 pr-4">
+                <span class="text-stone-700">{{ signal_descriptions[name].label if name in signal_descriptions else name }}</span>
+                <code class="ml-2 text-[12px] text-stone-400">{{ name }}</code>
+              </td>
+              <td class="py-2 text-right font-mono tabular text-stone-900">{{ "%.2f"|format(weight) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {# Eligibility gates. #}
+      {% if preset.independent_multiplier or preset.max_mentions_for_eligibility is not none %}
+      <div class="mt-4 pt-4 border-t border-stone-100">
+        <div class="text-[11px] uppercase tracking-widest text-stone-500 mb-2">Eligibility gates</div>
+        <ul class="space-y-1 text-sm text-stone-700">
+          {% if preset.independent_multiplier %}
+          <li class="flex items-start gap-2">
+            <span class="text-stone-400 mt-0.5">·</span>
+            <span>
+              Final composite is multiplied by <code class="text-[13px] text-stone-700">independent_flag</code>.
+              Conglomerate brands (is_independent=False) get a zero score, dropping them out of the ranking entirely.
+            </span>
+          </li>
+          {% endif %}
+          {% if preset.max_mentions_for_eligibility is not none %}
+          <li class="flex items-start gap-2">
+            <span class="text-stone-400 mt-0.5">·</span>
+            <span>
+              Makers with more than <strong>{{ preset.max_mentions_for_eligibility }}</strong> mentions are filtered out entirely
+              (score = 0). Enforces the &ldquo;hidden&rdquo; semantic with a hard cap rather than trying to tune weights.
+            </span>
+          </li>
+          {% endif %}
+        </ul>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+{# --- Section: Worked examples --- #}
+<section class="mb-12">
+  <h2 class="text-xs uppercase tracking-[0.15em] font-medium text-stone-500 mb-4">Worked Examples</h2>
+
+  {% if worked_examples %}
+  <p class="text-sm text-stone-600 mb-5 max-w-2xl leading-relaxed">
+    For each preset below, the top-ranked maker is shown end-to-end: raw
+    signal values, z-normalized values, preset weight, and the contribution
+    to their final composite score. The numbers here are live — if you
+    rescan, this page reflects the new winners.
+  </p>
+
+  <div class="space-y-8">
+    {% for preset_name, example in worked_examples.items() %}
+    <div class="bg-white border border-stone-200 rounded-xl overflow-hidden">
+      <div class="p-5 border-b border-stone-100 bg-stone-50">
+        <div class="flex items-baseline justify-between flex-wrap gap-2">
+          <div>
+            <div class="text-[11px] uppercase tracking-widest text-stone-500 font-medium">
+              Under {{ preset_name.replace('_', ' ').title() }}
+            </div>
+            <h3 class="mt-1 text-xl font-semibold tracking-tight">
+              <a href="/makers/{{ example.maker_id }}" class="hover:underline underline-offset-2">
+                {{ example.maker_name }}
+              </a>
+            </h3>
+          </div>
+          <div class="text-right">
+            <div class="text-[11px] uppercase tracking-widest text-stone-500 font-medium">Final score</div>
+            <div class="mt-1 text-2xl font-mono tabular font-semibold">
+              {{ "%.3f"|format(example.final_score) }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <table class="w-full text-sm">
+        <thead class="bg-white text-stone-500 uppercase text-[11px] tracking-[0.1em]">
+          <tr>
+            <th class="px-5 py-2 text-left">Signal</th>
+            <th class="px-5 py-2 text-right">Raw</th>
+            <th class="px-5 py-2 text-right">z-score</th>
+            <th class="px-5 py-2 text-right">Weight</th>
+            <th class="px-5 py-2 text-right">Contribution</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in example.rows %}
+          <tr class="border-t border-stone-100 {% if row.weight == 0 %}text-stone-400{% endif %}">
+            <td class="px-5 py-2">
+              <span class="{% if row.weight == 0 %}text-stone-400{% else %}text-stone-700{% endif %}">{{ row.signal_label }}</span>
+            </td>
+            <td class="px-5 py-2 text-right font-mono tabular">
+              {{ "%.2f"|format(row.raw_value) }}
+            </td>
+            <td class="px-5 py-2 text-right font-mono tabular">
+              {% if row.z_value is none %}
+                <span class="text-stone-400">—</span>
+              {% else %}
+                {{ "%+.2f"|format(row.z_value) }}
+              {% endif %}
+            </td>
+            <td class="px-5 py-2 text-right font-mono tabular {% if row.weight == 0 %}text-stone-300{% endif %}">
+              {{ "%.2f"|format(row.weight) }}
+            </td>
+            <td class="px-5 py-2 text-right font-mono tabular {% if row.weight != 0 %}font-medium text-stone-900{% endif %}">
+              {% if row.weight == 0 %}
+                <span class="text-stone-300">0.00</span>
+              {% else %}
+                {{ "%+.3f"|format(row.contribution) }}
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          <tr class="border-t-2 border-stone-200 bg-stone-50">
+            <td class="px-5 py-3 font-medium">Weighted sum</td>
+            <td colspan="3"></td>
+            <td class="px-5 py-3 text-right font-mono tabular font-semibold">
+              {{ "%+.3f"|format(example.weighted_sum) }}
+            </td>
+          </tr>
+          {% if example.independent_multiplier_applied %}
+          <tr class="border-t border-stone-100 bg-stone-50">
+            <td class="px-5 py-3">
+              <span class="text-stone-600">× independent_flag</span>
+              <span class="ml-1 text-xs text-stone-400">(multiplier gate)</span>
+            </td>
+            <td colspan="3"></td>
+            <td class="px-5 py-3 text-right font-mono tabular">
+              {{ "%.1f"|format(example.independent_flag_value) }}
+            </td>
+          </tr>
+          {% endif %}
+          <tr class="border-t border-stone-200 bg-stone-100">
+            <td class="px-5 py-3 font-semibold">Final</td>
+            <td colspan="3"></td>
+            <td class="px-5 py-3 text-right font-mono tabular font-semibold text-lg">
+              {{ "%+.3f"|format(example.final_score) }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {% if example.filtered_by_cap %}
+      <div class="px-5 py-3 bg-amber-50 border-t border-amber-200 text-xs text-amber-800">
+        Note: this maker was filtered by the
+        <code>max_mentions_for_eligibility</code> cap ({{ example.cap_value }}) and received a zero score.
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  <div class="bg-white border border-stone-200 rounded-xl p-8 text-center text-stone-500">
+    <p class="mb-2 text-sm">No scored data yet.</p>
+    <p class="text-xs">
+      Run <code class="bg-stone-100 px-2 py-1 rounded text-stone-700">make scan</code> to populate worked examples here.
+    </p>
+  </div>
+  {% endif %}
+</section>
+
+{% endblock %}

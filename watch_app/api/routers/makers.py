@@ -16,6 +16,10 @@ from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
 from watch_app.config import get_settings
+from watch_app.scoring.methodology import (
+    SIGNAL_DESCRIPTIONS,
+    build_worked_example,
+)
 from watch_app.scoring.presets import PRESETS
 from watch_app.scoring.queries import fetch_top_makers, latest_scores_query
 from watch_app.storage.db import session_scope
@@ -191,4 +195,31 @@ def maker_detail(request: Request, maker_id: int) -> HTMLResponse:
         request=request,
         name="maker_detail.html",
         context={"m": detail},
+    )
+
+
+@router.get("/methodology", response_class=HTMLResponse)
+def methodology(request: Request) -> HTMLResponse:
+    """Render the scoring methodology page.
+
+    Lists each signal with its formula, shows the preset weights pulled live
+    from PRESETS, and includes a worked example for each preset using the
+    currently top-ranked maker. If no data has been scored yet, the worked
+    examples section is skipped gracefully.
+    """
+    with session_scope() as session:
+        worked_examples = {}
+        for preset_name in PRESETS:
+            example = build_worked_example(session, preset_name)
+            if example is not None:
+                worked_examples[preset_name] = example
+
+    return templates.TemplateResponse(
+        request=request,
+        name="methodology.html",
+        context={
+            "signal_descriptions": SIGNAL_DESCRIPTIONS,
+            "presets": PRESETS,
+            "worked_examples": worked_examples,
+        },
     )

@@ -80,7 +80,13 @@
 {# --- Signals breakdown --- #}
 {% if m.signals %}
 <section class="mb-8">
-  <h2 class="text-xs uppercase tracking-[0.15em] font-medium text-stone-500 mb-3">Signal Breakdown</h2>
+  <div class="flex items-baseline justify-between mb-3">
+    <h2 class="text-xs uppercase tracking-[0.15em] font-medium text-stone-500">Signal Breakdown</h2>
+    <a href="/methodology"
+       class="text-xs text-stone-500 hover:text-stone-900 hover:underline underline-offset-2 transition">
+      How is this scored? →
+    </a>
+  </div>
   <div class="bg-white border border-stone-200 rounded-xl overflow-hidden">
     <table class="w-full text-sm">
       <thead class="bg-stone-50 text-stone-500 uppercase text-[11px] tracking-[0.1em] font-medium">
@@ -104,7 +110,7 @@
     </table>
   </div>
   <p class="mt-2 text-xs text-stone-400">
-    Raw un-normalized values. See <code class="text-stone-500">watch_app/scoring/signals.py</code> for definitions.
+    Raw un-normalized values. See the <a href="/methodology" class="text-stone-500 hover:text-stone-700 underline underline-offset-2">methodology page</a> for definitions and how these compose into the ranking.
   </p>
 </section>
 {% endif %}
