@@ -24,6 +24,10 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   you doing anything.
 - **Shows scores, signals, and the full mention history** per maker in a
   clickable local web UI, or a Rich-formatted CLI.
+- **Explains how every rank was computed** on a `/methodology` page —
+  signal definitions, preset weights (pulled live from code), and a
+  worked example for each preset that walks through the top-ranked
+  maker's math end-to-end.
 
 ## Setup
 
@@ -113,6 +117,31 @@ preset weights compose cleanly. The two presets:
   mentions — anyone with 3+ mentions is filtered out. Prestige and recency act
   as tiny tie-breakers within the zero-mention tail.
 
+## The methodology page
+
+Open `http://localhost:8000/methodology` to see the full scoring model rendered
+from live code. The page has four sections:
+
+- **Signals** — each of the 7 signals with its formula and a plain-English
+  description of what it captures
+- **Normalization** — why z-scoring is necessary and how it affects the way
+  weights compose
+- **Presets** — the weights for each preset, pulled directly from
+  `watch_app/scoring/presets.py`, plus eligibility gates (the conglomerate
+  multiplier for `rising_star`, the mention cap for `hidden_gem`)
+- **Worked Examples** — for each preset, the currently top-ranked maker is
+  walked through end-to-end: raw signal values, z-normalized values, preset
+  weight, and per-signal contribution summing to their final composite score
+
+The page updates automatically when preset weights change in code. A
+regression test (`test_worked_example_final_score_matches_ranker`) asserts
+that the math shown on the page matches the math the ranker actually used —
+to within 1e-9 — so the page cannot silently lie if the ranker gets refactored.
+
+The same page is linked as "How is this scored? →" next to every maker's
+signal breakdown on their detail page, so you can always find your way
+back to the explanation.
+
 ## How sources work
 
 Each source is a Python class that yields `RawMention` objects. Sources fall into
@@ -143,16 +172,17 @@ watch_app/
 │   └── base.py           # Source / RawMention protocol
 ├── extraction/           # Rule-based entity extraction; resolver.py fuzzy-matches to Makers
 ├── llm/                  # Anthropic client + content-hash response cache
-├── scoring/              # signals.py computes the 7 signals; ranker.py composes them under presets
+├── scoring/              # signals.py computes the 7 signals; ranker.py composes them under presets;
+│                         # methodology.py reconstructs the worked-example math for the /methodology page
 ├── storage/              # SQLAlchemy models (Maker, Mention, Signal, Score, ScanRun, Source)
 ├── pipeline/             # orchestrator.py wires the layers: fetch → extract → resolve → store → score
-├── api/                  # FastAPI routers; makers.py has the dashboard + detail pages
-├── web/templates/        # Jinja2 + HTMX (dashboard.html, maker_detail.html, _makers_table.html)
+├── api/                  # FastAPI routers; makers.py has the dashboard, detail, and methodology routes
+├── web/templates/        # Jinja2 + HTMX (dashboard.html, maker_detail.html, methodology.html, _makers_table.html)
 ├── data/
 │   └── known_makers.yaml # The 125-maker curated seed
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 98 tests; run with `make test`
+tests/                    # 110 tests; run with `make test`
 alembic/                  # Schema migrations
 ```
 
@@ -174,7 +204,7 @@ alembic/                  # Schema migrations
 ## Development
 
 ```bash
-make test         # Full suite; expects 98 passing
+make test         # Full suite; expects 110 passing
 pytest -v tests/test_ranker.py  # Run one file
 pytest -v -k hidden_gem         # Run tests matching a name
 ```
@@ -187,6 +217,10 @@ Key regression tests worth knowing about:
 - `tests/test_ranker.py::test_hidden_gem_zero_mention_always_beats_one_mention` —
   asserts the semantic invariant of the hidden_gem preset. Guards against
   regressions in the weight balance.
+- `tests/test_methodology.py::test_worked_example_final_score_matches_ranker` —
+  asserts the `/methodology` page's math equals the ranker's math to within
+  1e-9. If the ranker is ever refactored in a way that diverges, the page
+  would silently lie without this test.
 - `tests/test_web_routes.py` — integration tests that spin up FastAPI and hit
   real routes. Guards against template-rendering bugs.
 
