@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import statistics
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -43,12 +44,15 @@ SIGNAL_DESCRIPTIONS: dict[str, dict[str, str]] = {
     },
     "prestige_weighted_mentions": {
         "label": "Prestige-weighted mentions",
-        "formula": "Σ (source.prestige_weight) over mentions",
+        "formula": "Σ media-mention prestige + Σ distinct award-source prestige",
         "description": (
-            "Mention count weighted by how prestigious the source is. GPHG "
-            "(1.2), SJX (1.0), and Monochrome (0.9) contribute more than "
-            "Hodinkee (0.7) or Fratello (0.7). A single GPHG nomination "
-            "outweighs a single Fratello article by design."
+            "Mentions weighted by source prestige (GPHG 1.2, SJX 1.0, "
+            "Monochrome 0.9, Quill & Pad 0.8, Hodinkee/Fratello 0.7). "
+            "Award-source mentions are capped at one per source: a brand "
+            "with 14 GPHG nominee watches doesn't get 14× the prestige "
+            "of a brand with one — that conflates operational scale with "
+            "rising-indie signal. Media mentions are uncapped: 4 SJX "
+            "articles is genuinely 4× the press signal of 1."
         ),
     },
     "source_diversity": {
@@ -295,3 +299,140 @@ def build_worked_example(
         filtered_by_cap=top_filtered,
         cap_value=cap,
     )
+
+
+# --- Source contributions (added 2H) ---
+
+#: Time window for "recent" activity stats (mentions in last N days).
+RECENT_WINDOW_DAYS = 7
+
+
+@dataclass
+class SourceContribution:
+    """Per-source statistics for the source-auditing table.
+
+    Tells you what each ingested source has actually contributed to the
+    population. The intent is for this to make calibration decisions
+    visible — e.g., "Hodinkee has 47 lifetime mentions but only 8 distinct
+    makers, so it's mostly re-covering the same brands" or "Quill & Pad
+    surfaced 5 makers no other source has, despite a lower prestige weight."
+    """
+
+    source_name: str
+    category: str
+    prestige_weight: float
+    total_mentions: int
+    distinct_makers: int
+    first_surfaced_count: int  # makers whose first-ever mention came from this source
+    mentions_recent: int  # mentions in last RECENT_WINDOW_DAYS days
+
+
+def build_source_contributions(session: Session) -> list[SourceContribution]:
+    """Compute the source-auditing table.
+
+    Returns one row per source, ordered by total_mentions descending. Sources
+    with zero mentions are still included — useful to see if a configured
+    source has gone silent.
+
+    "First-surfaced" is computed as: for each maker, find the source that
+    produced their earliest mention by `discovered_at`. Then count, per
+    source, how many makers it was the first to surface. This rewards
+    sources that genuinely do discovery work rather than just re-covering
+    what's already been seen elsewhere.
+
+    When multiple sources have mentions at the same earliest timestamp
+    (the test population can do this; in production it occurs when GPHG
+    editions are ingested in the same scan), ties are broken by picking
+    the lowest source_id — deterministic, doesn't matter much since real
+    timestamps usually differ by milliseconds. The total first_surfaced
+    across all sources always equals the total maker count.
+
+    Note that GPHG has a head start (we ingested 3 editions on day 1) so
+    it will dominate this column at first; that's accurate, not a bug.
+    """
+    from watch_app.storage.models import Mention, Source as SourceRow
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=RECENT_WINDOW_DAYS)
+
+    # Per-maker first-surfacing source. Subquery: min(discovered_at) per
+    # maker_id; outer query: join back to find which source had that timestamp.
+    # Tie-break: when multiple sources have a mention at the same earliest
+    # timestamp, we attribute the surface to MIN(source_id) — deterministic
+    # and stable across runs. Without this, ties would cause the same maker
+    # to be counted for multiple sources, inflating first_surfaced totals
+    # beyond the actual maker count.
+    earliest_per_maker = (
+        session.query(
+            Mention.maker_id,
+            func.min(Mention.discovered_at).label("first_at"),
+        )
+        .group_by(Mention.maker_id)
+        .subquery()
+    )
+    # For each (maker_id, first_at), pick the lowest source_id among
+    # mentions matching that timestamp.
+    surfacing_source = (
+        session.query(
+            Mention.maker_id,
+            func.min(Mention.source_id).label("source_id"),
+        )
+        .join(
+            earliest_per_maker,
+            (Mention.maker_id == earliest_per_maker.c.maker_id)
+            & (Mention.discovered_at == earliest_per_maker.c.first_at),
+        )
+        .group_by(Mention.maker_id)
+        .subquery()
+    )
+    first_source_rows = (
+        session.query(
+            surfacing_source.c.source_id,
+            func.count(surfacing_source.c.maker_id).label("count"),
+        )
+        .group_by(surfacing_source.c.source_id)
+        .all()
+    )
+    first_surfaced_by_source: dict[int, int] = {
+        sid: count for sid, count in first_source_rows
+    }
+
+    # Total mentions per source.
+    totals = dict(
+        session.query(Mention.source_id, func.count(Mention.id))
+        .group_by(Mention.source_id)
+        .all()
+    )
+
+    # Distinct makers per source.
+    distincts = dict(
+        session.query(Mention.source_id, func.count(func.distinct(Mention.maker_id)))
+        .group_by(Mention.source_id)
+        .all()
+    )
+
+    # Mentions in the recent window per source.
+    recents = dict(
+        session.query(Mention.source_id, func.count(Mention.id))
+        .filter(Mention.discovered_at >= cutoff)
+        .group_by(Mention.source_id)
+        .all()
+    )
+
+    sources = session.query(SourceRow).all()
+    rows: list[SourceContribution] = []
+    for s in sources:
+        rows.append(
+            SourceContribution(
+                source_name=s.name,
+                category=s.category,
+                prestige_weight=s.prestige_weight,
+                total_mentions=totals.get(s.id, 0),
+                distinct_makers=distincts.get(s.id, 0),
+                first_surfaced_count=first_surfaced_by_source.get(s.id, 0),
+                mentions_recent=recents.get(s.id, 0),
+            )
+        )
+
+    # Sort by total mentions descending; ties broken by source name for stability.
+    rows.sort(key=lambda r: (-r.total_mentions, r.source_name))
+    return rows

@@ -149,6 +149,63 @@
   </div>
 </section>
 
+{# --- Section: Source contributions --- #}
+<section class="mb-12">
+  <h2 class="text-xs uppercase tracking-[0.15em] font-medium text-stone-500 mb-4">Source Contributions</h2>
+  <p class="text-sm text-stone-600 mb-5 max-w-2xl leading-relaxed">
+    What each ingested source has contributed. Helps answer
+    &ldquo;is this source pulling its weight?&rdquo; and informs how
+    prestige weights should be tuned. <strong>First-surfaced</strong> counts
+    the makers whose first-ever mention came from this source — a measure of
+    how much genuine discovery work it does versus re-covering what's
+    already been seen elsewhere.
+  </p>
+
+  {% if source_contributions %}
+  <div class="bg-white border border-stone-200 rounded-xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-stone-50 text-stone-500 uppercase text-[11px] tracking-[0.1em] font-medium">
+        <tr>
+          <th class="px-5 py-3 text-left">Source</th>
+          <th class="px-5 py-3 text-left">Category</th>
+          <th class="px-5 py-3 text-right">Prestige</th>
+          <th class="px-5 py-3 text-right">Mentions</th>
+          <th class="px-5 py-3 text-right">Distinct makers</th>
+          <th class="px-5 py-3 text-right">First-surfaced</th>
+          <th class="px-5 py-3 text-right">Last 7d</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in source_contributions %}
+        <tr class="border-t border-stone-100 {% if s.total_mentions == 0 %}text-stone-400{% endif %}">
+          <td class="px-5 py-3 {% if s.total_mentions > 0 %}text-stone-900 font-medium{% endif %}">
+            {{ s.source_name }}
+          </td>
+          <td class="px-5 py-3 text-stone-500 text-[13px]">{{ s.category }}</td>
+          <td class="px-5 py-3 text-right font-mono tabular text-stone-600">{{ "%.1f"|format(s.prestige_weight) }}</td>
+          <td class="px-5 py-3 text-right font-mono tabular">{{ s.total_mentions }}</td>
+          <td class="px-5 py-3 text-right font-mono tabular">{{ s.distinct_makers }}</td>
+          <td class="px-5 py-3 text-right font-mono tabular {% if s.first_surfaced_count > 0 %}text-stone-900{% else %}text-stone-400{% endif %}">
+            {{ s.first_surfaced_count }}
+          </td>
+          <td class="px-5 py-3 text-right font-mono tabular {% if s.mentions_recent == 0 %}text-stone-300{% endif %}">
+            {{ s.mentions_recent }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="mt-2 text-xs text-stone-400">
+    Sources with zero recent mentions in light gray — may indicate a feed has gone stale or a fetch is consistently failing.
+  </p>
+  {% else %}
+  <div class="bg-white border border-stone-200 rounded-xl p-8 text-center text-stone-500">
+    <p class="text-sm">No sources configured yet.</p>
+  </div>
+  {% endif %}
+</section>
+
 {# --- Section: Worked examples --- #}
 <section class="mb-12">
   <h2 class="text-xs uppercase tracking-[0.15em] font-medium text-stone-500 mb-4">Worked Examples</h2>

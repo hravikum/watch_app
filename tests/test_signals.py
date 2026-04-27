@@ -81,6 +81,106 @@ def test_prestige_weighted_mentions(session, maker_with_mentions):
     assert compute_prestige_weighted_mentions(session, maker_with_mentions) == 2.5
 
 
+def test_prestige_caps_awards_per_source(session):
+    """A brand with 14 GPHG nominee URLs across 3 editions should NOT score
+    14× the prestige of a brand with one nomination per edition.
+
+    This was a real ranking bug: Parmigiani Fleurier accumulated 14 GPHG
+    nominee mentions (4 in 2025, 6 in 2024, 4 in 2023) because they enter
+    many watches per year, and that drove their prestige_weighted_mentions
+    to ~16.8 (14 × 1.2). A maker with one nomination per edition would only
+    score 3.6 (3 × 1.2). The cap fixes this by counting each award source
+    once regardless of how many mentions came from it.
+    """
+    maker = Maker(canonical_name="Prolific Brand", aliases=[], is_independent=True)
+    session.add(maker)
+    session.flush()
+
+    gphg_2025 = SourceRow(name="GPHG 2025", category="awards", prestige_weight=1.2)
+    gphg_2024 = SourceRow(name="GPHG 2024", category="awards", prestige_weight=1.2)
+    gphg_2023 = SourceRow(name="GPHG 2023", category="awards", prestige_weight=1.2)
+    session.add_all([gphg_2025, gphg_2024, gphg_2023])
+    session.flush()
+
+    now = datetime.now(timezone.utc)
+    # 4 mentions in GPHG 2025, 6 in 2024, 4 in 2023 — 14 total.
+    for src, n in [(gphg_2025, 4), (gphg_2024, 6), (gphg_2023, 4)]:
+        for i in range(n):
+            session.add(Mention(
+                maker_id=maker.id, source_id=src.id,
+                url=f"https://gphg/{src.name}/{i}",
+                title=f"{src.name} watch {i}",
+                published_at=now,
+            ))
+    session.commit()
+
+    # With cap: 3 distinct GPHG editions × 1.2 each = 3.6
+    # Without cap (old behavior): 14 × 1.2 = 16.8
+    score = compute_prestige_weighted_mentions(session, maker)
+    assert abs(score - 3.6) < 1e-9, (
+        f"Expected 3.6 (capped), got {score}. The awards cap should count "
+        f"each GPHG edition once regardless of how many of this maker's "
+        f"watches were nominated."
+    )
+
+
+def test_prestige_does_not_cap_media_sources(session):
+    """Media mentions are NOT capped — 4 SJX articles is genuinely 4× the
+    press signal of 1 article, since each is a discrete editorial decision.
+    The cap applies only to award sources (category='awards')."""
+    maker = Maker(canonical_name="Pressed Brand", aliases=[], is_independent=True)
+    session.add(maker)
+    session.flush()
+
+    sjx = SourceRow(name="SJX", category="media", prestige_weight=1.0)
+    session.add(sjx)
+    session.flush()
+
+    now = datetime.now(timezone.utc)
+    for i in range(4):
+        session.add(Mention(
+            maker_id=maker.id, source_id=sjx.id,
+            url=f"https://sjx/{i}",
+            title=f"article {i}",
+            published_at=now,
+        ))
+    session.commit()
+
+    # 4 SJX mentions × 1.0 prestige = 4.0 (uncapped, as expected)
+    assert compute_prestige_weighted_mentions(session, maker) == 4.0
+
+
+def test_prestige_mixed_awards_and_media(session):
+    """Verify the cap and uncapped behavior compose correctly when a maker
+    has both award and media mentions."""
+    maker = Maker(canonical_name="Mixed Brand", aliases=[], is_independent=True)
+    session.add(maker)
+    session.flush()
+
+    gphg = SourceRow(name="GPHG 2025", category="awards", prestige_weight=1.2)
+    sjx = SourceRow(name="SJX", category="media", prestige_weight=1.0)
+    session.add_all([gphg, sjx])
+    session.flush()
+
+    now = datetime.now(timezone.utc)
+    # 3 GPHG nominee mentions (capped to 1 contribution = 1.2)
+    for i in range(3):
+        session.add(Mention(
+            maker_id=maker.id, source_id=gphg.id,
+            url=f"https://gphg/{i}", title=f"watch {i}", published_at=now,
+        ))
+    # 2 SJX articles (uncapped = 2.0)
+    for i in range(2):
+        session.add(Mention(
+            maker_id=maker.id, source_id=sjx.id,
+            url=f"https://sjx/{i}", title=f"article {i}", published_at=now,
+        ))
+    session.commit()
+
+    # Capped GPHG (1.2) + uncapped SJX (2 × 1.0) = 3.2
+    assert abs(compute_prestige_weighted_mentions(session, maker) - 3.2) < 1e-9
+
+
 def test_source_diversity(session, maker_with_mentions):
     # Two distinct sources, regardless of how many mentions from each.
     assert compute_source_diversity(session, maker_with_mentions) == 2.0

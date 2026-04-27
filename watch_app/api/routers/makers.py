@@ -18,6 +18,7 @@ from sqlalchemy.orm import joinedload
 from watch_app.config import get_settings
 from watch_app.scoring.methodology import (
     SIGNAL_DESCRIPTIONS,
+    build_source_contributions,
     build_worked_example,
 )
 from watch_app.scoring.presets import PRESETS
@@ -213,6 +214,7 @@ def methodology(request: Request) -> HTMLResponse:
             example = build_worked_example(session, preset_name)
             if example is not None:
                 worked_examples[preset_name] = example
+        source_contributions = build_source_contributions(session)
 
     return templates.TemplateResponse(
         request=request,
@@ -221,5 +223,6 @@ def methodology(request: Request) -> HTMLResponse:
             "signal_descriptions": SIGNAL_DESCRIPTIONS,
             "presets": PRESETS,
             "worked_examples": worked_examples,
+            "source_contributions": source_contributions,
         },
     )

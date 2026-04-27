@@ -46,17 +46,44 @@ def compute_mention_count(session: Session, maker: Maker) -> float:
 
 
 def compute_prestige_weighted_mentions(session: Session, maker: Maker) -> float:
-    """Sum of source.prestige_weight for every mention of this maker.
+    """Sum of source.prestige_weight for every mention of this maker, with
+    award-source mentions capped at one per source row.
 
     A mention on SJX (prestige 1.0) is worth more than one on Hodinkee (0.7).
+
+    Award sources (GPHG 2023/2024/2025) are capped: a brand that submitted 14
+    watches across 3 GPHG editions doesn't get 14× the prestige of a brand
+    that submitted 1 watch — that would conflate "operational scale" with
+    "rising indie." The cap counts each award-source contribution once,
+    regardless of how many of that brand's watches it nominated.
+
+    Media sources are unbounded: 4 SJX articles is genuinely 4× the press
+    signal of 1 article, since each is a discrete editorial decision.
     """
-    result = (
+    # Sum across all sources, but for awards each source contributes its
+    # weight at most once (regardless of mention count).
+    awards_contribution = (
+        session.query(func.coalesce(func.sum(SourceRow.prestige_weight), 0.0))
+        .filter(SourceRow.category == "awards")
+        .filter(
+            SourceRow.id.in_(
+                session.query(Mention.source_id)
+                .filter(Mention.maker_id == maker.id)
+                .distinct()
+            )
+        )
+        .scalar()
+    ) or 0.0
+
+    media_contribution = (
         session.query(func.coalesce(func.sum(SourceRow.prestige_weight), 0.0))
         .join(Mention, Mention.source_id == SourceRow.id)
         .filter(Mention.maker_id == maker.id)
+        .filter(SourceRow.category != "awards")
         .scalar()
-    )
-    return float(result or 0.0)
+    ) or 0.0
+
+    return float(awards_contribution + media_contribution)
 
 
 def compute_source_diversity(session: Session, maker: Maker) -> float:

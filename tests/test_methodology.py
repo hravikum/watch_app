@@ -7,7 +7,7 @@ the methodology helper is wrong.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi import FastAPI
@@ -16,6 +16,8 @@ from fastapi.testclient import TestClient
 from watch_app.api.routers.makers import router as makers_router
 from watch_app.scoring.methodology import (
     SIGNAL_DESCRIPTIONS,
+    SourceContribution,
+    build_source_contributions,
     build_worked_example,
 )
 from watch_app.scoring.presets import PRESETS
@@ -299,3 +301,187 @@ def test_methodology_link_appears_in_header(client):
     assert r.status_code == 200
     # It's in the header, so it appears on the dashboard too.
     assert 'href="/methodology"' in r.text
+
+
+# ---------- Source contributions tests (added 2H) ----------
+
+
+def _seed_source_audit_population():
+    """Build a population designed to exercise each column of the source
+    contributions table with non-trivial values.
+
+    Sources:
+      - SJX (media, 1.0): mentions 3 makers; first to mention 1
+      - Monochrome (media, 0.9): mentions 2 makers; first to mention 1
+      - GPHG 2025 (awards, 1.2): mentions 4 makers; first to mention 2
+      - QuietSource (media, 0.5): no mentions (stale source case)
+    """
+    with session_scope() as session:
+        sjx = SourceRow(name="SJX", category="media", prestige_weight=1.0)
+        mono = SourceRow(name="Monochrome", category="media", prestige_weight=0.9)
+        gphg = SourceRow(name="GPHG 2025", category="awards", prestige_weight=1.2)
+        quiet = SourceRow(name="QuietSource", category="media", prestige_weight=0.5)
+        session.add_all([sjx, mono, gphg, quiet])
+        session.flush()
+
+        a = Maker(canonical_name="Maker A", is_independent=True)
+        b = Maker(canonical_name="Maker B", is_independent=True)
+        c = Maker(canonical_name="Maker C", is_independent=True)
+        d = Maker(canonical_name="Maker D", is_independent=True)
+        session.add_all([a, b, c, d])
+        session.flush()
+
+        now = datetime.now(timezone.utc)
+        old = now - timedelta(days=30)
+        recent = now - timedelta(days=2)
+
+        # Maker A: first seen by GPHG (old), later picked up by SJX (recent)
+        session.add_all([
+            Mention(maker_id=a.id, source_id=gphg.id, url="g/a", title="x",
+                    discovered_at=old, published_at=old),
+            Mention(maker_id=a.id, source_id=sjx.id, url="s/a", title="x",
+                    discovered_at=recent, published_at=recent),
+        ])
+        # Maker B: first seen by GPHG, only by GPHG
+        session.add(Mention(maker_id=b.id, source_id=gphg.id, url="g/b", title="x",
+                            discovered_at=old, published_at=old))
+        # Maker C: first seen by SJX (recent), also Monochrome (recent)
+        session.add_all([
+            Mention(maker_id=c.id, source_id=sjx.id, url="s/c", title="x",
+                    discovered_at=recent, published_at=recent),
+            Mention(maker_id=c.id, source_id=mono.id, url="m/c", title="x",
+                    discovered_at=recent, published_at=recent),
+        ])
+        # Maker D: first seen by Monochrome only (recent)
+        session.add(Mention(maker_id=d.id, source_id=mono.id, url="m/d", title="x",
+                            discovered_at=recent, published_at=recent))
+        # GPHG also has another mention of A (already counted above)
+        # Bonus: SJX also mentions A again (recent) — adds to total but not distinct
+        session.add(Mention(maker_id=a.id, source_id=sjx.id, url="s/a-2", title="y",
+                            discovered_at=recent, published_at=recent))
+
+
+def test_source_contributions_returns_one_row_per_source(test_engine):
+    """Every configured source — even one with zero mentions — appears in
+    the table. Sources without mentions are visible so calibration drift
+    (a feed gone silent) is detectable."""
+    _seed_source_audit_population()
+    with session_scope() as session:
+        rows = build_source_contributions(session)
+
+    names = {r.source_name for r in rows}
+    assert names == {"SJX", "Monochrome", "GPHG 2025", "QuietSource"}
+
+    quiet = next(r for r in rows if r.source_name == "QuietSource")
+    assert quiet.total_mentions == 0
+    assert quiet.distinct_makers == 0
+    assert quiet.first_surfaced_count == 0
+
+
+def test_source_contributions_total_mentions_correct(test_engine):
+    """Total mentions count every Mention row, including duplicates from
+    the same maker (since each is an independent article/article-mention)."""
+    _seed_source_audit_population()
+    with session_scope() as session:
+        rows = build_source_contributions(session)
+    by_name = {r.source_name: r for r in rows}
+
+    # SJX has 3 mentions: A (×2, once each from URLs s/a and s/a-2) + C
+    assert by_name["SJX"].total_mentions == 3
+    # Monochrome has 2 mentions: C, D
+    assert by_name["Monochrome"].total_mentions == 2
+    # GPHG has 2 mentions: A, B
+    assert by_name["GPHG 2025"].total_mentions == 2
+
+
+def test_source_contributions_distinct_makers_correct(test_engine):
+    """Distinct makers counts unique maker_id, not raw mention rows."""
+    _seed_source_audit_population()
+    with session_scope() as session:
+        rows = build_source_contributions(session)
+    by_name = {r.source_name: r for r in rows}
+
+    # SJX mentions A (twice) and C → 2 distinct
+    assert by_name["SJX"].distinct_makers == 2
+    # Monochrome mentions C and D → 2 distinct
+    assert by_name["Monochrome"].distinct_makers == 2
+    # GPHG mentions A and B → 2 distinct
+    assert by_name["GPHG 2025"].distinct_makers == 2
+
+
+def test_source_contributions_first_surfaced_correct(test_engine):
+    """First-surfaced is the count of makers whose earliest mention came
+    from this source. The discovery-quality signal."""
+    _seed_source_audit_population()
+    with session_scope() as session:
+        rows = build_source_contributions(session)
+    by_name = {r.source_name: r for r in rows}
+
+    # GPHG was first for A and B (both have GPHG mentions at `old` timestamp,
+    # earlier than any SJX/Monochrome timestamp) → 2
+    assert by_name["GPHG 2025"].first_surfaced_count == 2
+    # SJX was first for C (both SJX and Monochrome saw C at the same `recent`
+    # timestamp; ties are resolved by min() semantics — the test setup
+    # added SJX first, so SJX gets the credit. Either resolution is
+    # defensible; we just need it to be deterministic and total to 4.)
+    # Monochrome was first for D
+    assert by_name["Monochrome"].first_surfaced_count == 1
+    # Total first-surfaced across all sources should equal total makers
+    total_surfaced = sum(r.first_surfaced_count for r in rows)
+    assert total_surfaced == 4  # 4 makers total
+
+
+def test_source_contributions_recent_window(test_engine):
+    """Last-7-days mentions count only mentions discovered within the
+    recent window."""
+    _seed_source_audit_population()
+    with session_scope() as session:
+        rows = build_source_contributions(session)
+    by_name = {r.source_name: r for r in rows}
+
+    # SJX: 2 recent (s/a recent, s/c recent, s/a-2 recent) = 3 recent
+    assert by_name["SJX"].mentions_recent == 3
+    # Monochrome: m/c, m/d = 2 recent
+    assert by_name["Monochrome"].mentions_recent == 2
+    # GPHG: g/a and g/b are 30 days old, both outside 7-day window
+    assert by_name["GPHG 2025"].mentions_recent == 0
+
+
+def test_source_contributions_sorted_by_total_mentions(test_engine):
+    """Rows are returned sorted by total_mentions descending. Makes the
+    most active sources appear first in the table."""
+    _seed_source_audit_population()
+    with session_scope() as session:
+        rows = build_source_contributions(session)
+
+    totals = [r.total_mentions for r in rows]
+    assert totals == sorted(totals, reverse=True)
+
+
+def test_source_contributions_empty_db(test_engine):
+    """With no sources, the function returns an empty list (not None)."""
+    with session_scope() as session:
+        rows = build_source_contributions(session)
+    assert rows == []
+
+
+def test_source_contributions_appears_on_methodology_page(client):
+    """The /methodology page should render the new section with real data."""
+    _seed_source_audit_population()
+    r = client.get("/methodology")
+    assert r.status_code == 200
+    assert "Source Contributions" in r.text
+    assert "First-surfaced" in r.text
+    # Source names appear in the rendered table
+    assert "SJX" in r.text
+    assert "Monochrome" in r.text
+    assert "GPHG 2025" in r.text
+
+
+def test_methodology_page_handles_zero_mention_sources(client):
+    """A configured source with zero mentions should still render on the
+    page — important for spotting feeds that have gone silent."""
+    _seed_source_audit_population()
+    r = client.get("/methodology")
+    assert r.status_code == 200
+    assert "QuietSource" in r.text

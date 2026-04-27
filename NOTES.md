@@ -168,3 +168,50 @@ For quick reference on what shipped when:
 - 2C  README rewrite
 - 2D  /methodology page with live worked examples
 - 2E  README refresh post-methodology
+- 2F  NOTES.md
+- 2G  Hotfix: HTTP per-phase timeouts + GPHG awards-cap on prestige_weighted_mentions
+
+## Findings logged from the week-1 data review (2G)
+
+**HTTP timeout fix.** Two scheduled scans took 17 minutes and 37 minutes
+respectively. Single GPHG fetch hung; httpx's float timeout didn't actually
+enforce per-phase ceilings. Fixed with `httpx.Timeout(connect=10, read=30,
+write=10, pool=5)`. If a future scan ever exceeds ~1 minute, something
+unrelated is wrong.
+
+**Parmigiani-style accumulation in prestige_weighted_mentions.**
+Parmigiani Fleurier had 14 GPHG nominee URLs (they enter many watches
+per year) which inflated their prestige_weighted_mentions to 16.8 vs.
+Simon Brette's 1.2 — driving Parmigiani to #1 rising_star regardless
+of other signals. Fixed by capping award-source contributions at one
+per source row (each GPHG edition counts once even if a brand had 4
+nominees that year). Media sources still uncapped — 4 SJX articles is
+genuinely 4× the press signal of 1.
+
+**`first_seen_at` is correctly preserved.** Initial review query was
+poorly designed (8-day filter on a 5-day-old project) and made it look
+like timestamps were being clobbered. They're not. False alarm.
+
+**hidden_gem is genuinely working as designed.** Top 10 is all
+zero-mention indies, all real makers, all credibly obscure. No fix needed.
+
+**Quiet Club moved from hidden_gem to rising_star mid-review.** A new
+SJX article on April 27 mentioned them in the context of F.P. Journe's
+Young Talent Competition. They went from 0 mentions (hidden_gem rank
+#6) to 1 mention (rising_star rank #12) in one scan. This is exactly
+the discovery transition the system should surface. Pretty cool.
+
+## Potential future scoring refinements (not urgent)
+
+- **Mention deduplication across editions.** A brand nominated by GPHG
+  in 2023, 2024, 2025 currently counts as 3 source contributions.
+  Defensible (each year is a separate jury making a separate decision)
+  but worth thinking about if the inflation looks wrong over more data.
+- **`discovered_at` vs `published_at` in velocity calculations.** The
+  90-day window uses `discovered_at`, which means historical articles
+  ingested on day 1 count as "recent." Less of an issue once data has
+  been accumulating organically for a couple of months.
+- **Per-source prestige tuning based on actual data.** After 4–6 weeks,
+  could analyze which sources surface makers that *also* appear in GPHG
+  and use that overlap as evidence for prestige weight. Right now
+  weights are best guesses.

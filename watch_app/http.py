@@ -47,7 +47,21 @@ USER_AGENT = (
     "https://github.com/; non-commercial)"
 )
 
-DEFAULT_TIMEOUT = 30.0  # seconds
+DEFAULT_TIMEOUT = 30.0  # legacy total-budget value, kept for the `timeout` kwarg
+
+# Explicit per-phase timeouts. The previous single-float DEFAULT_TIMEOUT was
+# nominally enforced by httpx but in practice could allow individual phases
+# to stall well beyond it — observed in a real scheduled scan where a single
+# GPHG fetch hung for 17 minutes despite timeout=30. Defining each phase
+# explicitly puts a hard ceiling on every operation:
+#   - connect: hostname lookup + TCP handshake. Fail fast if DNS or
+#     network is down; we'd rather skip the source than wait.
+#   - read: time waiting for response body bytes. Most legitimately
+#     slow sites resolve well under this.
+#   - write: time to send the request. Tiny GET requests, so very low.
+#   - pool: time waiting for a connection from the pool. We don't share
+#     pools across calls, so this should be near-instant.
+DEFAULT_HTTP_TIMEOUT = httpx.Timeout(connect=10.0, read=30.0, write=10.0, pool=5.0)
 CACHE_TTL_SECONDS = 6 * 60 * 60  # 6 hours — tune per source later if needed
 MIN_REQUEST_INTERVAL = 1.5  # seconds per host
 
@@ -144,7 +158,7 @@ def get(
     url: str,
     *,
     use_cache: bool = True,
-    timeout: float = DEFAULT_TIMEOUT,
+    timeout: float | httpx.Timeout | None = None,
     user_agent: str | None = None,
 ) -> httpx.Response | CachedResponse:
     """Fetch a URL, using cache and rate-limiting.
@@ -158,6 +172,9 @@ def get(
 
     `user_agent` overrides the default crawler UA. Useful for sites that
     need a browser-like UA to return full HTML.
+
+    `timeout` defaults to DEFAULT_HTTP_TIMEOUT (per-phase Timeout object).
+    A single float, if passed, is interpreted as a total operation budget.
     """
     if use_cache:
         cached = _read_cache(url)
@@ -167,9 +184,10 @@ def get(
 
     _rate_limit(url)
     logger.info("HTTP fetch: %s", url)
+    effective_timeout = timeout if timeout is not None else DEFAULT_HTTP_TIMEOUT
     response = httpx.get(
         url,
-        timeout=timeout,
+        timeout=effective_timeout,
         headers={"User-Agent": user_agent or USER_AGENT, "Accept": "*/*"},
         follow_redirects=True,
     )
