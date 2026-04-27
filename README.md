@@ -25,8 +25,9 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
 - **Shows scores, signals, and the full mention history** per maker in a
   clickable local web UI, or a Rich-formatted CLI.
 - **Explains how every rank was computed** on a `/methodology` page —
-  signal definitions, preset weights (pulled live from code), and a
-  worked example for each preset that walks through the top-ranked
+  signal definitions, preset weights (pulled live from code), per-source
+  contribution stats (mentions, distinct makers, makers first-surfaced),
+  and a worked example for each preset that walks through the top-ranked
   maker's math end-to-end.
 
 ## Setup
@@ -100,7 +101,7 @@ Each maker gets 7 signals computed:
 | Signal | What it measures |
 |---|---|
 | `mention_count` | Total mentions across all sources |
-| `prestige_weighted_mentions` | Mentions weighted by source prestige (GPHG 1.2, SJX 1.0, Monochrome 0.9, etc.) |
+| `prestige_weighted_mentions` | Mentions weighted by source prestige. Award sources (GPHG editions) capped at one contribution per source — a brand with 14 nominee watches doesn't get 14× the prestige of one with 1. Media unbounded. |
 | `source_diversity` | Distinct source count — is it broad coverage or one outlet? |
 | `velocity_90d` | Mentions in the last 90 days — currently accelerating? |
 | `first_seen_recency` | How recently the maker's first mention was (linear decay over 180 days) |
@@ -120,7 +121,7 @@ preset weights compose cleanly. The two presets:
 ## The methodology page
 
 Open `http://localhost:8000/methodology` to see the full scoring model rendered
-from live code. The page has four sections:
+from live code. The page has five sections:
 
 - **Signals** — each of the 7 signals with its formula and a plain-English
   description of what it captures
@@ -129,6 +130,10 @@ from live code. The page has four sections:
 - **Presets** — the weights for each preset, pulled directly from
   `watch_app/scoring/presets.py`, plus eligibility gates (the conglomerate
   multiplier for `rising_star`, the mention cap for `hidden_gem`)
+- **Source Contributions** — per-source statistics: total mentions, distinct
+  makers covered, makers first-surfaced (the source-quality signal), and
+  recent activity. Helps answer "is this source pulling its weight?" and
+  surfaces feeds that have gone silent.
 - **Worked Examples** — for each preset, the currently top-ranked maker is
   walked through end-to-end: raw signal values, z-normalized values, preset
   weight, and per-signal contribution summing to their final composite score
@@ -173,7 +178,8 @@ watch_app/
 ├── extraction/           # Rule-based entity extraction; resolver.py fuzzy-matches to Makers
 ├── llm/                  # Anthropic client + content-hash response cache
 ├── scoring/              # signals.py computes the 7 signals; ranker.py composes them under presets;
-│                         # methodology.py reconstructs the worked-example math for the /methodology page
+│                         # methodology.py builds worked examples and source-contribution stats
+│                         # for the /methodology page
 ├── storage/              # SQLAlchemy models (Maker, Mention, Signal, Score, ScanRun, Source)
 ├── pipeline/             # orchestrator.py wires the layers: fetch → extract → resolve → store → score
 ├── api/                  # FastAPI routers; makers.py has the dashboard, detail, and methodology routes
@@ -182,7 +188,7 @@ watch_app/
 │   └── known_makers.yaml # The 125-maker curated seed
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 110 tests; run with `make test`
+tests/                    # 124 tests; run with `make test`
 alembic/                  # Schema migrations
 ```
 
@@ -195,7 +201,10 @@ alembic/                  # Schema migrations
 - **HTTP cache** (in `watch_app/http.py`) keeps fetches cheap — a single 6-hour
   TTL across all sources, which makes a daily 7am scan nearly free after the
   first one. Second and later scans within 6 hours serve entirely from cache
-  and typically complete in under a second.
+  and typically complete in under a second. HTTP requests use per-phase
+  timeouts (`connect=10s, read=30s, write=10s, pool=5s`) so a single hung
+  source can't stall the whole scan — a real issue we hit when GPHG's server
+  hung for 17 minutes during one scheduled run.
 - **Why structured sources instead of pure extraction everywhere**: GPHG gives
   us brand-per-nomination directly. Parsing it through the general extractor
   would be strictly worse — we'd lose the prestige attribution and miss brand
@@ -204,7 +213,7 @@ alembic/                  # Schema migrations
 ## Development
 
 ```bash
-make test         # Full suite; expects 110 passing
+make test         # Full suite; expects 124 passing
 pytest -v tests/test_ranker.py  # Run one file
 pytest -v -k hidden_gem         # Run tests matching a name
 ```
