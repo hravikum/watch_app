@@ -130,6 +130,38 @@ def _fetch_maker_detail(maker_id: int) -> dict | None:
             for m in mentions
         ]
 
+        # GPHG-nominated watch models, ordered most recent year first then by
+        # name. The maker detail page renders these as a structured catalog.
+        from watch_app.storage.models import WatchModel
+
+        model_rows = (
+            session.query(WatchModel)
+            .filter(WatchModel.maker_id == maker_id)
+            .order_by(WatchModel.gphg_year.desc(), WatchModel.name.asc())
+            .all()
+        )
+        models = [
+            {
+                "id": m.id,
+                "name": m.name,
+                "gphg_year": m.gphg_year,
+                "gphg_url": m.gphg_url,
+                "image_url": m.image_url,
+                "case_material": m.case_material,
+                "case_diameter_mm": m.case_diameter_mm,
+                "movement_caliber": m.movement_caliber,
+                "movement_type": m.movement_type,
+                "frequency_hz": m.frequency_hz,
+                "power_reserve_hours": m.power_reserve_hours,
+                "water_resistance_m": m.water_resistance_m,
+                "complications": m.complications or [],
+                "price_chf": m.price_chf,
+                "limited_edition_count": m.limited_edition_count,
+                "description": m.description,
+            }
+            for m in model_rows
+        ]
+
         return {
             "id": maker.id,
             "canonical_name": maker.canonical_name,
@@ -142,6 +174,7 @@ def _fetch_maker_detail(maker_id: int) -> dict | None:
             "scores": scores_by_preset,
             "signals": signals,
             "mentions": mention_list,
+            "models": models,
         }
 
 

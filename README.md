@@ -29,6 +29,11 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   contribution stats (mentions, distinct makers, makers first-surfaced),
   and a worked example for each preset that walks through the top-ranked
   maker's math end-to-end.
+- **Catalogs GPHG-nominated watches per maker.** Each maker's detail page
+  shows the watches they've had nominated for any GPHG edition — name, year,
+  case material and diameter, movement type, power reserve, water resistance,
+  price, limited edition count, image. Scoped intentionally to GPHG nominees
+  so the data quality stays high (every spec field has a verified source URL).
 
 ## Setup
 
@@ -172,7 +177,7 @@ rising_star.
 watch_app/
 ├── sources/              # One module per source
 │   ├── media/            # RSS-based: SJX, Monochrome, Fratello, Hodinkee, Quill & Pad
-│   ├── awards/           # GPHG scraper
+│   ├── awards/           # GPHG list scraper (gphg.py) + per-watch detail parser (gphg_detail.py)
 │   ├── dummy.py          # Test source for unit tests
 │   └── base.py           # Source / RawMention protocol
 ├── extraction/           # Rule-based entity extraction; resolver.py fuzzy-matches to Makers
@@ -180,15 +185,16 @@ watch_app/
 ├── scoring/              # signals.py computes the 7 signals; ranker.py composes them under presets;
 │                         # methodology.py builds worked examples and source-contribution stats
 │                         # for the /methodology page
-├── storage/              # SQLAlchemy models (Maker, Mention, Signal, Score, ScanRun, Source)
-├── pipeline/             # orchestrator.py wires the layers: fetch → extract → resolve → store → score
+├── storage/              # SQLAlchemy models (Maker, Mention, Signal, Score, ScanRun, Source, WatchModel)
+├── pipeline/             # orchestrator.py wires the layers: fetch → extract → resolve → store →
+│                         # fetch GPHG model details → score
 ├── api/                  # FastAPI routers; makers.py has the dashboard, detail, and methodology routes
 ├── web/templates/        # Jinja2 + HTMX (dashboard.html, maker_detail.html, methodology.html, _makers_table.html)
 ├── data/
 │   └── known_makers.yaml # The 125-maker curated seed
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 124 tests; run with `make test`
+tests/                    # 188 tests; run with `make test`
 alembic/                  # Schema migrations
 ```
 
@@ -213,7 +219,7 @@ alembic/                  # Schema migrations
 ## Development
 
 ```bash
-make test         # Full suite; expects 124 passing
+make test         # Full suite; expects 188 passing
 pytest -v tests/test_ranker.py  # Run one file
 pytest -v -k hidden_gem         # Run tests matching a name
 ```

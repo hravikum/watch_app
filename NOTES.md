@@ -68,22 +68,29 @@ often surfaces lesser-known makers.
 - Main work: curating channel list, figuring out prestige weights per
   channel (Bark & Jack 0.9? A random review channel 0.4?)
 
-### Models per brand (the big one, deferred)
-Discussed: surface specific watches (F.P. Journe Chronomètre à Résonance,
-Simon Brette Chronomètre Artisans) under each maker. Useful for answering
-"what's this brand actually making right now?"
+### Models per brand (Tier 1 built in 2J — future tiers TBD)
+Built: GPHG-nominated watches surface on each maker's detail page with full
+specs (case material/diameter, movement type/caliber, frequency, power
+reserve, water resistance, complications, price, limited edition count,
+image). Sourced from `gphg.org/en/watches/<slug>` detail pages, parsed by
+`watch_app/sources/awards/gphg_detail.py`.
 
-Full build is 3–4 chunks: new Model table, sources emitting model-level
-data, resolution layer, UI. Not small.
+Scoped intentionally to GPHG nominees so every WatchModel row has a
+verified source URL. This means:
+- F.P. Journe, Voutilainen, De Bethune, Simon Brette etc. all get good
+  coverage (they're GPHG-nominated regularly)
+- Brands that never enter GPHG (or haven't yet) show no models — that's
+  a known limitation, not a bug
 
-Recommended minimal v1: just parse model names from GPHG HTML (already
-ingested) and show them under a "GPHG-nominated models" heading on the
-maker detail page. That's ~1 chunk. Expand only if it proves valuable.
+**Possible future tiers if Tier 1 isn't enough:**
+- LLM-extract model references from RSS articles (broader coverage,
+  noisier data — would muddy the clean GPHG-only data, so worth doing
+  only if Tier 1 demonstrably leaves gaps for makers we care about)
+- Per-brand website scrapers (high maintenance, only justifiable for
+  the most-tracked 10–20 makers)
 
-**Trigger for building this:** if you find yourself repeatedly wanting
-to know "which watch were they writing about" when browsing mentions.
-If the existing "click through to the article" behavior works, don't
-build it.
+Don't build either of those reactively. Use Tier 1 for a few weeks first
+and see whether the gaps actually bother you.
 
 ## Sitting in the backlog (worth doing eventually)
 
@@ -170,6 +177,19 @@ For quick reference on what shipped when:
 - 2E  README refresh post-methodology
 - 2F  NOTES.md
 - 2G  Hotfix: HTTP per-phase timeouts + GPHG awards-cap on prestige_weighted_mentions
+- 2H  Source contributions table on /methodology
+- 2I  README refresh post-2G/2H
+- 2J  WatchModel layer: GPHG-nominated watches per maker, with specs, on detail page
+- 2J-hotfix  Rewrite GPHG detail parser to read from Next.js Flight payloads
+            (the original `<dl>` parser was based on incorrect fixture HTML;
+            real pages embed structured data in `self.__next_f.push` calls
+            with $LNN-referenced labels)
+- 2J-hotfix2 Rewrite parser again, this time with a recursive value extractor
+            that handles all six observed `field-items` shapes (plain
+            strings, dangerouslySetInnerHTML spans, nested arrays with
+            <br>, mixed arrays with empty leading entries, $LNN array
+            references, $NN string references). Validated against the
+            actual Parmigiani Tonda PF page.
 
 ## Findings logged from the week-1 data review (2G)
 

@@ -64,6 +64,7 @@ class Maker(Base):
     mentions: Mapped[list["Mention"]] = relationship(back_populates="maker")
     signals: Mapped[list["Signal"]] = relationship(back_populates="maker")
     scores: Mapped[list["Score"]] = relationship(back_populates="maker")
+    models: Mapped[list["Model"]] = relationship(back_populates="maker")
 
     def __repr__(self) -> str:
         return f"<Maker {self.canonical_name!r}>"
@@ -190,6 +191,56 @@ class LLMCache(Base):
         return f"<LLMCache key={self.cache_key[:8]}... model={self.model}>"
 
 
+class WatchModel(Base):
+    """A specific watch model from a maker.
+
+    Sourced from GPHG nominee pages: each watch nominated for any GPHG edition
+    becomes one WatchModel row. Bounded scope by design — we don't try to
+    catalog everything a maker produces, only watches that have been GPHG-
+    recognized. This keeps the data quality high (every row has a real source
+    URL and verified specs) without taking on the maintenance burden of
+    per-brand-website scrapers.
+
+    The unique constraint on (maker_id, gphg_url) means re-fetching a watch
+    page on a later scan updates the row in place — useful if GPHG corrects
+    a spec or adds a price.
+    """
+
+    __tablename__ = "watch_models"
+    __table_args__ = (UniqueConstraint("gphg_url", name="uq_watch_models_gphg_url"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    maker_id: Mapped[int] = mapped_column(
+        ForeignKey("makers.id"), nullable=False, index=True
+    )
+
+    name: Mapped[str] = mapped_column(String(300))
+    slug: Mapped[str] = mapped_column(String(200))  # last path segment of gphg_url
+    gphg_year: Mapped[int] = mapped_column(Integer, index=True)
+    gphg_url: Mapped[str] = mapped_column(String(500))
+
+    # Spec fields — all nullable because GPHG data isn't always complete.
+    image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    case_material: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    case_diameter_mm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    movement_caliber: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    movement_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    frequency_hz: Mapped[float | None] = mapped_column(Float, nullable=True)
+    power_reserve_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    water_resistance_m: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    complications: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    price_chf: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    limited_edition_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+    maker: Mapped["Maker"] = relationship()
+
+    def __repr__(self) -> str:
+        return f"<WatchModel {self.name!r} ({self.gphg_year})>"
+
+
 class ScanRun(Base):
     """Record of one invocation of run_scan().
 
@@ -230,3 +281,55 @@ class ScanRun(Base):
         if self.finished_at is None:
             return None
         return (self.finished_at - self.started_at).total_seconds()
+
+
+class Model(Base):
+    """A specific watch produced by a Maker.
+
+    Sourced from GPHG nominee detail pages — currently the only structured
+    model-data source we have. Each row represents one watch reference, with
+    specs parsed from the dot-separated spec list on the GPHG page.
+
+    Schema is deliberately tolerant of missing fields: GPHG pages format
+    consistently per edition but the same spec fields aren't always present
+    (e.g., older editions may omit launch_date or reference). Anything we
+    don't successfully parse stays in raw_specs as a key/value JSON blob,
+    which lets us add structured columns later without backfilling fetches.
+
+    Uniqueness is on source_url — the GPHG URL is the canonical identifier
+    for a model across editions. If the same watch was nominated in 2024
+    and again in 2025 (rare but possible), the second nomination would
+    update the existing row rather than creating a duplicate.
+    """
+
+    __tablename__ = "models"
+    __table_args__ = (
+        UniqueConstraint("source_url", name="uq_models_source_url"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    maker_id: Mapped[int] = mapped_column(
+        ForeignKey("makers.id"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(300))
+    year: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    source_url: Mapped[str] = mapped_column(String(500))
+
+    case_size_mm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    thickness_mm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    case_material: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    movement: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    water_resistance_m: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    functions: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    launch_date: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    collection: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    price: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    raw_specs: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+    maker: Mapped[Maker] = relationship(back_populates="models")
+
+    def __repr__(self) -> str:
+        return f"<Model id={self.id} name={self.name!r} year={self.year}>"

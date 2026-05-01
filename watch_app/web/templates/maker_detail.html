@@ -47,6 +47,93 @@
   {% endif %}
 </div>
 
+{# --- GPHG-nominated watches --- #}
+{% if m.models %}
+<section class="mb-8">
+  <h2 class="text-xs uppercase tracking-[0.15em] font-medium text-stone-500 mb-3">
+    GPHG-nominated Watches
+    <span class="text-stone-400 font-normal normal-case tracking-normal ml-2">
+      ({{ m.models | length }})
+    </span>
+  </h2>
+
+  <div class="space-y-3">
+    {% for model in m.models %}
+    <article class="bg-white border border-stone-200 rounded-xl overflow-hidden">
+      <div class="flex flex-col sm:flex-row">
+        {% if model.image_url %}
+        <div class="sm:w-48 sm:flex-shrink-0 bg-stone-50 flex items-center justify-center p-3">
+          <img src="{{ model.image_url }}" alt="{{ model.name }}"
+               class="max-w-full max-h-40 object-contain"
+               loading="lazy" />
+        </div>
+        {% endif %}
+
+        <div class="flex-1 p-5">
+          <div class="flex items-baseline justify-between flex-wrap gap-2">
+            <h3 class="font-medium text-stone-900">
+              <a href="{{ model.gphg_url }}" target="_blank" rel="noopener"
+                 class="hover:underline underline-offset-2">{{ model.name }}</a>
+            </h3>
+            <span class="text-[11px] uppercase tracking-widest text-stone-500 bg-stone-50 border border-stone-200 px-2 py-0.5 rounded">
+              GPHG {{ model.gphg_year }}
+            </span>
+          </div>
+
+          {# Spec grid — compact, only shows fields we have. #}
+          <dl class="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-[13px]">
+            {% if model.case_diameter_mm %}
+              <dt class="text-stone-500">Diameter</dt>
+              <dd class="text-stone-800 tabular">{{ "%.1f"|format(model.case_diameter_mm) }} mm</dd>
+            {% endif %}
+            {% if model.case_material %}
+              <dt class="text-stone-500">Case</dt>
+              <dd class="text-stone-800">{{ model.case_material }}</dd>
+            {% endif %}
+            {% if model.movement_type %}
+              <dt class="text-stone-500">Movement</dt>
+              <dd class="text-stone-800">
+                {{ model.movement_type | title }}{% if model.frequency_hz %}, {{ "%.1f"|format(model.frequency_hz) }} Hz{% endif %}
+              </dd>
+            {% endif %}
+            {% if model.power_reserve_hours %}
+              <dt class="text-stone-500">Power reserve</dt>
+              <dd class="text-stone-800 tabular">{{ model.power_reserve_hours }} h</dd>
+            {% endif %}
+            {% if model.water_resistance_m %}
+              <dt class="text-stone-500">Water resistance</dt>
+              <dd class="text-stone-800 tabular">{{ model.water_resistance_m }} m</dd>
+            {% endif %}
+            {% if model.complications %}
+              <dt class="text-stone-500">Functions</dt>
+              <dd class="text-stone-800">{{ model.complications | join(", ") }}</dd>
+            {% endif %}
+            {% if model.price_chf %}
+              <dt class="text-stone-500">Price</dt>
+              <dd class="text-stone-800 tabular">{{ "{:,}".format(model.price_chf) }} CHF</dd>
+            {% endif %}
+            {% if model.limited_edition_count %}
+              <dt class="text-stone-500">Limited edition</dt>
+              <dd class="text-stone-800 tabular">{{ model.limited_edition_count }} pieces</dd>
+            {% endif %}
+          </dl>
+
+          {% if model.movement_caliber and model.movement_caliber != model.movement_type | title %}
+            <p class="mt-3 text-xs text-stone-500 leading-relaxed">
+              <span class="text-stone-400">Caliber:</span> {{ model.movement_caliber }}
+            </p>
+          {% endif %}
+        </div>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  <p class="mt-2 text-xs text-stone-400">
+    Sourced from GPHG nominee pages. Specs reflect what was submitted at nomination time.
+  </p>
+</section>
+{% endif %}
+
 {# --- Scores panel --- #}
 <section class="mb-8">
   <h2 class="text-xs uppercase tracking-[0.15em] font-medium text-stone-500 mb-3">Current Rankings</h2>
