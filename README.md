@@ -34,6 +34,11 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   case material and diameter, movement type, power reserve, water resistance,
   price, limited edition count, image. Scoped intentionally to GPHG nominees
   so the data quality stays high (every spec field has a verified source URL).
+- **Compares makers across both presets** at `/comparison`. One sortable
+  table with every maker's `rising_star` rank, `hidden_gem` rank, and the
+  divergence between them. Sorting by divergence surfaces makers the two
+  presets disagree most about — usually the most informative population to
+  investigate.
 
 ## Setup
 
@@ -194,7 +199,7 @@ watch_app/
 │   └── known_makers.yaml # The 125-maker curated seed
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 188 tests; run with `make test`
+tests/                    # 202 tests; run with `make test`
 alembic/                  # Schema migrations
 ```
 
@@ -219,7 +224,7 @@ alembic/                  # Schema migrations
 ## Development
 
 ```bash
-make test         # Full suite; expects 188 passing
+make test         # Full suite; expects 202 passing
 pytest -v tests/test_ranker.py  # Run one file
 pytest -v -k hidden_gem         # Run tests matching a name
 ```

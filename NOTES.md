@@ -190,6 +190,10 @@ For quick reference on what shipped when:
             <br>, mixed arrays with empty leading entries, $LNN array
             references, $NN string references). Validated against the
             actual Parmigiani Tonda PF page.
+- 2K  Comparison page at /comparison: every maker, both preset scores
+      side by side, sortable by either preset's rank, by mentions, or
+      by divergence (|rank_a - rank_b|). Surfaces makers the two
+      presets disagree most about.
 
 ## Findings logged from the week-1 data review (2G)
 

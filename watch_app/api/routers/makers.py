@@ -22,7 +22,7 @@ from watch_app.scoring.methodology import (
     build_worked_example,
 )
 from watch_app.scoring.presets import PRESETS
-from watch_app.scoring.queries import fetch_top_makers, latest_scores_query
+from watch_app.scoring.queries import fetch_top_makers, fetch_all_makers_comparison, latest_scores_query
 from watch_app.storage.db import session_scope
 from watch_app.storage.models import Maker, Mention, Signal
 
@@ -229,6 +229,68 @@ def maker_detail(request: Request, maker_id: int) -> HTMLResponse:
         request=request,
         name="maker_detail.html",
         context={"m": detail},
+    )
+
+
+_COMPARISON_SORT_KEYS = {
+    "rank_a": ("rank_a", False),  # ascending
+    "rank_b": ("rank_b", False),
+    "name": ("canonical_name", False),
+    "mentions": ("mention_count", True),  # descending — more mentions first
+    "divergence": ("divergence", True),
+}
+
+
+@router.get("/comparison", response_class=HTMLResponse)
+def comparison(
+    request: Request,
+    sort: str = Query("rank_a"),
+) -> HTMLResponse:
+    """Render the side-by-side preset-comparison table.
+
+    Shows every maker with at least one preset score, both presets' ranks
+    and scores, and the rank divergence. Default sort is ascending
+    rank_a (rising_star). Click any column header to re-sort.
+
+    Sort parameter validates against a fixed allow-list — unknown values
+    fall back to the default — to avoid SQL injection by way of column
+    name and to keep the URL surface small.
+    """
+    sort_key, descending = _COMPARISON_SORT_KEYS.get(
+        sort, _COMPARISON_SORT_KEYS["rank_a"]
+    )
+
+    preset_a = "rising_star"
+    preset_b = "hidden_gem"
+    with session_scope() as session:
+        rows = fetch_all_makers_comparison(session, preset_a, preset_b)
+
+    # Sort. Rows whose key is None always sort last regardless of direction —
+    # we never want to bury a maker because they happen to lack one preset.
+    def sort_value(row):
+        v = row[sort_key]
+        if v is None:
+            return (1, 0)
+        return (0, -v if descending and isinstance(v, (int, float)) else v)
+
+    if descending and sort_key == "canonical_name":
+        rows.sort(
+            key=lambda r: (r[sort_key] is None, r[sort_key] or ""),
+            reverse=True,
+        )
+    else:
+        rows.sort(key=sort_value)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="comparison.html",
+        context={
+            "rows": rows,
+            "preset_a": preset_a,
+            "preset_b": preset_b,
+            "current_sort": sort,
+            "total_count": len(rows),
+        },
     )
 
 

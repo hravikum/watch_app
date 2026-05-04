@@ -91,3 +91,70 @@ def fetch_top_makers(
             }
         )
     return result
+
+
+def fetch_all_makers_comparison(
+    session: Session,
+    preset_a: str,
+    preset_b: str,
+) -> list[dict[str, Any]]:
+    """Return every maker that has a latest score under either preset, with
+    both preset scores and ranks side by side.
+
+    Used by the /comparison page. Makers with scores in only one preset
+    still appear; their missing-preset rank/score will be None. The
+    `divergence` field is the absolute difference between the two ranks
+    when both are present; None otherwise. Sorted by maker_id ascending
+    (template handles display ordering).
+    """
+    stmt_a, score_a = latest_scores_query(preset_a)
+    stmt_b, score_b = latest_scores_query(preset_b)
+
+    rows_a = session.execute(stmt_a).scalars().all()
+    rows_b = session.execute(stmt_b).scalars().all()
+
+    by_maker_a = {s.maker_id: s for s in rows_a}
+    by_maker_b = {s.maker_id: s for s in rows_b}
+    all_maker_ids = sorted(set(by_maker_a) | set(by_maker_b))
+    if not all_maker_ids:
+        return []
+
+    makers_by_id = {
+        m.id: m
+        for m in session.query(Maker).filter(Maker.id.in_(all_maker_ids)).all()
+    }
+    mention_counts = dict(
+        session.query(Mention.maker_id, func.count(Mention.id))
+        .filter(Mention.maker_id.in_(all_maker_ids))
+        .group_by(Mention.maker_id)
+        .all()
+    )
+
+    out: list[dict[str, Any]] = []
+    for mid in all_maker_ids:
+        maker = makers_by_id.get(mid)
+        if maker is None:
+            continue
+        sa = by_maker_a.get(mid)
+        sb = by_maker_b.get(mid)
+        rank_a = sa.rank if sa else None
+        rank_b = sb.rank if sb else None
+        divergence = (
+            abs(rank_a - rank_b) if rank_a is not None and rank_b is not None
+            else None
+        )
+        out.append(
+            {
+                "maker_id": maker.id,
+                "canonical_name": maker.canonical_name,
+                "country": maker.country,
+                "is_independent": maker.is_independent,
+                "mention_count": mention_counts.get(maker.id, 0),
+                "rank_a": rank_a,
+                "score_a": sa.value if sa else None,
+                "rank_b": rank_b,
+                "score_b": sb.value if sb else None,
+                "divergence": divergence,
+            }
+        )
+    return out
