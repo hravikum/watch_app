@@ -22,7 +22,7 @@ from watch_app.scoring.methodology import (
     build_worked_example,
 )
 from watch_app.scoring.presets import PRESETS
-from watch_app.scoring.queries import fetch_top_makers, fetch_all_makers_comparison, latest_scores_query
+from watch_app.scoring.queries import fetch_top_makers, fetch_all_makers_comparison, fetch_rank_changes, latest_scores_query
 from watch_app.storage.db import session_scope
 from watch_app.storage.models import Maker, Mention, Signal
 
@@ -290,6 +290,53 @@ def comparison(
             "preset_b": preset_b,
             "current_sort": sort,
             "total_count": len(rows),
+        },
+    )
+
+
+_VALID_DAYS = (3, 7, 14)
+_VALID_MOVERS_PRESETS = ("rising_star", "hidden_gem")
+
+
+@router.get("/movers", response_class=HTMLResponse)
+def movers(
+    request: Request,
+    preset: str = Query("rising_star"),
+    days: int = Query(7),
+) -> HTMLResponse:
+    """Render the rank-change page.
+
+    Shows climbers, fallers, and new entrants over the last `days` days
+    under the chosen preset. Both `preset` and `days` are validated
+    against allow-lists; unrecognized values fall back to defaults.
+
+    Pages without enough history (`days` ago is before the first scan
+    that wrote scores) will show no climbers or fallers but every
+    currently-ranked maker as a new entrant. The template makes this
+    case visible rather than confusing.
+    """
+    if preset not in _VALID_MOVERS_PRESETS:
+        preset = "rising_star"
+    if days not in _VALID_DAYS:
+        days = 7
+
+    with session_scope() as session:
+        groups = fetch_rank_changes(session, preset, days=days)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="movers.html",
+        context={
+            "preset": preset,
+            "presets": _VALID_MOVERS_PRESETS,
+            "days": days,
+            "valid_days": _VALID_DAYS,
+            "climbers": groups["climbers"],
+            "fallers": groups["fallers"],
+            "new_entrants": groups["new_entrants"],
+            "has_any_movement": (
+                bool(groups["climbers"]) or bool(groups["fallers"])
+            ),
         },
     )
 

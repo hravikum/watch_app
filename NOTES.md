@@ -194,6 +194,9 @@ For quick reference on what shipped when:
       side by side, sortable by either preset's rank, by mentions, or
       by divergence (|rank_a - rank_b|). Surfaces makers the two
       presets disagree most about.
+- 2L  Rank-change tracking at /movers: climbers, fallers, new entrants
+      under either preset, configurable lookback (3/7/14 days), filtered
+      by |rank change| ≥ 3 to suppress shuffle noise.
 
 ## Findings logged from the week-1 data review (2G)
 

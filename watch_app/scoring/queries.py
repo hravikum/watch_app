@@ -158,3 +158,132 @@ def fetch_all_makers_comparison(
             }
         )
     return out
+
+
+def fetch_rank_changes(
+    session: Session,
+    preset_name: str,
+    days: int = 7,
+    min_change: int = 3,
+) -> dict[str, list[dict[str, Any]]]:
+    """Compute week-over-week rank changes for a preset.
+
+    Returns three lists of makers under keys 'climbers', 'fallers', and
+    'new_entrants':
+
+    - climbers: makers whose rank improved by >= min_change positions
+    - fallers: makers whose rank worsened by >= min_change positions
+    - new_entrants: makers ranked today but not `days` ago (either truly
+      new in the DB, or makers who moved off the floor onto the
+      scoreboard for the first time)
+
+    Climbers and fallers are sorted by absolute rank_change desc.
+    New entrants are sorted by current rank ascending — the most
+    promising new arrivals first.
+
+    The `days` window is clamped to a reasonable range (1-30) to avoid
+    pathological queries; 7 is the default since week-over-week is the
+    natural cadence for watch media.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    days = max(1, min(30, days))
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=days)
+
+    # Latest rank per maker for this preset.
+    latest_stmt, latest_alias = latest_scores_query(preset_name)
+    latest_rows = session.execute(latest_stmt).scalars().all()
+    if not latest_rows:
+        return {"climbers": [], "fallers": [], "new_entrants": []}
+
+    latest_by_maker = {s.maker_id: s for s in latest_rows}
+
+    # Rank N days ago: for each maker, the most recent score whose
+    # computed_at is <= cutoff. We use the same correlated-subquery shape
+    # as latest_scores_query but with the cutoff constraint.
+    historical_subq = (
+        select(
+            Score.maker_id,
+            func.max(Score.computed_at).label("max_at"),
+        )
+        .where(Score.preset == preset_name)
+        .where(Score.computed_at <= cutoff)
+        .group_by(Score.maker_id)
+        .subquery()
+    )
+    h = aliased(Score)
+    historical_stmt = (
+        select(h)
+        .join(
+            historical_subq,
+            (h.maker_id == historical_subq.c.maker_id)
+            & (h.computed_at == historical_subq.c.max_at),
+        )
+        .where(h.preset == preset_name)
+    )
+    historical_rows = session.execute(historical_stmt).scalars().all()
+    historical_by_maker = {s.maker_id: s for s in historical_rows}
+
+    # Hydrate makers and mention counts in batch.
+    all_ids = list(latest_by_maker.keys())
+    makers_by_id = {
+        m.id: m
+        for m in session.query(Maker).filter(Maker.id.in_(all_ids)).all()
+    }
+    mention_counts = dict(
+        session.query(Mention.maker_id, func.count(Mention.id))
+        .filter(Mention.maker_id.in_(all_ids))
+        .group_by(Mention.maker_id)
+        .all()
+    )
+
+    climbers: list[dict[str, Any]] = []
+    fallers: list[dict[str, Any]] = []
+    new_entrants: list[dict[str, Any]] = []
+
+    for maker_id, latest in latest_by_maker.items():
+        maker = makers_by_id.get(maker_id)
+        if maker is None:
+            continue
+
+        base = {
+            "maker_id": maker_id,
+            "canonical_name": maker.canonical_name,
+            "country": maker.country,
+            "is_independent": maker.is_independent,
+            "current_rank": latest.rank,
+            "current_score": latest.value,
+            "mention_count": mention_counts.get(maker_id, 0),
+        }
+
+        prior = historical_by_maker.get(maker_id)
+        if prior is None:
+            # No score on or before the cutoff — this maker entered the
+            # rankings sometime in the last `days` days.
+            new_entrants.append(
+                {**base, "prior_rank": None, "rank_change": None}
+            )
+            continue
+
+        rank_change = prior.rank - latest.rank  # positive = climbed
+        row = {
+            **base,
+            "prior_rank": prior.rank,
+            "prior_score": prior.value,
+            "rank_change": rank_change,
+        }
+        if rank_change >= min_change:
+            climbers.append(row)
+        elif rank_change <= -min_change:
+            fallers.append(row)
+
+    climbers.sort(key=lambda r: -r["rank_change"])
+    fallers.sort(key=lambda r: r["rank_change"])  # most negative first
+    new_entrants.sort(key=lambda r: r["current_rank"])
+
+    return {
+        "climbers": climbers,
+        "fallers": fallers,
+        "new_entrants": new_entrants,
+    }

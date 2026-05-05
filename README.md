@@ -39,6 +39,10 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   divergence between them. Sorting by divergence surfaces makers the two
   presets disagree most about — usually the most informative population to
   investigate.
+- **Tracks rank changes over time** at `/movers`. Climbers, fallers, and
+  new entrants over a configurable lookback window (3, 7, or 14 days)
+  under either preset. The "rising star" preset's purpose is finally
+  visible as actual movement, not a static snapshot.
 
 ## Setup
 
@@ -199,7 +203,7 @@ watch_app/
 │   └── known_makers.yaml # The 125-maker curated seed
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 202 tests; run with `make test`
+tests/                    # 219 tests; run with `make test`
 alembic/                  # Schema migrations
 ```
 
@@ -224,7 +228,7 @@ alembic/                  # Schema migrations
 ## Development
 
 ```bash
-make test         # Full suite; expects 202 passing
+make test         # Full suite; expects 219 passing
 pytest -v tests/test_ranker.py  # Run one file
 pytest -v -k hidden_gem         # Run tests matching a name
 ```

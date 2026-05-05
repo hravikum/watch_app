@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}Movers · Watch App{% endblock %}
+
+{% block content %}
+<header class="mb-8">
+  <h1 class="text-2xl font-semibold tracking-tight text-stone-900">Movers</h1>
+  <p class="mt-2 text-sm text-stone-600 max-w-2xl leading-relaxed">
+    Makers whose rank changed by 3 or more positions in the last
+    {{ days }} day{% if days != 1 %}s{% endif %} under the
+    <strong>{{ preset.replace("_", " ") }}</strong> preset, plus any
+    new entrants to the rankings during that window.
+  </p>
+
+  {# Preset and days selectors. Both round-trip to GET params. #}
+  <div class="mt-4 flex flex-wrap items-center gap-2 text-xs">
+    <div class="flex items-baseline gap-1.5">
+      <span class="uppercase tracking-[0.1em] text-stone-500">Preset:</span>
+      {% for p in presets %}
+      <a href="/movers?preset={{ p }}&days={{ days }}"
+         class="px-2.5 py-1 rounded {% if p == preset %}bg-stone-900 text-white{% else %}text-stone-600 hover:bg-stone-100{% endif %} transition">
+        {{ p.replace("_", " ") }}
+      </a>
+      {% endfor %}
+    </div>
+    <span class="text-stone-300 mx-2">·</span>
+    <div class="flex items-baseline gap-1.5">
+      <span class="uppercase tracking-[0.1em] text-stone-500">Window:</span>
+      {% for d in valid_days %}
+      <a href="/movers?preset={{ preset }}&days={{ d }}"
+         class="px-2.5 py-1 rounded {% if d == days %}bg-stone-900 text-white{% else %}text-stone-600 hover:bg-stone-100{% endif %} transition">
+        {{ d }}d
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</header>
+
+{% if not has_any_movement and not new_entrants %}
+<div class="bg-white border border-stone-200 rounded-xl p-8 text-center text-stone-500">
+  <p class="text-sm">No rank movement in the last {{ days }} days.</p>
+  <p class="text-xs mt-2">Either the rankings are stable, or there isn't yet
+  {{ days }} days of historical scores to compare against.</p>
+</div>
+{% else %}
+
+{% macro mover_row(m, change_label, change_color) %}
+<tr class="border-t border-stone-100 hover:bg-stone-50 transition-colors group">
+  <td class="px-5 py-3 tabular text-sm text-{{ change_color }}-700 font-medium">
+    {{ change_label }}
+  </td>
+  <td class="px-5 py-3 font-medium group-hover:text-stone-900">
+    <a href="/makers/{{ m.maker_id }}"
+       class="hover:underline decoration-stone-400 underline-offset-2">{{ m.canonical_name }}</a>
+    {% if not m.is_independent %}
+      <span class="ml-2 text-[10px] uppercase tracking-widest text-stone-400 border border-stone-200 rounded px-1.5 py-0.5">
+        conglomerate
+      </span>
+    {% endif %}
+  </td>
+  <td class="px-5 py-3 text-stone-600 text-[13px]">{{ m.country or "—" }}</td>
+  <td class="px-5 py-3 text-right tabular text-sm text-stone-700">{{ m.mention_count }}</td>
+  <td class="px-5 py-3 text-right tabular text-stone-500 text-xs">
+    {% if m.prior_rank %}#{{ m.prior_rank }}{% else %}<span class="text-stone-300">—</span>{% endif %}
+  </td>
+  <td class="px-5 py-3 text-right tabular text-stone-900 font-medium">#{{ m.current_rank }}</td>
+  <td class="px-5 py-3 text-right tabular text-stone-700 text-sm">{{ "%.2f"|format(m.current_score) }}</td>
+</tr>
+{% endmacro %}
+
+{% if climbers %}
+<section class="mb-8">
+  <h2 class="text-xs uppercase tracking-[0.15em] font-medium text-stone-500 mb-3">
+    Climbers
+    <span class="text-stone-400 font-normal normal-case tracking-normal ml-2">
+      ({{ climbers | length }})
+    </span>
+  </h2>
+  <div class="bg-white border border-stone-200 rounded-xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-stone-50 text-stone-500 uppercase text-[11px] tracking-[0.1em] font-medium">
+        <tr>
+          <th class="px-5 py-3 text-left w-20">Change</th>
+          <th class="px-5 py-3 text-left">Maker</th>
+          <th class="px-5 py-3 text-left w-32">Country</th>
+          <th class="px-5 py-3 text-right w-20">Mentions</th>
+          <th class="px-5 py-3 text-right w-20">{{ days }}d ago</th>
+          <th class="px-5 py-3 text-right w-16">Now</th>
+          <th class="px-5 py-3 text-right w-20">Score</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in climbers %}
+          {{ mover_row(m, "↑ " ~ m.rank_change, "green") }}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{% if fallers %}
+<section class="mb-8">
+  <h2 class="text-xs uppercase tracking-[0.15em] font-medium text-stone-500 mb-3">
+    Fallers
+    <span class="text-stone-400 font-normal normal-case tracking-normal ml-2">
+      ({{ fallers | length }})
+    </span>
+  </h2>
+  <div class="bg-white border border-stone-200 rounded-xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-stone-50 text-stone-500 uppercase text-[11px] tracking-[0.1em] font-medium">
+        <tr>
+          <th class="px-5 py-3 text-left w-20">Change</th>
+          <th class="px-5 py-3 text-left">Maker</th>
+          <th class="px-5 py-3 text-left w-32">Country</th>
+          <th class="px-5 py-3 text-right w-20">Mentions</th>
+          <th class="px-5 py-3 text-right w-20">{{ days }}d ago</th>
+          <th class="px-5 py-3 text-right w-16">Now</th>
+          <th class="px-5 py-3 text-right w-20">Score</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in fallers %}
+          {{ mover_row(m, "↓ " ~ (-m.rank_change), "red") }}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{% if new_entrants %}
+<section class="mb-8">
+  <h2 class="text-xs uppercase tracking-[0.15em] font-medium text-stone-500 mb-3">
+    New entrants
+    <span class="text-stone-400 font-normal normal-case tracking-normal ml-2">
+      ({{ new_entrants | length }})
+    </span>
+  </h2>
+  <p class="text-xs text-stone-500 mb-3 max-w-2xl leading-relaxed">
+    Makers ranked under {{ preset.replace("_", " ") }} now but not
+    {{ days }} days ago. Either genuinely new to the population (rare —
+    your seed list is fixed) or, more commonly, makers who picked up
+    their first mention this week and moved off the score floor.
+  </p>
+  <div class="bg-white border border-stone-200 rounded-xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-stone-50 text-stone-500 uppercase text-[11px] tracking-[0.1em] font-medium">
+        <tr>
+          <th class="px-5 py-3 text-left w-20">Change</th>
+          <th class="px-5 py-3 text-left">Maker</th>
+          <th class="px-5 py-3 text-left w-32">Country</th>
+          <th class="px-5 py-3 text-right w-20">Mentions</th>
+          <th class="px-5 py-3 text-right w-20">{{ days }}d ago</th>
+          <th class="px-5 py-3 text-right w-16">Now</th>
+          <th class="px-5 py-3 text-right w-20">Score</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in new_entrants %}
+          {{ mover_row(m, "new", "stone") }}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<p class="text-xs text-stone-500 leading-relaxed">
+  Threshold: |rank change| ≥ 3. Smaller shuffles are usually re-scoring
+  noise rather than real movement. See <a href="/methodology"
+  class="underline decoration-stone-400 underline-offset-2">methodology</a>
+  for how scores are computed.
+</p>
+{% endif %}
+{% endblock %}
