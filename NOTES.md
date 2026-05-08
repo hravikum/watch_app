@@ -197,6 +197,10 @@ For quick reference on what shipped when:
 - 2L  Rank-change tracking at /movers: climbers, fallers, new entrants
       under either preset, configurable lookback (3/7/14 days), filtered
       by |rank change| ≥ 3 to suppress shuffle noise.
+- 2M  Populate maker websites: 117 of 125 seed entries now have website
+      URLs. Seed loader updated to backfill existing Maker rows, so
+      the next scan picks up the new URLs without a migration. Detail
+      page already had the (previously dormant) rendering logic.
 
 ## Findings logged from the week-1 data review (2G)
 

@@ -142,3 +142,43 @@ def test_maker_rows_link_to_detail_page(client):
     assert r.status_code == 200
     # Each row should have a link into /makers/<id>.
     assert f'href="/makers/{indie_id}"' in r.text
+
+
+def _seed_maker_with_website(website: str | None):
+    """Create a single maker with a specific website value, return id."""
+    with session_scope() as session:
+        m = Maker(
+            canonical_name="Web Test Maker",
+            country="Switzerland",
+            founded_year=2010,
+            is_independent=True,
+            website=website,
+        )
+        session.add(m)
+        session.flush()
+        rank_all_makers(session, "rising_star", normalize=False)
+        rank_all_makers(session, "hidden_gem", normalize=False)
+        return m.id
+
+
+def test_maker_detail_renders_website_link(client):
+    """When a maker has a website, the detail page renders a clickable
+    link with target=_blank and rel=noopener for security."""
+    maker_id = _seed_maker_with_website("https://example-watchmaker.com")
+    r = client.get(f"/makers/{maker_id}")
+    assert r.status_code == 200
+    assert 'href="https://example-watchmaker.com"' in r.text
+    # Opens in new tab so user doesn't lose the maker page
+    assert 'target="_blank"' in r.text
+    # Standard security mitigation for external links
+    assert 'rel="noopener"' in r.text
+
+
+def test_maker_detail_omits_website_when_none(client):
+    """When a maker has no website, the page renders without crashing
+    and without an empty website element."""
+    maker_id = _seed_maker_with_website(None)
+    r = client.get(f"/makers/{maker_id}")
+    assert r.status_code == 200
+    # No website link should be present in the metadata row
+    assert "Website ↗" not in r.text

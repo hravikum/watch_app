@@ -68,6 +68,7 @@ def load_seed_makers(session: Session) -> dict[str, int]:
         aliases = entry.get("aliases") or []
         country = entry.get("country")
         founded_year = entry.get("founded_year")
+        website = entry.get("website")
         is_independent = entry.get("is_independent", True)
 
         if existing is None:
@@ -77,6 +78,7 @@ def load_seed_makers(session: Session) -> dict[str, int]:
                     aliases=aliases,
                     country=country,
                     founded_year=founded_year,
+                    website=website,
                     is_independent=is_independent,
                 )
             )
@@ -87,6 +89,8 @@ def load_seed_makers(session: Session) -> dict[str, int]:
                 existing.country = country
             if founded_year and not existing.founded_year:
                 existing.founded_year = founded_year
+            if website and not existing.website:
+                existing.website = website
             # Overwrite is_independent from YAML — it's the authoritative source
             # for curated entries.
             existing.is_independent = is_independent

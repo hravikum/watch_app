@@ -23,41 +23,51 @@
 makers:
   # --- LV Watch Prize edition 1 (2023/24) — winner + finalists ---
   - canonical_name: "Raúl Pagès"
+    website: "https://www.raulpages.com"
     aliases: ["Raul Pages"]
     country: "Switzerland"
     founded_year: 2014
   - canonical_name: "Simon Brette"
+    website: "https://simonbrette.com"
     country: "France"
     founded_year: 2022
   - canonical_name: "Petermann Bédat"
+    website: "https://www.petermann-bedat.ch"
     aliases: ["Petermann Bedat"]
     country: "Switzerland"
     founded_year: 2017
   - canonical_name: "Cyril Brivet-Naudot"
+    website: "https://www.brivet-naudot.com"
     country: "France"
     founded_year: 2018
   - canonical_name: "Andreas Strehler"
+    website: "https://www.astrehler.ch"
     country: "Switzerland"
     founded_year: 2002
 
   # --- LV Watch Prize edition 2 (2025/26) — finalists ---
   - canonical_name: "Hazemann & Monnin"
+    website: "https://hazemann-monnin.ch"
     aliases: ["Hazemann and Monnin", "Alexandre Hazemann", "Victor Monnin"]
     country: "France"
     founded_year: 2024
   - canonical_name: "Daizoh Makihara"
+    website: "https://www.daizohmakihara.jp"
     aliases: ["Daizoh Makihara Watchcraft"]
     country: "Japan"
     founded_year: 2017
   - canonical_name: "Fam Al Hut"
+    website: "https://www.famalhut.com"
     aliases: ["Xinyan Dai"]
     country: "China"
     founded_year: 2023
   - canonical_name: "Bernhard Lederer"
+    website: "https://www.bernhardlederer.com"
     aliases: ["Lederer"]
     country: "Switzerland"
     founded_year: 2008
   - canonical_name: "Quiet Club"
+    website: "https://www.quietclub.com"
     aliases: ["Norifumi Seki"]
     country: "Japan"
     founded_year: 2023
@@ -67,13 +77,16 @@ makers:
     country: "Russia"
     founded_year: 2015
   - canonical_name: "J.N. Shapiro"
+    website: "https://jnshapirowatches.com"
     aliases: ["Joshua Shapiro", "Shapiro Watches"]
     country: "United States"
     founded_year: 2018
   - canonical_name: "Kallinich Claeys"
+    website: "https://www.kallinich-claeys.com"
     country: "Germany"
     founded_year: 2019
   - canonical_name: "Auffret Paris"
+    website: "https://www.auffretparis.com"
     aliases: ["Théo Auffret", "Theo Auffret", "Auffret"]
     country: "France"
     founded_year: 2018
@@ -86,337 +99,426 @@ makers:
     country: "Switzerland"
     founded_year: 1992
   - canonical_name: "F.P. Journe"
+    website: "https://www.fpjourne.com"
     aliases: ["FP Journe", "François-Paul Journe", "Francois-Paul Journe"]
     country: "Switzerland"
     founded_year: 1999
   - canonical_name: "Kari Voutilainen"
+    website: "https://voutilainen.ch"
     aliases: ["Voutilainen"]
     country: "Finland"
     founded_year: 2002
   - canonical_name: "Vianney Halter"
+    website: "https://www.vianney-halter.com"
     country: "France"
     founded_year: 1994
   - canonical_name: "Antoine Preziuso"
+    website: "https://www.antoinepreziuso.com"
     country: "Switzerland"
     founded_year: 1983
   - canonical_name: "Konstantin Chaykin"
+    website: "https://chaykin.ru"
     country: "Russia"
     founded_year: 2003
   - canonical_name: "Roger Smith"
+    website: "https://www.rwsmithwatches.com"
     aliases: ["R.W. Smith", "Roger W. Smith"]
     country: "United Kingdom"
     founded_year: 2001
   - canonical_name: "Kikuo Ibe"
     country: "Japan"
   - canonical_name: "Hajime Asaoka"
+    website: "https://hajime-asaoka.com"
     country: "Japan"
     founded_year: 2009
   - canonical_name: "Masahiro Kikuno"
+    website: "https://www.masahirokikuno.jp"
     country: "Japan"
     founded_year: 2011
   - canonical_name: "Naoya Hida"
+    website: "https://naoyahida.com"
     aliases: ["Naoya Hida & Co.", "Naoya Hida and Co"]
     country: "Japan"
     founded_year: 2018
   - canonical_name: "Kudoke"
+    website: "https://www.kudoke.eu"
     aliases: ["Stefan Kudoke"]
     country: "Germany"
     founded_year: 2007
   - canonical_name: "Habring²"
+    website: "https://habring.com"
     aliases: ["Habring", "Habring2"]
     country: "Austria"
     founded_year: 2004
   - canonical_name: "Grönefeld"
+    website: "https://gronefeld.com"
     aliases: ["Gronefeld"]
     country: "Netherlands"
     founded_year: 2008
   - canonical_name: "Christiaan van der Klaauw"
+    website: "https://www.klaauw.com"
     aliases: ["CvdK", "Van der Klaauw"]
     country: "Netherlands"
     founded_year: 1974
 
   # --- Independent indies with strong enthusiast / press presence ---
   - canonical_name: "MB&F"
+    website: "https://www.mbandf.com"
     aliases: ["Maximilian Büsser & Friends"]
     country: "Switzerland"
     founded_year: 2005
   - canonical_name: "H. Moser & Cie."
+    website: "https://www.h-moser.com"
     aliases: ["H. Moser", "Moser"]
     country: "Switzerland"
     founded_year: 1828
   - canonical_name: "Urwerk"
+    website: "https://www.urwerk.com"
     country: "Switzerland"
     founded_year: 1997
   - canonical_name: "De Bethune"
+    website: "https://www.debethune.ch"
     country: "Switzerland"
     founded_year: 2002
   - canonical_name: "Greubel Forsey"
+    website: "https://www.greubelforsey.com"
     country: "Switzerland"
     founded_year: 2004
   - canonical_name: "Laurent Ferrier"
+    website: "https://www.laurentferrier.ch"
     country: "Switzerland"
     founded_year: 2008
   - canonical_name: "Ressence"
+    website: "https://www.ressencewatches.com"
     country: "Belgium"
     founded_year: 2010
   - canonical_name: "Czapek"
+    website: "https://www.czapek.com"
     aliases: ["Czapek & Cie.", "Czapek Genève"]
     country: "Switzerland"
     founded_year: 2012
   - canonical_name: "Atelier Akrivia"
+    website: "https://akrivia.com"
     aliases: ["Akrivia", "Rexhep Rexhepi"]
     country: "Switzerland"
     founded_year: 2012
   - canonical_name: "Ming"
+    website: "https://ming.watch"
     aliases: ["Ming Thein"]
     country: "Malaysia"
     founded_year: 2017
   - canonical_name: "Kurono Tokyo"
+    website: "https://kuronotokyo.jp"
     aliases: ["Hajime Asaoka Kurono"]
     country: "Japan"
     founded_year: 2019
   - canonical_name: "Furlan Marri"
+    website: "https://furlanmarri.com"
     country: "Switzerland"
     founded_year: 2020
   - canonical_name: "Atelier de Chronométrie"
+    website: "https://www.atelierdechronometrie.com"
     aliases: ["ADC"]
     country: "Spain"
     founded_year: 2016
   - canonical_name: "Urban Jürgensen"
+    website: "https://urbanjurgensen.com"
     aliases: ["Urban Jurgensen"]
     country: "Switzerland"
     founded_year: 1773
 
   # --- Newer / smaller ateliers showing up in LV Prize / GPHG / press ---
   - canonical_name: "Bexei"
+    website: "https://bexei.com"
     aliases: ["Aaron Becsei", "Becsei"]
     country: "Hungary"
     founded_year: 2005
   - canonical_name: "Sylvain Pinaud"
+    website: "https://sylvainpinaud.com"
     country: "France"
     founded_year: 2020
   - canonical_name: "Rémy Cools"
+    website: "https://www.remycools.com"
     aliases: ["Remy Cools"]
     country: "France"
     founded_year: 2021
   - canonical_name: "Luca Soprana"
     country: "Italy"
   - canonical_name: "Otsuka Lotec"
+    website: "https://otsuka-lotec.com"
     country: "Japan"
     founded_year: 2010
   - canonical_name: "Garrick"
+    website: "https://garrick.co.uk"
     aliases: ["Garrick England", "Garrick Watchmakers"]
     country: "United Kingdom"
     founded_year: 2014
   - canonical_name: "Struthers"
+    website: "https://www.struthers.london"
     aliases: ["Rebecca Struthers", "Craig Struthers"]
     country: "United Kingdom"
     founded_year: 2012
   - canonical_name: "Fears"
+    website: "https://fearswatches.com"
     aliases: ["Fears Watches", "Fears Brunswick"]
     country: "United Kingdom"
     founded_year: 1846
   - canonical_name: "Anordain"
+    website: "https://anordain.com"
     aliases: ["Anordain Ltd"]
     country: "United Kingdom"
     founded_year: 2015
   - canonical_name: "Studio Underd0g"
+    website: "https://studiounderd0g.com"
     aliases: ["Studio Underdog"]
     country: "United Kingdom"
     founded_year: 2020
   - canonical_name: "Baltic"
+    website: "https://baltic-watches.com"
     aliases: ["Baltic Watches"]
     country: "France"
     founded_year: 2017
   - canonical_name: "Cyril Vonlanthen"
     country: "Switzerland"
   - canonical_name: "Sartory Billard"
+    website: "https://www.sartorybillard.com"
     country: "France"
     founded_year: 2015
   - canonical_name: "BA111OD"
+    website: "https://www.ba111od.com"
     country: "Switzerland"
     founded_year: 2020
   - canonical_name: "Louis Erard"
+    website: "https://www.louiserard.com"
     country: "Switzerland"
     founded_year: 1931
   - canonical_name: "Farer"
+    website: "https://farer.com"
     aliases: ["Farer Universal"]
     country: "United Kingdom"
     founded_year: 2015
   - canonical_name: "Lang & Heyne"
+    website: "https://www.langundheyne.de"
     aliases: ["Lang and Heyne"]
     country: "Germany"
     founded_year: 2001
   - canonical_name: "Moritz Grossmann"
+    website: "https://www.grossmann-uhren.com"
     country: "Germany"
     founded_year: 2008
   - canonical_name: "Tutima"
+    website: "https://www.tutima.com"
     country: "Germany"
     founded_year: 1927
   - canonical_name: "Nomos"
+    website: "https://nomos-glashuette.com"
     aliases: ["Nomos Glashütte", "Nomos Glashutte"]
     country: "Germany"
     founded_year: 1990
   - canonical_name: "Benu Watchmaking"
     country: "Germany"
   - canonical_name: "Sinn"
+    website: "https://www.sinn.de"
     aliases: ["Sinn Spezialuhren"]
     country: "Germany"
     founded_year: 1961
   - canonical_name: "Glashütte Original"
+    website: "https://www.glashuette-original.com"
     aliases: ["Glashutte Original"]
     country: "Germany"
     founded_year: 1845
   - canonical_name: "Armin Strom"
+    website: "https://arminstrom.com"
     country: "Switzerland"
     founded_year: 2006
   - canonical_name: "Arnold & Son"
+    website: "https://www.arnoldandson.com"
     aliases: ["Arnold and Son"]
     country: "United Kingdom"
     founded_year: 1764
   - canonical_name: "Andersen Genève"
+    website: "https://andersen-geneve.ch"
     aliases: ["Andersen Geneve", "Svend Andersen"]
     country: "Switzerland"
     founded_year: 1980
   - canonical_name: "Charles Frodsham"
+    website: "https://www.frodsham.com"
     country: "United Kingdom"
     founded_year: 1834
   - canonical_name: "Daniel Roth"
+    website: "https://www.danielroth.com"
     country: "Switzerland"
     is_independent: false
     # Revived under LVMH's Louis Vuitton watchmaking group in 2022.
   - canonical_name: "Gerald Charles"
+    website: "https://www.geraldcharles.com"
     aliases: ["Gérald Charles"]
     country: "Switzerland"
     founded_year: 2000
   - canonical_name: "Gérald Genta"
+    website: "https://www.geraldgenta.com"
     aliases: ["Gerald Genta"]
     country: "Switzerland"
     is_independent: false
     # Revived under Bulgari (LVMH) in 2024.
   - canonical_name: "Angelus"
+    website: "https://angelus-watches.com"
     country: "Switzerland"
     founded_year: 1891
   - canonical_name: "Parmigiani Fleurier"
+    website: "https://www.parmigiani.com"
     country: "Switzerland"
     founded_year: 1996
   - canonical_name: "Chronoswiss"
+    website: "https://chronoswiss.com"
     country: "Switzerland"
     founded_year: 1981
   - canonical_name: "Ulysse Nardin"
+    website: "https://www.ulysse-nardin.com"
     country: "Switzerland"
     founded_year: 1846
   - canonical_name: "Louis Moinet"
+    website: "https://www.louismoinet.com"
     country: "Switzerland"
     founded_year: 2004
 
   # --- Notable Japanese artisans / small houses ---
   - canonical_name: "Grand Seiko"
+    website: "https://www.grand-seiko.com"
     country: "Japan"
     founded_year: 1960
     is_independent: false
     # Included so the extractor recognizes them but doesn't treat them as indies.
   - canonical_name: "Credor"
+    website: "https://www.credor.com"
     country: "Japan"
     is_independent: false
 
   # --- Conglomerate brands included for extractor disambiguation only ---
   - canonical_name: "Rolex"
+    website: "https://www.rolex.com"
     country: "Switzerland"
     is_independent: false
   - canonical_name: "Patek Philippe"
+    website: "https://www.patek.com"
     country: "Switzerland"
     is_independent: false
   - canonical_name: "Audemars Piguet"
+    website: "https://www.audemarspiguet.com"
     country: "Switzerland"
     is_independent: false
   - canonical_name: "Vacheron Constantin"
+    website: "https://www.vacheron-constantin.com"
     country: "Switzerland"
     is_independent: false
   - canonical_name: "A. Lange & Söhne"
+    website: "https://www.alange-soehne.com"
     aliases: ["A. Lange and Sohne", "Lange & Sohne", "Lange"]
     country: "Germany"
     is_independent: false
   - canonical_name: "Jaeger-LeCoultre"
+    website: "https://www.jaeger-lecoultre.com"
     aliases: ["JLC"]
     country: "Switzerland"
     is_independent: false
   - canonical_name: "Breguet"
+    website: "https://www.breguet.com"
     country: "Switzerland"
     is_independent: false
   - canonical_name: "IWC"
+    website: "https://www.iwc.com"
     aliases: ["IWC Schaffhausen"]
     country: "Switzerland"
     is_independent: false
   - canonical_name: "Omega"
+    website: "https://www.omegawatches.com"
     country: "Switzerland"
     is_independent: false
   - canonical_name: "Cartier"
+    website: "https://www.cartier.com"
     country: "France"
     is_independent: false
   - canonical_name: "Zenith"
+    website: "https://www.zenith-watches.com"
     country: "Switzerland"
     is_independent: false
   - canonical_name: "TAG Heuer"
+    website: "https://www.tagheuer.com"
     country: "Switzerland"
     is_independent: false
   - canonical_name: "Panerai"
+    website: "https://www.panerai.com"
     country: "Italy"
     is_independent: false
   - canonical_name: "Piaget"
+    website: "https://www.piaget.com"
     country: "Switzerland"
     is_independent: false
   - canonical_name: "Bvlgari"
+    website: "https://www.bulgari.com"
     aliases: ["Bulgari"]
     country: "Italy"
     is_independent: false
   - canonical_name: "Chopard"
+    website: "https://www.chopard.com"
     country: "Switzerland"
     is_independent: false
   - canonical_name: "Hermès"
+    website: "https://www.hermes.com"
     aliases: ["Hermes"]
     country: "France"
     is_independent: false
   - canonical_name: "Louis Vuitton"
+    website: "https://www.louisvuitton.com"
     country: "France"
     is_independent: false
   - canonical_name: "Tudor"
+    website: "https://www.tudorwatch.com"
     country: "Switzerland"
     is_independent: false
   - canonical_name: "Breitling"
+    website: "https://www.breitling.com"
     country: "Switzerland"
     is_independent: false
   - canonical_name: "Blancpain"
+    website: "https://www.blancpain.com"
     country: "Switzerland"
     is_independent: false
   - canonical_name: "Franck Muller"
+    website: "https://www.franckmuller.com"
     country: "Switzerland"
     is_independent: false
   - canonical_name: "Van Cleef & Arpels"
+    website: "https://www.vancleefarpels.com"
     aliases: ["Van Cleef and Arpels"]
     country: "France"
     is_independent: false
     # Richemont-owned.
   - canonical_name: "Gucci"
+    website: "https://www.gucci.com"
     country: "Italy"
     is_independent: false
     # Kering-owned.
   - canonical_name: "Dior Montres"
+    website: "https://www.dior.com"
     aliases: ["Dior"]
     country: "France"
     is_independent: false
     # LVMH-owned.
   - canonical_name: "Tiffany & Co."
+    website: "https://www.tiffany.com"
     aliases: ["Tiffany and Co", "Tiffany & Co"]
     country: "United States"
     is_independent: false
     # LVMH-owned since 2021.
   - canonical_name: "Jacob & Co."
+    website: "https://www.jacobandco.com"
     aliases: ["Jacob & Co", "Jacob and Co"]
     country: "United States"
     is_independent: false
     # Founder-owned conglomerate; high-end branded watches.
   - canonical_name: "Chanel"
+    website: "https://www.chanel.com"
     country: "France"
     is_independent: false
     # Wertheimer family conglomerate; watches since 1987.
@@ -426,24 +528,29 @@ makers:
   # as independent by the scraper (default) and ranked inappropriately until
   # being promoted here.
   - canonical_name: "Hublot"
+    website: "https://www.hublot.com"
     country: "Switzerland"
     is_independent: false
     # LVMH-owned since 2008.
   - canonical_name: "Chaumet"
+    website: "https://www.chaumet.com"
     country: "France"
     is_independent: false
     # LVMH; historically jewelry, watches now part of the portfolio.
   - canonical_name: "Fabergé"
+    website: "https://www.faberge.com"
     aliases: ["Faberge"]
     country: "Switzerland"
     is_independent: false
     # Rosy Blue (Indian conglomerate) since 2013.
   - canonical_name: "Frédérique Constant"
+    website: "https://frederiqueconstant.com"
     aliases: ["Frederique Constant"]
     country: "Switzerland"
     is_independent: false
     # Citizen Watch Co. (Japanese) since 2016.
   - canonical_name: "Raymond Weil"
+    website: "https://www.raymond-weil.com"
     country: "Switzerland"
     is_independent: false
     # Acquired by Genus Group in 2024; no longer independent.
@@ -451,42 +558,51 @@ makers:
   # --- GPHG 2025 nominees not already listed ---
   # Added after the GPHG source was built and surfaced these brands.
   - canonical_name: "Miki Eleta"
+    website: "https://miki-eleta.com"
     country: "Switzerland"
     founded_year: 2000
     # Self-taught Bosnian-Swiss clockmaker, maker of kinetic sculptures.
   - canonical_name: "Fiona Krüger"
+    website: "https://www.fionakruger.com"
     aliases: ["Fiona Kruger"]
     country: "Switzerland"
     founded_year: 2013
     # Scottish-born, Swiss-based; often collaborates with other makers (GPHG 2025 is a collab with Denis Flageollet).
   - canonical_name: "Behrens"
+    website: "https://behrens-watches.com"
     country: "China"
     founded_year: 2013
     # Shenzhen-based; known for unconventional time displays.
   - canonical_name: "Christopher Ward"
+    website: "https://www.christopherward.com"
     aliases: ["Christopher Ward London"]
     country: "United Kingdom"
     founded_year: 2004
     # English direct-to-consumer brand; independently owned, in-house movements (Cal. SH21 etc.)
   - canonical_name: "Trilobe"
+    website: "https://www.trilobe.com"
     country: "France"
     founded_year: 2018
     # Paris-based; non-pointing hour display system.
   - canonical_name: "L'Épée 1839"
+    website: "https://www.lepee1839.ch"
     aliases: ["L'Epée 1839", "L'Epee 1839", "L Epee 1839"]
     country: "Switzerland"
     founded_year: 1839
     # Clock manufacturer; frequent collaborator with MB&F.
   - canonical_name: "Atelier Wen"
+    website: "https://atelierwen.com"
     country: "China"
     founded_year: 2018
     # Beijing-based; Chinese-made movements and dials with cultural references.
   - canonical_name: "Bovet"
+    website: "https://www.bovet.com"
     aliases: ["Bovet 1822"]
     country: "Switzerland"
     founded_year: 1822
     # Historic maison, now independently owned by Pascal Raffy; complicated movements.
   - canonical_name: "M.A.D. Editions"
+    website: "https://www.mad-editions.com"
     aliases: ["MAD Editions"]
     country: "Switzerland"
     founded_year: 2021
@@ -495,6 +611,7 @@ makers:
     country: "Switzerland"
     # Co-founder of De Bethune; independent work emerging under own name.
   - canonical_name: "Amida"
+    website: "https://amidawatches.com"
     country: "Switzerland"
     founded_year: 1925
     # Historic Swiss brand (1925), revived. Original Digitrend watch from the 1970s is being reissued.
