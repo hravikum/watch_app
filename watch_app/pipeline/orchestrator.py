@@ -43,6 +43,7 @@ def default_sources() -> list[Source]:
     Current roster:
     - 5 RSS-based media sources (SJX, Monochrome, Fratello, Hodinkee, Quill & Pad)
     - 3 GPHG editions (2023, 2024, 2025) — award nominations
+    - N YouTube channels (loaded from watch_app/data/youtube_channels.yaml)
 
     Tests and ad-hoc runs can import DummySource directly and pass it via the
     `sources=` argument of run_scan().
@@ -53,6 +54,7 @@ def default_sources() -> list[Source]:
     from watch_app.sources.media.monochrome import MonochromeSource
     from watch_app.sources.media.quill_and_pad import QuillAndPadSource
     from watch_app.sources.media.sjx import SJXSource
+    from watch_app.sources.media.youtube import build_youtube_sources
 
     return [
         SJXSource(),
@@ -63,6 +65,7 @@ def default_sources() -> list[Source]:
         GPHGSource(2025),
         GPHGSource(2024),
         GPHGSource(2023),
+        *build_youtube_sources(),
     ]
 
 

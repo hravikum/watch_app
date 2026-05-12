@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015"
+      xmlns:media="http://search.yahoo.com/mrss/"
+      xmlns="http://www.w3.org/2005/Atom">
+  <link rel="self" href="http://www.youtube.com/feeds/videos.xml?channel_id=UCTEST"/>
+  <id>yt:channel:UCTEST</id>
+  <yt:channelId>UCTEST</yt:channelId>
+  <title>Test Watch Channel</title>
+  <author>
+    <name>Test Watch Channel</name>
+    <uri>https://www.youtube.com/channel/UCTEST</uri>
+  </author>
+  <published>2026-01-01T00:00:00+00:00</published>
+
+  <entry>
+    <id>yt:video:vid1234567A</id>
+    <yt:videoId>vid1234567A</yt:videoId>
+    <yt:channelId>UCTEST</yt:channelId>
+    <title>Hands-on with the new Simon Brette Chronometre Artisans</title>
+    <link rel="alternate" href="https://www.youtube.com/watch?v=vid1234567A"/>
+    <author>
+      <name>Test Watch Channel</name>
+      <uri>https://www.youtube.com/channel/UCTEST</uri>
+    </author>
+    <published>2026-05-01T14:30:00+00:00</published>
+    <updated>2026-05-01T14:30:00+00:00</updated>
+    <media:group>
+      <media:title>Hands-on with the new Simon Brette Chronometre Artisans</media:title>
+      <media:content url="https://www.youtube.com/v/vid1234567A?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+      <media:thumbnail url="https://i4.ytimg.com/vi/vid1234567A/hqdefault.jpg" width="480" height="360"/>
+      <media:description>I finally got hands on the Simon Brette Chronometre Artisans, one of the most talked-about indie pieces of 2026. In this video I cover the case finishing, the movement architecture, and why this watch has the indie community so excited. Timestamps: 0:00 Intro 1:30 Case 4:15 Dial 7:00 Movement 12:00 Wrist shots. Follow me on Instagram @testchannel. Sponsored by no one - all opinions my own.</media:description>
+      <media:community>
+        <media:starRating count="42" average="5.00" min="1" max="5"/>
+        <media:statistics views="1234"/>
+      </media:community>
+    </media:group>
+  </entry>
+
+  <entry>
+    <id>yt:video:vid1234567B</id>
+    <yt:videoId>vid1234567B</yt:videoId>
+    <yt:channelId>UCTEST</yt:channelId>
+    <title>Top 10 watches I bought this year</title>
+    <link rel="alternate" href="https://www.youtube.com/watch?v=vid1234567B"/>
+    <author>
+      <name>Test Watch Channel</name>
+      <uri>https://www.youtube.com/channel/UCTEST</uri>
+    </author>
+    <published>2026-04-28T10:00:00+00:00</published>
+    <updated>2026-04-28T10:00:00+00:00</updated>
+    <media:group>
+      <media:title>Top 10 watches I bought this year</media:title>
+      <media:thumbnail url="https://i4.ytimg.com/vi/vid1234567B/hqdefault.jpg" width="480" height="360"/>
+      <media:description>My top 10 picks for 2026 — including pieces from Kari Voutilainen, F.P. Journe, and a surprising affordable hit from Baltic. Watch through to the end for my watch of the year.</media:description>
+    </media:group>
+  </entry>
+
+  <entry>
+    <id>yt:video:vid1234567C</id>
+    <yt:videoId>vid1234567C</yt:videoId>
+    <yt:channelId>UCTEST</yt:channelId>
+    <title>Random video with no description</title>
+    <link rel="alternate" href="https://www.youtube.com/watch?v=vid1234567C"/>
+    <published>2026-04-20T08:00:00+00:00</published>
+    <media:group>
+      <media:title>Random video with no description</media:title>
+      <media:thumbnail url="https://i4.ytimg.com/vi/vid1234567C/hqdefault.jpg"/>
+    </media:group>
+  </entry>
+</feed>

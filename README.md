@@ -203,7 +203,7 @@ watch_app/
 │   └── known_makers.yaml # The 125-maker curated seed
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 225 tests; run with `make test`
+tests/                    # 250 tests; run with `make test`
 alembic/                  # Schema migrations
 ```
 
@@ -228,7 +228,7 @@ alembic/                  # Schema migrations
 ## Development
 
 ```bash
-make test         # Full suite; expects 225 passing
+make test         # Full suite; expects 250 passing
 pytest -v tests/test_ranker.py  # Run one file
 pytest -v -k hidden_gem         # Run tests matching a name
 ```

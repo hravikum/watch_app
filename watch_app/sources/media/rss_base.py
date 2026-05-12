@@ -82,22 +82,33 @@ class RSSSource(Source):
             return None
         return text[:MAX_EXCERPT_CHARS]
 
+    def _fetch_feed_text(self) -> str | None:
+        """Fetch the raw feed text. Returns None on failure (logged).
+
+        Extracted as a hook so subclasses (notably YouTube) can override
+        with retry/backoff logic without re-implementing the parse path.
+        """
+        try:
+            response = http_get(self.feed_url)
+            response.raise_for_status()
+        except Exception as exc:
+            logger.warning("Failed to fetch %s feed at %s: %s", self.name, self.feed_url, exc)
+            return None
+        return response.text
+
     def fetch(self) -> Iterator[RawMention]:
         if not self.feed_url:
             raise RuntimeError(
                 f"{self.__class__.__name__}.feed_url is not set"
             )
 
-        try:
-            response = http_get(self.feed_url)
-            response.raise_for_status()
-        except Exception as exc:
-            logger.warning("Failed to fetch %s feed at %s: %s", self.name, self.feed_url, exc)
+        feed_text = self._fetch_feed_text()
+        if feed_text is None:
             return
 
         # feedparser accepts bytes or str and is forgiving about malformed
         # feeds. It never raises; it sets .bozo=1 if something was off.
-        parsed = feedparser.parse(response.text)
+        parsed = feedparser.parse(feed_text)
         if parsed.bozo:
             logger.debug(
                 "%s feed had parse warnings: %s",

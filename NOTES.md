@@ -201,6 +201,32 @@ For quick reference on what shipped when:
       URLs. Seed loader updated to backfill existing Maker rows, so
       the next scan picks up the new URLs without a migration. Detail
       page already had the (previously dormant) rendering logic.
+- 2N  YouTube channels added as a new source category. 16 channels
+      loaded from watch_app/data/youtube_channels.yaml, weighted from
+      0.3 to 0.9 across three content tiers (indie-focused / broad /
+      mainstream-dealer). Custom `_extract_excerpt` reads
+      `media:description` (YouTube's Atom dialect); channel list is
+      data-driven so adding channels later is a one-line YAML edit.
+- 2N-hotfix  YouTube feed endpoint flakiness mitigation. Retry on
+            HTTP 404/500 with short backoff (1s, 3s). Connection
+            errors and non-retryable status codes (e.g. 403) bail
+            immediately rather than waste time. Browser-like User-Agent
+            on YouTube fetches (other tools report this doesn't always
+            help but it's free).
+- 2N-hotfix2 Two YouTube channel IDs corrected:
+            - Watchfinder & Co.: was UCu16y62LPCwTknfV5_7Zalg (failed all
+              retries on every scan), now UCLaoR2K7Dsa_KUK-DVpdZZA (the
+              main UK channel).
+            - WatchAdvisor: was UCF0mZ8eOx3ie5yCErYRoT5A (failed all
+              retries on every scan), now UCFh-oKEXamVSLQRzG2_23wQ
+              (Alexander Linz's Swiss media operation).
+            YAML-only change. No code change.
+- 2N-hotfix3 WatchAdvisor commented out in youtube_channels.yaml.
+            Channel ID verified correct, but YouTube's feed endpoint
+            persistently returns 404 even with retries while other
+            channels succeed normally. Rather than waste ~5s every
+            scan retrying, disabled. 15 channels active; YAML edit
+            to re-enable if YouTube starts serving the feed.
 
 ## Findings logged from the week-1 data review (2G)
 
