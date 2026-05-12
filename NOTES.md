@@ -95,6 +95,130 @@ Hotfix 2A left an orphaned DB row from before the title-casing fix
 shipped. SQL to merge is in CHUNK_2A_HOTFIX_NOTES.md. Harmless but
 untidy.
 
+## The bigger arc: discovery → engagement
+
+Captured 2026-05-11. The current tool surfaces makers. The longer arc
+is to help users *figure out which makers they'd be interested in*
+and eventually to act on that — contact, relationship, becoming part
+of a maker's story. Reddit and the other near-term items above
+should ship first; this arc is the next major direction after those.
+
+### The reframe
+
+"Build features for discovery" and "build features for the outcome
+(engagement)" sound separate but aren't. The bridge between them is
+the data that lets a user navigate by their own taste — not just
+consume a global ranking. Without that, the tool answers "which
+makers are rising globally?" but not "which makers would I be
+interested in?" Two different users with very different tastes get
+the same answer today. That's the gap to close.
+
+### Three flavors of "interested in"
+
+The word is doing too much work. Distinguishing helps:
+
+1. **Aesthetic interest** — classical vs modern, vintage-inspired vs
+   avant-garde, dressy vs tool, finishing-led vs complication-led
+2. **Philosophy / story interest** — solo watchmaker vs small atelier
+   vs heritage relaunch vs microbrand; who's behind the work
+3. **Practical fit** — price band, output scale, whether you can
+   actually buy/commission/access
+
+Correlated but not the same. A user expressing "interested in" usually
+means a weighted combination of all three.
+
+### Three layers of work
+
+**Layer 1: enrich Maker data with the dimensions people care about.**
+Add structured fields capturing aesthetic style, brand philosophy /
+type, price band, output scale, distribution model. Multi-tag rather
+than single-value — aesthetic in particular is too contested to force
+into one tag per maker. Approximate vocabulary:
+
+- aesthetic_tags: classical, modern, avant-garde, vintage-inspired,
+  tool, dressy, finishing-led, complication-led
+- maker_type: solo-watchmaker, small-atelier, heritage-relaunch,
+  microbrand, established-indie, conglomerate-independent
+- price_band: entry ($500-2k), mid ($2k-10k), high ($10k-50k),
+  haute ($50k+)
+- output_scale: one-off, sub-50/yr, 50-500/yr, 500+/yr
+- distribution: direct, dealer-only, gallery, allocation-waitlist
+
+153 makers × ~5 fields × 1-3 tags each = ~1500 data points.
+Real work. Probably some mix of LLM-assisted bulk classification
+with verification, seed YAML extension, and "this changes rarely so
+curate once."
+
+**Layer 2: build the multi-filter explorer that uses the new
+dimensions.** Pick the dimensions that matter to you, see makers
+ranked within that slice. "Solo watchmakers with classical aesthetic
+in the $10-50k band who are accessible" → Brivet-Naudot, Strehler,
+Auffret Paris, etc. Genuinely different from the current dashboard —
+treats users as having taste rather than serving everyone the same
+ranking.
+
+Layer 2 also enables the "similar to X" feature using structured
+dimensions as a similarity metric. Strehler-like makers, Voutilainen-
+like makers. Probably worth shipping inside Layer 2 since they share
+the same data.
+
+**Layer 3: capture user reactions to feed back into the model.**
+Once Layer 2 exists, the next question is whether user preferences
+actually matched the maker once they investigated. Thumbs up / down
+or "interested" / "not interested" per maker. Over time, learn what
+dimensions correlate with that user's actual reactions. This is
+where the tool becomes *adaptive*. Real value but premature without
+Layer 2 in use first.
+
+### Sequencing
+
+Layer 1 is the foundation. Without it, Layer 2 and 3 have nothing
+to work with. Layer 1 itself splits into:
+
+- **1a — Schema + display:** add fields to Maker, render on detail
+  page, populate ~10-20 well-known makers manually via seed YAML.
+  Ship. The point is to make the data visible and usable even before
+  the explorer exists.
+- **1b — Bulk population:** populate the remaining ~135 makers.
+  LLM-assisted likely. Verify before commit. Multi-stage.
+- **2 — Multi-filter explorer:** UI that lets users navigate by
+  these dimensions. Includes similarity ("makers like X").
+
+Probably 4-6 weeks of incremental work across multiple chunks. Real
+scope but matches the pace we've been keeping.
+
+### Open design questions for when we get here
+
+- **Vocabulary stability.** Once tags are committed and users start
+  filtering by them, renaming/restructuring becomes expensive. Worth
+  more thinking upfront than the schema would normally get. Maybe
+  ship 1a deliberately small (3-4 well-defined tags per dimension)
+  and expand only when usage reveals gaps.
+- **Subjective vs objective fields.** `price_band` is more objective
+  than `aesthetic_tags`. Worth distinguishing in the UI — maybe
+  aesthetic tags appear as "[claude] dressy, classical" or similar,
+  signaling judgment vs fact. Or accept that all of it is at least
+  partly judgment and don't over-annotate.
+- **Public vs personal use.** If the explorer ships to public users
+  someday, taste tags become contested in a way they aren't for
+  personal use. The multi-tag approach (multiple tags per maker)
+  hedges against this — a user looking for "classical" finds the
+  makers tagged classical, even if those makers are also tagged
+  modern. Better than forcing a single bucket.
+
+### Practical groundwork worth doing during interim
+
+Before any Layer 1 code:
+
+- Pick 5-10 makers as a personal "target list" — ones you'd
+  actually want to engage with. Use the tool's data as input, your
+  own judgment as filter.
+- For 1-2 of them, do the engagement research manually: sales
+  model, contact path, output, philosophy. Write it down somewhere.
+- Notice what data was hard to find or what categories don't fit
+  the dimensions listed above. That feedback shapes Layer 1's schema
+  before we commit to it.
+
 ## Explicitly NOT doing
 
 ### Instagram ingestion
@@ -122,15 +246,22 @@ scale.
 
 ## Open questions to sit with
 
-**What is this tool actually for?** Two identities pull in different
-directions:
-1. Personal discovery tool — rewards browsing polish, trends, maybe
-   a notifications feature
+**What is this tool actually for?** Initial framing was a binary:
+1. Personal discovery tool — rewards browsing polish, trends
 2. Defensible public ranking — rewards more/better sources, source
    quality auditing, methodology transparency
 
-Both are valid, they lead to different priorities. The choice doesn't
-have to be made now, but watch for it when picking future features.
+That binary was wrong. The actual goal (captured 2026-05-11) is a
+third thing: a tool that helps users discover makers *they* would
+be interested in, and eventually act on that (contact, engagement,
+journey). Discovery and public ranking aren't competing identities;
+they're sequential layers under a larger goal. See "The bigger arc"
+section above.
+
+The remaining question is whether this stays personal or goes
+public. Both are still on the table. Public deployment introduces
+operational, legal, and maker-rights complications worth considering
+before committing.
 
 **Is the two-preset split still the right framing?** rising_star and
 hidden_gem might converge or diverge interestingly over time with more
