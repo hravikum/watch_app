@@ -22,51 +22,21 @@ Before building anything new, spend 30 minutes just looking:
 
 Only after that review should you pick what to build next.
 
-## Near-term candidates (roughly prioritized)
+## Near-term candidates
 
 ### Reddit source — top pick for actual discovery value
 r/watchmaking and r/horology surface indie makers earlier than trade
 media. Literally before editors know. This is the highest-signal addition
 for the actual discovery goal.
 
-- Medium effort, probably 1–2 chunks
+- Medium effort, probably 2-3 chunks (fetching infrastructure, then
+  calibration after a week of data, then cleanup)
 - Needs: Reddit API credentials, OAuth flow, careful thinking about
-  prestige weight (forum buzz is noisier than SJX — maybe 0.4–0.5?)
+  prestige weight (forum buzz is noisier than SJX — maybe 0.4-0.5?)
 - Titles are often lousy or jokey; excerpts matter more than for RSS
 - Watch out for duplicate mentions (same post on multiple subreddits)
-
-### Source auditing view on the methodology page
-Extend /methodology to show per-source stats: mention count contributed,
-prestige weight, which makers it surfaced first. Helps answer "is
-Fratello actually pulling weight or mostly noise?" — lets you tune
-prestige weights based on evidence instead of guesses.
-
-- Low effort, ~half a chunk
-- Purely additive — reads existing data, no new sources
-- Good candidate when you want to *understand* rather than expand
-
-### Rank-change tracking
-Persist snapshots of the top-N per preset and render "Risers this week"
-and "New this week" views. This is what turns the app from snapshot
-viewer into trend tracker.
-
-- DON'T BUILD until you have 2+ weeks of scan data — otherwise the
-  "change" is just noise from initial data accumulation
-- Medium effort once data exists, ~1 chunk
-- Schema addition: a RankSnapshot table or just a materialized view
-  over the existing Score.computed_at timestamps
-
-### YouTube RSS
-Every YouTube channel has a feed:
-`https://www.youtube.com/feeds/videos.xml?channel_id=<ID>`
-The indie watch YouTube scene (Bark & Jack, Teddy Baldassarre's indie
-videos, Watchfinder's indie-focused content) publishes regularly and
-often surfaces lesser-known makers.
-
-- Tractable — no API keys, same RSS infrastructure we already have
-- Low-medium effort, ~1 chunk
-- Main work: curating channel list, figuring out prestige weights per
-  channel (Bark & Jack 0.9? A random review channel 0.4?)
+- Blocked until ~May 16 due to Reddit's new-account waiting period
+  before API app creation is allowed
 
 ### Models per brand (Tier 1 built in 2J — future tiers TBD)
 Built: GPHG-nominated watches surface on each maker's detail page with full
@@ -87,10 +57,19 @@ verified source URL. This means:
   noisier data — would muddy the clean GPHG-only data, so worth doing
   only if Tier 1 demonstrably leaves gaps for makers we care about)
 - Per-brand website scrapers (high maintenance, only justifiable for
-  the most-tracked 10–20 makers)
+  the most-tracked 10-20 makers)
 
 Don't build either of those reactively. Use Tier 1 for a few weeks first
 and see whether the gaps actually bother you.
+
+### Per-source detail page
+Drill into "show me everything Hodinkee surfaced this week" from the
+methodology page. Source contributions table already has summary stats;
+clicking a source row could open a list of its recent mentions.
+
+- Low effort, ~half a chunk
+- Useful when you want to evaluate source quality qualitatively, not
+  just by aggregate stats
 
 ## Sitting in the backlog (worth doing eventually)
 
@@ -159,8 +138,12 @@ data. If the same names keep topping both, maybe there's only one
 meaningful preset. If they stay distinct, the split is doing work.
 
 **Are the prestige weights calibrated right?** SJX at 1.0, Monochrome
-at 0.9, Hodinkee at 0.7 — these are guesses from Phase 1. After a few
-weeks of data, a source-auditing view could validate or challenge them.
+at 0.9, Hodinkee at 0.7 — these are guesses from Phase 1. YouTube
+channels added in 2N use guessed weights too (0.3-0.9 across three
+tiers). After a few weeks of data, the source contributions table on
+`/methodology` can validate or challenge these — channels with high
+volume but low first-surfaced counts are noise candidates; the inverse
+are quiet but high-signal sources worth raising.
 
 ## Chunk delivery log
 
@@ -203,30 +186,18 @@ For quick reference on what shipped when:
       page already had the (previously dormant) rendering logic.
 - 2N  YouTube channels added as a new source category. 16 channels
       loaded from watch_app/data/youtube_channels.yaml, weighted from
-      0.3 to 0.9 across three content tiers (indie-focused / broad /
-      mainstream-dealer). Custom `_extract_excerpt` reads
-      `media:description` (YouTube's Atom dialect); channel list is
+      0.3 to 0.9 across three content tiers. Custom `_extract_excerpt`
+      reads `media:description` (YouTube's Atom dialect); channel list is
       data-driven so adding channels later is a one-line YAML edit.
 - 2N-hotfix  YouTube feed endpoint flakiness mitigation. Retry on
             HTTP 404/500 with short backoff (1s, 3s). Connection
             errors and non-retryable status codes (e.g. 403) bail
-            immediately rather than waste time. Browser-like User-Agent
-            on YouTube fetches (other tools report this doesn't always
-            help but it's free).
-- 2N-hotfix2 Two YouTube channel IDs corrected:
-            - Watchfinder & Co.: was UCu16y62LPCwTknfV5_7Zalg (failed all
-              retries on every scan), now UCLaoR2K7Dsa_KUK-DVpdZZA (the
-              main UK channel).
-            - WatchAdvisor: was UCF0mZ8eOx3ie5yCErYRoT5A (failed all
-              retries on every scan), now UCFh-oKEXamVSLQRzG2_23wQ
-              (Alexander Linz's Swiss media operation).
-            YAML-only change. No code change.
-- 2N-hotfix3 WatchAdvisor commented out in youtube_channels.yaml.
-            Channel ID verified correct, but YouTube's feed endpoint
-            persistently returns 404 even with retries while other
-            channels succeed normally. Rather than waste ~5s every
-            scan retrying, disabled. 15 channels active; YAML edit
-            to re-enable if YouTube starts serving the feed.
+            immediately. Browser-like User-Agent on YouTube fetches.
+- 2N-hotfix2 Two YouTube channel IDs corrected (Watchfinder & Co. and
+            WatchAdvisor). YAML-only.
+- 2N-hotfix3 WatchAdvisor commented out — channel ID verified correct
+            but YouTube's feed endpoint persistently 404s while peer
+            channels succeed. 15 active YouTube channels remain.
 
 ## Findings logged from the week-1 data review (2G)
 
@@ -257,6 +228,18 @@ SJX article on April 27 mentioned them in the context of F.P. Journe's
 Young Talent Competition. They went from 0 mentions (hidden_gem rank
 #6) to 1 mention (rising_star rank #12) in one scan. This is exactly
 the discovery transition the system should surface. Pretty cool.
+
+**YouTube feed endpoint is unreliable (2N).** YouTube's
+`/feeds/videos.xml?channel_id=<ID>` endpoint intermittently returns
+404 and 500 for valid, active channel IDs. Same channel works fine
+in a browser at the same moment. Other RSS readers (miniflux,
+RSS-Bridge, n8n) report the same pattern. Mitigated with retry +
+backoff in 2N-hotfix. Diagnostic rule: a channel that fails *all*
+retries across *multiple* scans while peer channels recover is
+probably a wrong channel ID (correct fix in 2N-hotfix2). A channel
+where the ID is verifiably correct but the endpoint still 404s
+persistently is a YouTube-side problem worth disabling (2N-hotfix3
+on WatchAdvisor).
 
 ## Potential future scoring refinements (not urgent)
 

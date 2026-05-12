@@ -10,9 +10,10 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
 
 ## What it does today
 
-- **Ingests from 8 sources daily**: SJX, Monochrome, Fratello, Hodinkee, and
-  Quill & Pad (via RSS); GPHG 2023/2024/2025 nominations (via a scraper of the
-  official site).
+- **Ingests from ~23 sources daily**: 5 watch publications via RSS (SJX,
+  Monochrome, Fratello, Hodinkee, Quill & Pad), 3 GPHG editions via a
+  scraper of the official site (2023/2024/2025), and 15 YouTube
+  channels covering indie watchmakers across three prestige tiers.
 - **Tracks 125 curated seed makers** plus anyone new that surfaces from GPHG or
   an article mentioning them. The seed includes every LV Watch Prize finalist,
   every AHCI member, most GPHG regulars, and major conglomerate brands flagged
@@ -43,6 +44,9 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   new entrants over a configurable lookback window (3, 7, or 14 days)
   under either preset. The "rising star" preset's purpose is finally
   visible as actual movement, not a static snapshot.
+- **Links to maker websites** on every detail page where one exists. 117
+  of 125 seed makers have a verified website URL — the remaining 8 (e.g.
+  Philippe Dufour) genuinely don't have public web presence.
 
 ## Setup
 
@@ -58,7 +62,7 @@ pip install -r requirements.txt
 cp .env.example .env
 
 make setup-db    # Creates DB and applies migrations
-make scan        # First scan — fetches all sources, ~20-30 seconds cold cache
+make scan        # First scan — fetches all sources, ~30-60 seconds cold cache
 make top         # See top 20 makers under rising_star
 make serve       # Web UI at http://localhost:8000
 ```
@@ -164,7 +168,7 @@ back to the explanation.
 ## How sources work
 
 Each source is a Python class that yields `RawMention` objects. Sources fall into
-two shapes:
+three shapes:
 
 - **RSS-based media sources** (`sources/media/*.py`) — inherit from `RSSSource`,
   specify a feed URL and prestige weight. Title and article text go through the
@@ -173,6 +177,13 @@ two shapes:
   the nominee list directly from the official Next.js page. It doesn't use the
   general extractor because GPHG's data is already well-structured (brand name
   per watch, no prose to parse).
+- **YouTube channels** (`sources/media/youtube.py`) — also RSS-based but
+  data-driven from `watch_app/data/youtube_channels.yaml`. One
+  `YouTubeChannelSource` per channel, with a custom `_fetch_feed_text` that
+  retries on YouTube's known-flaky feed endpoint (404/500 intermittent on
+  valid channel IDs) and a custom `_extract_excerpt` that reads
+  `media:description` from YouTube's Atom dialect. Adding a channel is a
+  one-line YAML edit, no code.
 
 New maker names encountered by any source are auto-created with sensible defaults
 (is_independent=True). The seed audit regression test (`tests/test_seed_audit.py`)
@@ -185,22 +196,27 @@ rising_star.
 ```
 watch_app/
 ├── sources/              # One module per source
-│   ├── media/            # RSS-based: SJX, Monochrome, Fratello, Hodinkee, Quill & Pad
+│   ├── media/            # RSS-based: SJX, Monochrome, Fratello, Hodinkee, Quill & Pad,
+│   │                     # plus youtube.py (data-driven from youtube_channels.yaml)
 │   ├── awards/           # GPHG list scraper (gphg.py) + per-watch detail parser (gphg_detail.py)
 │   ├── dummy.py          # Test source for unit tests
 │   └── base.py           # Source / RawMention protocol
 ├── extraction/           # Rule-based entity extraction; resolver.py fuzzy-matches to Makers
 ├── llm/                  # Anthropic client + content-hash response cache
 ├── scoring/              # signals.py computes the 7 signals; ranker.py composes them under presets;
-│                         # methodology.py builds worked examples and source-contribution stats
-│                         # for the /methodology page
+│                         # methodology.py builds worked examples and source-contribution stats;
+│                         # queries.py has fetch_top_makers, fetch_all_makers_comparison,
+│                         # and fetch_rank_changes used by the web UI
 ├── storage/              # SQLAlchemy models (Maker, Mention, Signal, Score, ScanRun, Source, WatchModel)
 ├── pipeline/             # orchestrator.py wires the layers: fetch → extract → resolve → store →
 │                         # fetch GPHG model details → score
-├── api/                  # FastAPI routers; makers.py has the dashboard, detail, and methodology routes
-├── web/templates/        # Jinja2 + HTMX (dashboard.html, maker_detail.html, methodology.html, _makers_table.html)
+├── api/                  # FastAPI routers; makers.py has dashboard, detail, methodology,
+│                         # comparison, and movers routes
+├── web/templates/        # Jinja2 + HTMX (dashboard.html, maker_detail.html, methodology.html,
+│                         # comparison.html, movers.html, _makers_table.html)
 ├── data/
-│   └── known_makers.yaml # The 125-maker curated seed
+│   ├── known_makers.yaml      # The 125-maker curated seed (117 with website URLs)
+│   └── youtube_channels.yaml  # 15 YouTube channels with prestige weights and tier annotations
 └── cli.py                # Typer CLI entry point
 
 tests/                    # 250 tests; run with `make test`
