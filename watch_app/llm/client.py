@@ -128,3 +128,100 @@ def extract_makers(
     )
 
     return result
+
+
+# Model used for maker enrichment. Cheap, fast, sufficient for "what's the
+# official website of <known watchmaker>". Hardcoded rather than read from
+# settings because this is the only call site that needs it; if we ever
+# add more enrichment use cases, factor out then.
+ENRICHMENT_MODEL = "claude-haiku-4-5-20251001"
+
+LOOKUP_WEBSITE_PROMPT_VERSION = "v1-2026-05-13"
+
+
+def lookup_maker_website(
+    session: Session,
+    maker_name: str,
+    country: str | None = None,
+) -> str | None:
+    """Ask Claude to identify the official website for a watchmaker.
+
+    Returns a URL string, or None if the model is uncertain. The caller is
+    expected to verify the URL resolves before committing it to the database
+    — this function does not perform that check.
+
+    Results are cached by (model, prompt_version, maker_name, country). The
+    same maker is only looked up once even if enrich is run multiple times.
+
+    Important: the prompt explicitly allows the model to reply NONE rather
+    than guess. We prefer no data over wrong data.
+    """
+    # Cache key includes country since "SpaceOne France" might disambiguate
+    # from a same-named entity elsewhere.
+    input_content = _normalize_for_hashing(
+        {"maker": maker_name, "country": country or ""}
+    )
+
+    cached = get_cached(
+        session=session,
+        model=ENRICHMENT_MODEL,
+        prompt_version=LOOKUP_WEBSITE_PROMPT_VERSION,
+        input_content=input_content,
+    )
+    if cached is not None:
+        logger.debug("Website lookup cache hit for %r", maker_name)
+        return cached.get("url")
+
+    logger.info("Looking up website for %r via LLM", maker_name)
+
+    country_hint = f" (based in {country})" if country else ""
+    user_prompt = (
+        f"What is the official website URL for the independent watchmaker "
+        f"or watch brand named {maker_name!r}{country_hint}?\n\n"
+        f"Rules:\n"
+        f"- Reply with only the URL, no other text.\n"
+        f"- The URL must be the brand's own website, not a dealer, "
+        f"  aggregator, fan site, or social media.\n"
+        f"- If you are not confident this is the correct watchmaker, or "
+        f"  if you don't know their website, reply with exactly: NONE\n"
+        f"- Prefer https:// over http://.\n"
+    )
+
+    client = _get_client()
+    message = client.messages.create(
+        model=ENRICHMENT_MODEL,
+        max_tokens=100,
+        messages=[{"role": "user", "content": user_prompt}],
+    )
+
+    raw_text = ""
+    for block in message.content:
+        if getattr(block, "type", None) == "text":
+            raw_text += block.text
+
+    cleaned = raw_text.strip()
+    url: str | None
+    if cleaned == "NONE" or not cleaned:
+        url = None
+    elif cleaned.startswith("http://") or cleaned.startswith("https://"):
+        # Take the first whitespace-delimited token, in case the model
+        # added a trailing period or explanation despite our instruction.
+        url = cleaned.split()[0].rstrip(".,;)")
+    else:
+        # Anything that doesn't start with a URL scheme is suspicious.
+        # Treat as NONE rather than try to coerce.
+        logger.warning(
+            "Unexpected LLM response for %r: %r — treating as NONE",
+            maker_name, cleaned[:100],
+        )
+        url = None
+
+    set_cached(
+        session=session,
+        model=ENRICHMENT_MODEL,
+        prompt_version=LOOKUP_WEBSITE_PROMPT_VERSION,
+        input_content=input_content,
+        response={"url": url},
+    )
+
+    return url

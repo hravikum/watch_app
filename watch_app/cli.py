@@ -265,6 +265,100 @@ def history(
 
 
 @app.command()
+def enrich(
+    commit: bool = typer.Option(
+        False,
+        "--commit",
+        help="Actually write changes to the DB. Without this flag, runs in "
+             "dry-run mode (shows proposals only).",
+    ),
+) -> None:
+    """Enrich auto-discovered makers with website URLs via LLM lookup.
+
+    Finds all Maker rows where website IS NULL, asks Claude for each
+    maker's official website, verifies the URL actually resolves over
+    HTTP, and (with --commit) writes the validated URLs to the DB.
+
+    Default behavior is dry-run: prints proposals to the terminal
+    without writing anything. Re-run with --commit to apply.
+
+    LLM responses are cached, so dry-run + commit doesn't double-bill.
+    Subsequent runs only look up makers added since the last enrichment.
+
+    Cost: roughly $0.001 per maker enriched (one Haiku call). Backfilling
+    your entire batch of unenriched makers should be a few cents at most.
+    """
+    from rich.console import Console
+    from rich.table import Table
+
+    from watch_app.extraction.enrich import (
+        apply_enrichments,
+        propose_enrichments,
+    )
+
+    console = Console()
+    mode = "COMMIT" if commit else "DRY-RUN"
+    console.print(f"[bold]Maker enrichment ({mode})[/bold]")
+
+    with session_scope() as session:
+        # We need to figure out how many makers need enrichment before
+        # calling the LLM, since each call costs money. Print the count
+        # up front so the user knows what they're getting into.
+        from watch_app.extraction.enrich import iter_unenriched_makers
+        unenriched_count = sum(1 for _ in iter_unenriched_makers(session))
+        if unenriched_count == 0:
+            console.print("[green]All makers have websites. Nothing to do.[/green]")
+            return
+
+        console.print(
+            f"Found [yellow]{unenriched_count}[/yellow] maker(s) without "
+            f"a website. Looking them up via Claude..."
+        )
+
+        proposals = propose_enrichments(session)
+
+        table = Table(title="Proposed enrichments")
+        table.add_column("Maker", style="cyan")
+        table.add_column("Country")
+        table.add_column("Proposed URL")
+        table.add_column("Status", style="bold")
+
+        committable = 0
+        for p in proposals:
+            if p.is_committable:
+                status = "[green]✓ ready[/green]"
+                committable += 1
+            elif p.proposed_url is None:
+                status = f"[dim]skip ({p.rejection_reason})[/dim]"
+            elif not p.url_resolved:
+                status = f"[red]skip ({p.rejection_reason})[/red]"
+            else:
+                status = f"[red]skip ({p.rejection_reason})[/red]"
+            table.add_row(
+                p.canonical_name,
+                p.country or "—",
+                p.proposed_url or "—",
+                status,
+            )
+        console.print(table)
+
+        console.print(
+            f"\n[bold]Summary:[/bold] {committable} committable, "
+            f"{len(proposals) - committable} skipped."
+        )
+
+        if not commit:
+            console.print(
+                "\n[yellow]Dry run.[/yellow] Re-run with [bold]--commit[/bold] "
+                "to write the committable proposals to the database."
+            )
+            return
+
+        written = apply_enrichments(session, proposals)
+        console.print(f"\n[green]Wrote {written} website(s) to the database.[/green]")
+
+
+@app.command()
 def schedule() -> None:
     """Print instructions for setting up a daily scheduled scan via launchd.
 

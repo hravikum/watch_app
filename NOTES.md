@@ -329,6 +329,23 @@ For quick reference on what shipped when:
 - 2N-hotfix3 WatchAdvisor commented out — channel ID verified correct
             but YouTube's feed endpoint persistently 404s while peer
             channels succeed. 15 active YouTube channels remain.
+- 2O  Documentation refresh — README and NOTES updated to reflect
+      shipped 2K-2N work, current source counts, current test counts,
+      and feature inventory. Doc-only chunk.
+- 2P  Discovery → engagement arc captured in NOTES.md as the next
+      major direction after Reddit. Three flavors of "interested in"
+      (aesthetic, philosophy, practical fit); three layers of work
+      (enrich Maker data with multi-tag taste dimensions, build
+      multi-filter explorer, capture user reactions). Doc-only.
+- 2P-hotfix Corrected Auffret Paris website URL in seed YAML
+            (auffretparis → auffret-paris). One-line fix.
+- 2Q  LLM-driven maker enrichment via `python -m watch_app.cli enrich`.
+      For makers with `website IS NULL`, asks Haiku 4.5 for the official
+      URL, validates it isn't a blocked aggregator/dealer domain,
+      verifies it actually resolves over HTTP, and (with --commit) writes
+      to DB. Default is dry-run. LLM responses cached so re-running is
+      free. Solves the auto-discovered makers gap: investigative leads
+      now have working website links.
 
 ## Findings logged from the week-1 data review (2G)
 
