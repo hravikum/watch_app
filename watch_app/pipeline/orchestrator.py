@@ -43,6 +43,7 @@ def default_sources() -> list[Source]:
     Current roster:
     - 5 RSS-based media sources (SJX, Monochrome, Fratello, Hodinkee, Quill & Pad)
     - 3 GPHG editions (2023, 2024, 2025) — award nominations
+    - 3 Reddit subreddits (r/watchmaking, r/horology, r/Watches)
     - N YouTube channels (loaded from watch_app/data/youtube_channels.yaml)
 
     Tests and ad-hoc runs can import DummySource directly and pass it via the
@@ -53,6 +54,11 @@ def default_sources() -> list[Source]:
     from watch_app.sources.media.hodinkee import HodinkeeSource
     from watch_app.sources.media.monochrome import MonochromeSource
     from watch_app.sources.media.quill_and_pad import QuillAndPadSource
+    from watch_app.sources.media.reddit import (
+        RedditHorologySource,
+        RedditWatchesSource,
+        RedditWatchmakingSource,
+    )
     from watch_app.sources.media.sjx import SJXSource
     from watch_app.sources.media.youtube import build_youtube_sources
 
@@ -65,6 +71,9 @@ def default_sources() -> list[Source]:
         GPHGSource(2025),
         GPHGSource(2024),
         GPHGSource(2023),
+        RedditWatchmakingSource(),
+        RedditHorologySource(),
+        RedditWatchesSource(),
         *build_youtube_sources(),
     ]
 

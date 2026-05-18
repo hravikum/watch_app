@@ -24,19 +24,25 @@ Only after that review should you pick what to build next.
 
 ## Near-term candidates
 
-### Reddit source — top pick for actual discovery value
-r/watchmaking and r/horology surface indie makers earlier than trade
-media. Literally before editors know. This is the highest-signal addition
-for the actual discovery goal.
+### Reddit source (shipped in 2R — see chunk log)
+Three subreddits (r/watchmaking, r/horology, r/Watches) ship as RSS-based
+sources using the public `top/.rss?t=week` endpoint. No auth required.
 
-- Medium effort, probably 2-3 chunks (fetching infrastructure, then
-  calibration after a week of data, then cleanup)
-- Needs: Reddit API credentials, OAuth flow, careful thinking about
-  prestige weight (forum buzz is noisier than SJX — maybe 0.4-0.5?)
-- Titles are often lousy or jokey; excerpts matter more than for RSS
-- Watch out for duplicate mentions (same post on multiple subreddits)
-- Blocked until ~May 16 due to Reddit's new-account waiting period
-  before API app creation is allowed
+**Possible upgrade if RSS limits become a problem:**
+- Reddit's free legacy API (requires application + permission, days-to-weeks
+  wait) would let us fetch more posts per subreddit and access richer
+  per-post data (upvote counts, comment threads, top comments).
+- RSS gets ~25 top posts per week per subreddit, which is plenty for
+  daily scans of high-signal communities. Only upgrade if data shows
+  we're missing meaningful coverage.
+- Don't apply for legacy API unless we've used RSS for 2-3 weeks and
+  identified specific gaps RSS can't fill.
+
+**Watch out for:**
+- Same post linked across multiple subreddits → existing URL dedupe
+  in the resolver should handle this
+- Subreddit name capitalization (r/Watches vs r/watches) matters for
+  Reddit's URL routing — verified working in 2R
 
 ### Models per brand (Tier 1 built in 2J — future tiers TBD)
 Built: GPHG-nominated watches surface on each maker's detail page with full
@@ -346,6 +352,14 @@ For quick reference on what shipped when:
       to DB. Default is dry-run. LLM responses cached so re-running is
       free. Solves the auto-discovered makers gap: investigative leads
       now have working website links.
+- 2R  Reddit subreddits added as RSS-based sources. Three subreddits
+      (r/watchmaking, r/horology, r/Watches) using the top/.rss?t=week
+      URL form to filter to community-upvoted posts. Hardcoded one
+      class per subreddit (same pattern as SJX/Monochrome/etc.) rather
+      than data-driven YAML — Reddit list is short and stable. Used
+      Reddit's public RSS feeds, no auth required, no waiting for
+      legacy API permission. Prestige weights 0.4-0.6, intentionally
+      below all journalism sources.
 
 ## Findings logged from the week-1 data review (2G)
 

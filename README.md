@@ -10,10 +10,11 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
 
 ## What it does today
 
-- **Ingests from ~23 sources daily**: 5 watch publications via RSS (SJX,
+- **Ingests from ~26 sources daily**: 5 watch publications via RSS (SJX,
   Monochrome, Fratello, Hodinkee, Quill & Pad), 3 GPHG editions via a
-  scraper of the official site (2023/2024/2025), and 15 YouTube
-  channels covering indie watchmakers across three prestige tiers.
+  scraper of the official site (2023/2024/2025), 3 Reddit subreddits
+  (r/watchmaking, r/horology, r/Watches), and 15 YouTube channels
+  covering indie watchmakers across three prestige tiers.
 - **Tracks 125 curated seed makers** plus anyone new that surfaces from GPHG or
   an article mentioning them. The seed includes every LV Watch Prize finalist,
   every AHCI member, most GPHG regulars, and major conglomerate brands flagged
@@ -177,6 +178,12 @@ three shapes:
   the nominee list directly from the official Next.js page. It doesn't use the
   general extractor because GPHG's data is already well-structured (brand name
   per watch, no prose to parse).
+- **Reddit subreddits** (`sources/media/reddit.py`) — RSS-based, but use the
+  `top/.rss?sort=top&t=week` URL form rather than the default "new" feed.
+  This filters to community-upvoted posts which are far more likely to
+  mention specific makers worth tracking. Prestige weights below all
+  journalism sources (0.4-0.6) because Reddit posts are single-user
+  opinions or photos, not researched pieces.
 - **YouTube channels** (`sources/media/youtube.py`) — also RSS-based but
   data-driven from `watch_app/data/youtube_channels.yaml`. One
   `YouTubeChannelSource` per channel, with a custom `_fetch_feed_text` that
@@ -197,7 +204,8 @@ rising_star.
 watch_app/
 ├── sources/              # One module per source
 │   ├── media/            # RSS-based: SJX, Monochrome, Fratello, Hodinkee, Quill & Pad,
-│   │                     # plus youtube.py (data-driven from youtube_channels.yaml)
+│   │                     # reddit.py (3 subreddits), plus youtube.py (data-driven
+│   │                     # from youtube_channels.yaml)
 │   ├── awards/           # GPHG list scraper (gphg.py) + per-watch detail parser (gphg_detail.py)
 │   ├── dummy.py          # Test source for unit tests
 │   └── base.py           # Source / RawMention protocol
@@ -219,7 +227,7 @@ watch_app/
 │   └── youtube_channels.yaml  # 15 YouTube channels with prestige weights and tier annotations
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 269 tests; run with `make test`
+tests/                    # 279 tests; run with `make test`
 alembic/                  # Schema migrations
 ```
 
@@ -244,7 +252,7 @@ alembic/                  # Schema migrations
 ## Development
 
 ```bash
-make test         # Full suite; expects 269 passing
+make test         # Full suite; expects 279 passing
 pytest -v tests/test_ranker.py  # Run one file
 pytest -v -k hidden_gem         # Run tests matching a name
 ```
