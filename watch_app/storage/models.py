@@ -61,6 +61,16 @@ class Maker(Base):
     first_seen_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
     last_scored_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # Enrichment tracking — populated when LLM-driven enrichment fills in
+    # missing fields. `enriched_at` is the most recent enrichment timestamp;
+    # `enriched_fields` is the list of field names that were LLM-enriched.
+    # Fields populated via seed YAML or manual SQL stay None here.
+    #
+    # See chunk 2S for context. Currently set only by `cli enrich` (2Q); chunk
+    # 2T will also set them from the automatic-on-scan enrichment path.
+    enriched_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    enriched_fields: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+
     mentions: Mapped[list["Mention"]] = relationship(back_populates="maker")
     signals: Mapped[list["Signal"]] = relationship(back_populates="maker")
     scores: Mapped[list["Score"]] = relationship(back_populates="maker")

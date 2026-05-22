@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Discoveries · Watch App{% endblock %}
+
+{% block content %}
+<header class="mb-8">
+  <h1 class="text-2xl font-semibold tracking-tight text-stone-900">Discoveries</h1>
+  <p class="mt-2 text-sm text-stone-600 max-w-2xl leading-relaxed">
+    Makers found by the tool from article mentions that aren't in the
+    curated seed list. Sorted by most recently discovered first.
+    {% if count == 0 %}
+      <em>None yet.</em>
+    {% else %}
+      <strong>{{ count }}</strong> auto-discovered maker{% if count != 1 %}s{% endif %}.
+    {% endif %}
+  </p>
+  <p class="mt-3 text-xs text-stone-500 max-w-2xl leading-relaxed">
+    To promote a maker to the curated seed, edit
+    <code class="bg-stone-100 px-1.5 py-0.5 rounded text-stone-700">watch_app/data/known_makers.yaml</code>
+    and add an entry with full metadata. Fields marked
+    <span class="text-amber-700">auto</span> were filled by LLM
+    enrichment and may need verification.
+  </p>
+</header>
+
+{% if count == 0 %}
+<div class="bg-white border border-stone-200 rounded-xl p-8 text-center text-stone-500">
+  <p class="text-sm">No auto-discovered makers yet.</p>
+  <p class="text-xs mt-2">
+    As scans run, any brand name found in articles that isn't in the seed
+    YAML will appear here.
+  </p>
+</div>
+{% else %}
+
+<div class="bg-white border border-stone-200 rounded-xl overflow-hidden">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="border-b border-stone-200 text-left text-xs uppercase tracking-[0.1em] text-stone-500">
+        <th class="px-5 py-3 font-medium">Maker</th>
+        <th class="px-5 py-3 font-medium">First seen</th>
+        <th class="px-5 py-3 font-medium">Country</th>
+        <th class="px-5 py-3 font-medium tabular">Year</th>
+        <th class="px-5 py-3 font-medium">Website</th>
+        <th class="px-5 py-3 font-medium tabular text-right">Mentions</th>
+        <th class="px-5 py-3 font-medium">Sources</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in discovered %}
+      <tr class="border-t border-stone-100 hover:bg-stone-50 transition-colors group">
+        <td class="px-5 py-3 font-medium group-hover:text-stone-900">
+          <a href="/makers/{{ m.id }}"
+             class="hover:underline decoration-stone-400 underline-offset-2">{{ m.canonical_name }}</a>
+          {% if not m.is_independent %}
+            <span class="ml-2 text-[10px] uppercase tracking-widest text-stone-400 border border-stone-200 rounded px-1.5 py-0.5">
+              conglomerate{% if m.field_was_enriched("is_independent") %} <span class="text-amber-700">·auto</span>{% endif %}
+            </span>
+          {% endif %}
+        </td>
+        <td class="px-5 py-3 text-stone-600 text-xs">
+          {{ m.first_seen_at.strftime("%b %d, %Y") }}
+        </td>
+        <td class="px-5 py-3 text-stone-700">
+          {% if m.country %}
+            {{ m.country }}{% if m.field_was_enriched("country") %}
+              <span class="ml-1 text-[10px] uppercase tracking-widest text-amber-700">auto</span>
+            {% endif %}
+          {% else %}
+            <span class="text-stone-300">—</span>
+          {% endif %}
+        </td>
+        <td class="px-5 py-3 text-stone-700 tabular">
+          {% if m.founded_year %}
+            {{ m.founded_year }}{% if m.field_was_enriched("founded_year") %}
+              <span class="ml-1 text-[10px] uppercase tracking-widest text-amber-700">auto</span>
+            {% endif %}
+          {% else %}
+            <span class="text-stone-300">—</span>
+          {% endif %}
+        </td>
+        <td class="px-5 py-3 text-stone-700">
+          {% if m.website %}
+            <a href="{{ m.website }}" target="_blank" rel="noopener"
+               class="text-stone-600 hover:text-stone-900 hover:underline decoration-stone-400 underline-offset-2 text-xs">
+              {{ m.website | replace("https://", "") | replace("http://", "") | replace("www.", "") | truncate(28, true, "…") }}
+            </a>
+            {% if m.field_was_enriched("website") %}
+              <span class="ml-1 text-[10px] uppercase tracking-widest text-amber-700">auto</span>
+            {% endif %}
+          {% else %}
+            <span class="text-stone-300">—</span>
+          {% endif %}
+        </td>
+        <td class="px-5 py-3 tabular text-right text-stone-700">
+          {{ m.mention_count }}
+        </td>
+        <td class="px-5 py-3 text-xs text-stone-500">
+          {{ m.source_names | join(", ") | truncate(40, true, "…") }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

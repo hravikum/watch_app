@@ -360,6 +360,28 @@ For quick reference on what shipped when:
       Reddit's public RSS feeds, no auth required, no waiting for
       legacy API permission. Prestige weights 0.4-0.6, intentionally
       below all journalism sources.
+- 2S  Discovery view (`/discoveries`) for auto-discovered makers — those
+      the resolver created from article mentions that aren't in the seed
+      YAML. Sorted by first_seen_at desc. Shows what we know (country,
+      founded_year, website, independence), which fields came from LLM
+      enrichment vs seed/manual, mention count, sources. Visibility layer
+      over what the tool has already learned. Added enriched_at and
+      enriched_fields columns on Maker to track LLM-enriched data;
+      cli enrich now populates them. Definition A: a maker is auto-
+      discovered if its canonical_name doesn't match seed canonical names
+      or aliases. Schema migration 0005 adds the columns.
+- 2T  Multi-field enrichment + automatic on-scan integration.
+      Extends 2Q's pattern from website-only to website + country +
+      is_independent. Refactored extraction/enrich.py to a field-
+      registry pattern (FIELDS list with per-field lookup_fn,
+      verify_fn, auto_enrich flag) so adding founded_year later
+      is one entry. Country verified against a known-watchmaking-
+      countries list; is_independent uses strict YES/NO/NONE.
+      auto_enrich_unenriched_makers() runs after scoring in the
+      orchestrator, capped at 25 makers per scan to bound cost.
+      `cli enrich` now lists per-field proposals in the dry-run table.
+      All 2Q tests still pass via backwards-compat shim on
+      EnrichmentProposal.
 
 ## Findings logged from the week-1 data review (2G)
 

@@ -167,6 +167,13 @@ makers:
     aliases: ["Maximilian Büsser & Friends"]
     country: "Switzerland"
     founded_year: 2005
+  - canonical_name: "Mermont"
+    aliases: ["Mermont Watches"]
+    country: "Switzerland"
+    founded_year: 2025
+    # No website yet — auto-enrichment will fill it. Founded by Sebastien
+    # Bey-Haut; watches assembled by Nicolas Delaloye (AHCI member,
+    # 8 years at Patek Philippe Museum). Debut: La Parfaite, Jan 2026.
   - canonical_name: "H. Moser & Cie."
     website: "https://www.h-moser.com"
     aliases: ["H. Moser", "Moser"]

@@ -48,6 +48,18 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
 - **Links to maker websites** on every detail page where one exists. 117
   of 125 seed makers have a verified website URL — the remaining 8 (e.g.
   Philippe Dufour) genuinely don't have public web presence.
+- **Surfaces auto-discovered makers** at `/discoveries`. Any brand the
+  resolver caught from an article that isn't in the curated seed YAML
+  appears here, sorted by most recently found. The page shows what's
+  known about each (country, founded year, website, independence,
+  mentions, sources) and marks any field that was filled by LLM
+  enrichment so you know what to verify.
+- **Auto-enriches missing fields on scan.** After each scan completes,
+  any newly-discovered Maker with `enriched_at IS NULL` gets enriched
+  via Haiku 4.5 for three fields: website (HTTP-verified), country
+  (known-list validated), and is_independent (strict YES/NO/NONE).
+  Capped at 25 makers per scan. Manual `cli enrich --commit` still
+  works for one-off backfills.
 
 ## Setup
 
@@ -214,20 +226,21 @@ watch_app/
 ├── scoring/              # signals.py computes the 7 signals; ranker.py composes them under presets;
 │                         # methodology.py builds worked examples and source-contribution stats;
 │                         # queries.py has fetch_top_makers, fetch_all_makers_comparison,
-│                         # and fetch_rank_changes used by the web UI
+│                         # and fetch_rank_changes used by the web UI;
+│                         # discovery.py finds auto-discovered makers (not in seed YAML)
 ├── storage/              # SQLAlchemy models (Maker, Mention, Signal, Score, ScanRun, Source, WatchModel)
 ├── pipeline/             # orchestrator.py wires the layers: fetch → extract → resolve → store →
 │                         # fetch GPHG model details → score
 ├── api/                  # FastAPI routers; makers.py has dashboard, detail, methodology,
-│                         # comparison, and movers routes
+│                         # comparison, movers, and discoveries routes
 ├── web/templates/        # Jinja2 + HTMX (dashboard.html, maker_detail.html, methodology.html,
-│                         # comparison.html, movers.html, _makers_table.html)
+│                         # comparison.html, movers.html, discoveries.html, _makers_table.html)
 ├── data/
 │   ├── known_makers.yaml      # The 125-maker curated seed (117 with website URLs)
 │   └── youtube_channels.yaml  # 15 YouTube channels with prestige weights and tier annotations
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 279 tests; run with `make test`
+tests/                    # 294 tests; run with `make test`
 alembic/                  # Schema migrations
 ```
 
@@ -252,7 +265,7 @@ alembic/                  # Schema migrations
 ## Development
 
 ```bash
-make test         # Full suite; expects 279 passing
+make test         # Full suite; expects 294 passing
 pytest -v tests/test_ranker.py  # Run one file
 pytest -v -k hidden_gem         # Run tests matching a name
 ```

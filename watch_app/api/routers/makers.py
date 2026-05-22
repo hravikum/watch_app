@@ -368,3 +368,37 @@ def methodology(request: Request) -> HTMLResponse:
             "source_contributions": source_contributions,
         },
     )
+
+
+@router.get("/discoveries", response_class=HTMLResponse)
+def discoveries(request: Request) -> HTMLResponse:
+    """Render the auto-discovered makers view.
+
+    Shows makers the resolver created from article mentions that aren't in
+    the curated seed YAML — these are the brands your tool found that you
+    didn't tell it about. Sorted by first_seen_at descending so newest
+    discoveries appear at the top.
+
+    For each maker, displays what we know (country, founded_year, website,
+    independence), which fields came from LLM enrichment vs seed/manual,
+    how many mentions they've accumulated, and which sources mentioned
+    them. The detail page is linked for deeper investigation.
+
+    This is the visibility layer over what the tool has already learned.
+    Curation (promoting a maker to the seed YAML) is still a manual step
+    via editing data/known_makers.yaml. Future chunks may add automatic
+    multi-field enrichment so missing fields fill in on discovery.
+    """
+    from watch_app.scoring.discovery import fetch_discovered_makers
+
+    with session_scope() as session:
+        discovered = fetch_discovered_makers(session)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="discoveries.html",
+        context={
+            "discovered": discovered,
+            "count": len(discovered),
+        },
+    )

@@ -273,26 +273,34 @@ def enrich(
              "dry-run mode (shows proposals only).",
     ),
 ) -> None:
-    """Enrich auto-discovered makers with website URLs via LLM lookup.
+    """Enrich auto-discovered makers with missing metadata via LLM lookup.
 
-    Finds all Maker rows where website IS NULL, asks Claude for each
-    maker's official website, verifies the URL actually resolves over
-    HTTP, and (with --commit) writes the validated URLs to the DB.
+    For each Maker with missing fields (website, country, is_independent),
+    asks Claude for the value and (with --commit) writes verified results.
 
-    Default behavior is dry-run: prints proposals to the terminal
-    without writing anything. Re-run with --commit to apply.
+    Per-field verification:
+    - website: HTTP-resolve (must return 2xx/3xx), blocked-domain check
+    - country: must match a known watchmaking country
+    - is_independent: must be YES or NO, not NONE
 
-    LLM responses are cached, so dry-run + commit doesn't double-bill.
-    Subsequent runs only look up makers added since the last enrichment.
+    Default behavior is dry-run: prints proposals to the terminal without
+    writing anything. Re-run with --commit to apply. LLM responses are
+    cached, so dry-run + commit doesn't double-bill.
 
-    Cost: roughly $0.001 per maker enriched (one Haiku call). Backfilling
-    your entire batch of unenriched makers should be a few cents at most.
+    Note: automatic enrichment also fires after every scan completes (2T),
+    so this CLI is primarily useful for backfilling existing rows or for
+    seeing what would be proposed before automation runs it.
+
+    Cost: roughly $0.003 per maker enriched (one Haiku call per field).
+    Backfilling 30 makers across 3 fields costs ~$0.10 total.
     """
     from rich.console import Console
     from rich.table import Table
 
     from watch_app.extraction.enrich import (
+        FIELDS,
         apply_enrichments,
+        iter_unenriched_makers,
         propose_enrichments,
     )
 
@@ -301,50 +309,55 @@ def enrich(
     console.print(f"[bold]Maker enrichment ({mode})[/bold]")
 
     with session_scope() as session:
-        # We need to figure out how many makers need enrichment before
-        # calling the LLM, since each call costs money. Print the count
-        # up front so the user knows what they're getting into.
-        from watch_app.extraction.enrich import iter_unenriched_makers
         unenriched_count = sum(1 for _ in iter_unenriched_makers(session))
         if unenriched_count == 0:
-            console.print("[green]All makers have websites. Nothing to do.[/green]")
+            console.print("[green]All makers fully enriched. Nothing to do.[/green]")
             return
 
         console.print(
-            f"Found [yellow]{unenriched_count}[/yellow] maker(s) without "
-            f"a website. Looking them up via Claude..."
+            f"Found [yellow]{unenriched_count}[/yellow] maker(s) with "
+            f"missing field(s). Looking them up via Claude..."
         )
 
         proposals = propose_enrichments(session)
 
         table = Table(title="Proposed enrichments")
         table.add_column("Maker", style="cyan")
-        table.add_column("Country")
-        table.add_column("Proposed URL")
+        table.add_column("Field")
+        table.add_column("Proposed value")
         table.add_column("Status", style="bold")
 
         committable = 0
+        skipped = 0
         for p in proposals:
-            if p.is_committable:
-                status = "[green]✓ ready[/green]"
-                committable += 1
-            elif p.proposed_url is None:
-                status = f"[dim]skip ({p.rejection_reason})[/dim]"
-            elif not p.url_resolved:
-                status = f"[red]skip ({p.rejection_reason})[/red]"
-            else:
-                status = f"[red]skip ({p.rejection_reason})[/red]"
-            table.add_row(
-                p.canonical_name,
-                p.country or "—",
-                p.proposed_url or "—",
-                status,
-            )
+            if not p.field_proposals:
+                # Maker had all fields populated; nothing to do.
+                continue
+            for fp in p.field_proposals:
+                if fp.is_committable:
+                    status = "[green]✓ ready[/green]"
+                    committable += 1
+                else:
+                    status = f"[dim]skip ({fp.rejection_reason})[/dim]"
+                    skipped += 1
+                # Format the value for display (booleans → text)
+                if fp.proposed_value is None:
+                    display = "—"
+                elif isinstance(fp.proposed_value, bool):
+                    display = "independent" if fp.proposed_value else "conglomerate"
+                else:
+                    display = str(fp.proposed_value)
+                table.add_row(
+                    p.canonical_name,
+                    fp.field_name,
+                    display,
+                    status,
+                )
         console.print(table)
 
         console.print(
-            f"\n[bold]Summary:[/bold] {committable} committable, "
-            f"{len(proposals) - committable} skipped."
+            f"\n[bold]Summary:[/bold] {committable} field(s) committable, "
+            f"{skipped} skipped."
         )
 
         if not commit:
@@ -355,7 +368,7 @@ def enrich(
             return
 
         written = apply_enrichments(session, proposals)
-        console.print(f"\n[green]Wrote {written} website(s) to the database.[/green]")
+        console.print(f"\n[green]Wrote {written} field value(s) to the database.[/green]")
 
 
 @app.command()

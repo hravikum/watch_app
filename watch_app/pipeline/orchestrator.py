@@ -371,6 +371,27 @@ def run_scan(
             for preset_name in PRESETS:
                 created = rank_all_makers(session, preset_name, normalize=normalize)
                 stats["makers_scored"] = len(created)  # same count per preset
+
+            # Automatic enrichment (2T). Find newly-discovered makers
+            # (enriched_at IS NULL) and fill in missing fields via LLM.
+            # Capped at 25 makers per scan to bound cost. Failures here
+            # are logged but don't mark the scan as failed — the main
+            # scan body succeeded, enrichment is best-effort.
+            stats["fields_enriched"] = 0
+            try:
+                from watch_app.extraction.enrich import auto_enrich_unenriched_makers
+                stats["fields_enriched"] = auto_enrich_unenriched_makers(
+                    session, limit=25
+                )
+                if stats["fields_enriched"] > 0:
+                    logger.info(
+                        "Auto-enrichment wrote %d field value(s)",
+                        stats["fields_enriched"],
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "Auto-enrichment failed (scan otherwise completed): %s", exc,
+                )
     except Exception as e:
         # Record failure in its own transaction.
         with session_scope() as meta_session:
