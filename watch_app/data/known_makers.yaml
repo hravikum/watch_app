@@ -305,7 +305,7 @@ makers:
     country: "United Kingdom"
     founded_year: 2015
   - canonical_name: "Lang & Heyne"
-    website: "https://www.langundheyne.de"
+    website: "https://www.lang-und-heyne.de/"
     aliases: ["Lang and Heyne"]
     country: "Germany"
     founded_year: 2001

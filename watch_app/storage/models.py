@@ -74,7 +74,7 @@ class Maker(Base):
     mentions: Mapped[list["Mention"]] = relationship(back_populates="maker")
     signals: Mapped[list["Signal"]] = relationship(back_populates="maker")
     scores: Mapped[list["Score"]] = relationship(back_populates="maker")
-    models: Mapped[list["Model"]] = relationship(back_populates="maker")
+    watch_models: Mapped[list["WatchModel"]] = relationship(back_populates="maker")
 
     def __repr__(self) -> str:
         return f"<Maker {self.canonical_name!r}>"
@@ -245,7 +245,7 @@ class WatchModel(Base):
 
     fetched_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 
-    maker: Mapped["Maker"] = relationship()
+    maker: Mapped["Maker"] = relationship(back_populates="watch_models")
 
     def __repr__(self) -> str:
         return f"<WatchModel {self.name!r} ({self.gphg_year})>"
@@ -293,53 +293,10 @@ class ScanRun(Base):
         return (self.finished_at - self.started_at).total_seconds()
 
 
-class Model(Base):
-    """A specific watch produced by a Maker.
-
-    Sourced from GPHG nominee detail pages — currently the only structured
-    model-data source we have. Each row represents one watch reference, with
-    specs parsed from the dot-separated spec list on the GPHG page.
-
-    Schema is deliberately tolerant of missing fields: GPHG pages format
-    consistently per edition but the same spec fields aren't always present
-    (e.g., older editions may omit launch_date or reference). Anything we
-    don't successfully parse stays in raw_specs as a key/value JSON blob,
-    which lets us add structured columns later without backfilling fetches.
-
-    Uniqueness is on source_url — the GPHG URL is the canonical identifier
-    for a model across editions. If the same watch was nominated in 2024
-    and again in 2025 (rare but possible), the second nomination would
-    update the existing row rather than creating a duplicate.
-    """
-
-    __tablename__ = "models"
-    __table_args__ = (
-        UniqueConstraint("source_url", name="uq_models_source_url"),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    maker_id: Mapped[int] = mapped_column(
-        ForeignKey("makers.id"), index=True
-    )
-    name: Mapped[str] = mapped_column(String(300))
-    year: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
-    source_url: Mapped[str] = mapped_column(String(500))
-
-    case_size_mm: Mapped[float | None] = mapped_column(Float, nullable=True)
-    thickness_mm: Mapped[float | None] = mapped_column(Float, nullable=True)
-    case_material: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    movement: Mapped[str | None] = mapped_column(String(300), nullable=True)
-    water_resistance_m: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    functions: Mapped[str | None] = mapped_column(String(300), nullable=True)
-    reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    launch_date: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    collection: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    price: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    raw_specs: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
-    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
-
-    maker: Mapped[Maker] = relationship(back_populates="models")
-
-    def __repr__(self) -> str:
-        return f"<Model id={self.id} name={self.name!r} year={self.year}>"
+# 2V-cleanup: a dead ``Model`` class previously lived here (table ``models``).
+# It was a leftover from an earlier design that got replaced by ``WatchModel``
+# (table ``watch_models``) but never removed. The ``Maker.models`` relationship
+# pointed at it, which caused ``session.delete(maker)`` to fail (SQLAlchemy's
+# cascade loader queried a nonexistent ``models`` table). Class removed and
+# the relationship renamed to ``Maker.watch_models``, pointing at the real
+# class. No migration needed — the ``models`` table never existed in the DB.

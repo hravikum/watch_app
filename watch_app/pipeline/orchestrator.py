@@ -118,6 +118,37 @@ def _ingest_mention(
             body = raw.raw_text or raw.excerpt or ""
             raw.candidate_names = extract_maker_names(session, title, body)
 
+    # 2U: Subject-extraction trigger. If the title suggests a single subject
+    # and all rule-based attributions are common-reference makers (Rolex,
+    # Patek, etc.), the rule-based extractor likely caught comparison brands
+    # mentioned in the body rather than the article's actual subject. Invoke
+    # LLM to identify the real subject; replace the attributions.
+    #
+    # Trigger fires regardless of `use_llm` — it's narrowly scoped (only
+    # debut-style article titles) and the cost is bounded by the number of
+    # such articles per scan (typically 5-15).
+    from watch_app.extraction.subject import (
+        extract_article_subject,
+        should_attempt_subject_extraction,
+    )
+
+    if raw.candidate_names and should_attempt_subject_extraction(
+        raw.title, raw.candidate_names
+    ):
+        title = raw.title or ""
+        body = raw.raw_text or raw.excerpt or ""
+        llm_subjects = extract_article_subject(session, title, body)
+        if llm_subjects:
+            logger.info(
+                "Subject extraction replaced %s with %s for: %s",
+                raw.candidate_names, llm_subjects, (raw.title or "")[:80],
+            )
+            raw.candidate_names = llm_subjects
+        # If LLM returned nothing, keep the rule-based attribution as-is.
+        # That happens for articles the LLM also can't confidently identify
+        # a subject for (e.g., podcast episodes that genuinely cover the
+        # listed brands).
+
     if not raw.candidate_names:
         logger.debug("Skipping mention with no candidates: %s", raw.url)
         return 0

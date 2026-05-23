@@ -370,6 +370,20 @@ For quick reference on what shipped when:
       cli enrich now populates them. Definition A: a maker is auto-
       discovered if its canonical_name doesn't match seed canonical names
       or aliases. Schema migration 0005 adds the columns.
+- 2U  Subject-extraction trigger. The rule-based extractor fails when
+      an article is about an unknown indie but mentions established
+      brands as stylistic references — e.g., the Hodinkee Mermont La
+      Parfaite article got attributed to Breguet because "Breguet-style
+      numerals" appeared in the body. Added watch_app/extraction/subject.py
+      which detects when a journalism title prefix ("Introducing:",
+      "Hands On:", "First Look:", "In Depth:", "Meet") matches AND all
+      rule-based attributions are to "common reference" makers (Rolex,
+      Patek, Omega, Breguet, etc. — 13 brands). When both conditions
+      hold, calls the existing LLM entity extraction from 2N and
+      REPLACES the common-reference attributions with the LLM's
+      subject identification. Conservative trigger to bound LLM cost
+      to ~5-15 calls per scan. Backfill script processes historical
+      data once (~$0.25 one-time). Added Mermont to seed YAML.
 - 2T  Multi-field enrichment + automatic on-scan integration.
       Extends 2Q's pattern from website-only to website + country +
       is_independent. Refactored extraction/enrich.py to a field-
