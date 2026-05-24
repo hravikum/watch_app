@@ -280,6 +280,15 @@ makers:
     aliases: ["Studio Underdog"]
     country: "United Kingdom"
     founded_year: 2020
+  - canonical_name: "Arken"
+    website: "https://arken.uk"
+    aliases: ["Arken Watch Company", "Arken Watches"]
+    country: "United Kingdom"
+    founded_year: 2020
+    # Founded by Kenneth (Ken) Lam in Birmingham, England. Brand name
+    # is northern-English slang ("our Ken" → "Arken"). Transitioned
+    # from microbrand to independent with the Alterum (proprietary
+    # dual-time module).
   - canonical_name: "Baltic"
     website: "https://baltic-watches.com"
     aliases: ["Baltic Watches"]
@@ -305,7 +314,7 @@ makers:
     country: "United Kingdom"
     founded_year: 2015
   - canonical_name: "Lang & Heyne"
-    website: "https://www.lang-und-heyne.de/"
+    website: "https://www.lang-und-heyne.de"
     aliases: ["Lang and Heyne"]
     country: "Germany"
     founded_year: 2001
