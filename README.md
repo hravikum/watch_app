@@ -60,6 +60,14 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   (known-list validated), and is_independent (strict YES/NO/NONE).
   Capped at 25 makers per scan. Manual `cli enrich --commit` still
   works for one-off backfills.
+- **Catches new makers in debut articles.** When an article title
+  starts with a journalism convention marker like "Introducing:",
+  "Hands On:", or "First Look:" AND the rule-based extractor only
+  found "common reference" brands (Rolex, Patek, Breguet, etc.),
+  triggers an LLM pass to identify the article's actual subject.
+  Prevents articles like "Introducing: The Mermont La Parfaite..."
+  from being mis-attributed to Breguet because of "Breguet-style
+  numerals" in the body.
 
 ## Setup
 
@@ -240,7 +248,7 @@ watch_app/
 │   └── youtube_channels.yaml  # 15 YouTube channels with prestige weights and tier annotations
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 294 tests; run with `make test`
+tests/                    # 326 tests; run with `make test`
 alembic/                  # Schema migrations
 ```
 
@@ -265,7 +273,7 @@ alembic/                  # Schema migrations
 ## Development
 
 ```bash
-make test         # Full suite; expects 294 passing
+make test         # Full suite; expects 326 passing
 pytest -v tests/test_ranker.py  # Run one file
 pytest -v -k hidden_gem         # Run tests matching a name
 ```
