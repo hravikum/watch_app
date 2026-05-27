@@ -56,12 +56,16 @@ DEFAULT_TIMEOUT = 30.0  # legacy total-budget value, kept for the `timeout` kwar
 # explicitly puts a hard ceiling on every operation:
 #   - connect: hostname lookup + TCP handshake. Fail fast if DNS or
 #     network is down; we'd rather skip the source than wait.
-#   - read: time waiting for response body bytes. Most legitimately
-#     slow sites resolve well under this.
+#   - read: time waiting for the next byte from response body. Most
+#     legitimately slow sites send at least one byte per second; this
+#     value bounds drip-fed/half-dead servers (2W-http-timeout: dropped
+#     from 30s to 10s after a scheduled scan saw a GPHG fetch hang for
+#     9m 10s because the server sent occasional bytes — the per-byte
+#     read timeout never fired even though total time was unreasonable).
 #   - write: time to send the request. Tiny GET requests, so very low.
 #   - pool: time waiting for a connection from the pool. We don't share
 #     pools across calls, so this should be near-instant.
-DEFAULT_HTTP_TIMEOUT = httpx.Timeout(connect=10.0, read=30.0, write=10.0, pool=5.0)
+DEFAULT_HTTP_TIMEOUT = httpx.Timeout(connect=10.0, read=10.0, write=10.0, pool=5.0)
 CACHE_TTL_SECONDS = 6 * 60 * 60  # 6 hours — tune per source later if needed
 MIN_REQUEST_INTERVAL = 1.5  # seconds per host
 

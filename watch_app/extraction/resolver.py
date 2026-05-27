@@ -12,6 +12,7 @@ unicode normalization for names like "Raúl Pagès" vs "Raul Pages", etc.).
 """
 from __future__ import annotations
 
+import re
 import unicodedata
 
 from rapidfuzz import fuzz, process
@@ -23,14 +24,23 @@ from watch_app.storage.models import Maker
 FUZZY_MATCH_THRESHOLD = 90  # 0-100; above this we consider it the same maker
 
 
+# Same hyphen/whitespace collapse as extraction.entities._normalize.
+# Keeps the two normalization functions in sync so an article-extracted
+# candidate normalizes the same way as the seed entries it's matched
+# against. Updated in 2W-hyphen-norm.
+_HYPHEN_OR_WS = re.compile(r"[-\s]+")
+
+
 def _normalize(name: str) -> str:
-    """Case-fold and strip diacritics for matching.
+    """Case-fold, strip diacritics, collapse hyphens/whitespace.
 
     "Raúl Pagès" and "Raul Pages" should match.
+    "Petermann-Bédat" and "Petermann Bédat" should match.
     """
     nfkd = unicodedata.normalize("NFKD", name)
     stripped = "".join(c for c in nfkd if not unicodedata.combining(c))
-    return stripped.strip().casefold()
+    folded = stripped.casefold()
+    return _HYPHEN_OR_WS.sub(" ", folded).strip()
 
 
 def resolve_or_create_maker(session: Session, candidate_name: str) -> Maker:

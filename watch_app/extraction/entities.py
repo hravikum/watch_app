@@ -9,7 +9,9 @@ Strategy:
    "Whole word" means not embedded in a larger word — "MB" shouldn't
    match inside "MBA".
 3. Normalize for diacritics so "Raúl Pagès" matches "Raul Pages".
-4. Return the canonical names of all matched makers, deduplicated.
+4. Normalize hyphens and whitespace runs to single spaces so
+   "Petermann-Bédat" matches "Petermann Bédat" (2W-hyphen-norm).
+5. Return the canonical names of all matched makers, deduplicated.
 
 Limitations — acceptable for Phase 1:
 - Won't discover makers who aren't in the seed list. That's fine: the
@@ -54,11 +56,25 @@ _vocab_lock = Lock()
 _vocab_cache: list[VocabEntry] | None = None
 
 
+# Hyphen/whitespace collapse. Used by both vocab build and article
+# normalization so that "Petermann-Bédat", "Petermann Bédat", and
+# "Petermann  Bédat" all reduce to "petermann bedat".
+#
+# Conservative scope: only collapses ASCII hyphens and ASCII whitespace.
+# We deliberately don't touch en-dashes, em-dashes, periods, or other
+# punctuation — those carry meaning that hyphens don't (e.g., "F.P.
+# Journe" vs "FP Journe" is a separate normalization question).
+_HYPHEN_OR_WS = re.compile(r"[-\s]+")
+
+
 def _normalize(text: str) -> str:
-    """Lowercase + strip combining diacritics."""
+    """Lowercase + strip combining diacritics + collapse hyphens/whitespace."""
     nfkd = unicodedata.normalize("NFKD", text)
     stripped = "".join(c for c in nfkd if not unicodedata.combining(c))
-    return stripped.casefold()
+    folded = stripped.casefold()
+    # Collapse any run of hyphens and/or whitespace into a single space.
+    # Done AFTER casefold so the pattern matches the lowercase form.
+    return _HYPHEN_OR_WS.sub(" ", folded).strip()
 
 
 def _build_pattern(term: str) -> re.Pattern[str]:
@@ -69,6 +85,10 @@ def _build_pattern(term: str) -> re.Pattern[str]:
 
     The boundary: either string start/end, or a non-alphanumeric character.
     This ensures "MB" doesn't match inside "MBA" but does match in "MB&F".
+
+    Note: terms passed here are already normalized (hyphens collapsed to
+    spaces), and the text being searched is also normalized the same way,
+    so a literal-string match is sufficient.
     """
     escaped = re.escape(term)
     # Boundaries: must not be preceded/followed by another word character.

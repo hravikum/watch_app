@@ -33,7 +33,7 @@ makers:
     founded_year: 2022
   - canonical_name: "Petermann Bédat"
     website: "https://www.petermann-bedat.ch"
-    aliases: ["Petermann Bedat"]
+    aliases: ["Petermann Bedat", "Petermann-Bédat", "Petermann-Bedat"]
     country: "Switzerland"
     founded_year: 2017
   - canonical_name: "Cyril Brivet-Naudot"
