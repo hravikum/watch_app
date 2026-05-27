@@ -188,8 +188,14 @@ def extract_article_subject(
     try:
         result = extract_makers(session=session, title=title, text=body)
     except Exception as exc:
+        # Log both the wrapped exception AND its underlying cause so we can
+        # actually diagnose what's failing. The Anthropic SDK wraps low-level
+        # errors (DNS, TLS, connection refused, etc.) into APIConnectionError
+        # with a generic "Connection error." message — the actual error type
+        # is only visible via exc.__cause__ (2W-llm-diag).
         logger.warning(
-            "Subject extraction LLM call failed for title=%r: %s", title[:80], exc,
+            "Subject extraction LLM call failed for title=%r: %s (cause: %r)",
+            title[:80], exc, exc.__cause__,
         )
         return []
 
