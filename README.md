@@ -207,10 +207,12 @@ three shapes:
 - **YouTube channels** (`sources/media/youtube.py`) — also RSS-based but
   data-driven from `watch_app/data/youtube_channels.yaml`. One
   `YouTubeChannelSource` per channel, with a custom `_fetch_feed_text` that
-  retries on YouTube's known-flaky feed endpoint (404/500 intermittent on
-  valid channel IDs) and a custom `_extract_excerpt` that reads
-  `media:description` from YouTube's Atom dialect. Adding a channel is a
-  one-line YAML edit, no code.
+  retries on transient 5xx errors from YouTube's known-flaky feed endpoint
+  (intermittent on valid channel IDs) and a custom `_extract_excerpt` that
+  reads `media:description` from YouTube's Atom dialect. 404s are not
+  retried — during the 2025-2026 outage they are sustained across retries,
+  so retrying only wastes backoff time. Adding a channel is a one-line YAML
+  edit, no code.
 
 New maker names encountered by any source are auto-created with sensible defaults
 (is_independent=True). The seed audit regression test (`tests/test_seed_audit.py`)
@@ -262,7 +264,7 @@ alembic/                  # Schema migrations
   TTL across all sources, which makes a daily 7am scan nearly free after the
   first one. Second and later scans within 6 hours serve entirely from cache
   and typically complete in under a second. HTTP requests use per-phase
-  timeouts (`connect=10s, read=30s, write=10s, pool=5s`) so a single hung
+  timeouts (`connect=10s, read=10s, write=10s, pool=5s`) so a single hung
   source can't stall the whole scan — a real issue we hit when GPHG's server
   hung for 17 minutes during one scheduled run.
 - **Why structured sources instead of pure extraction everywhere**: GPHG gives
@@ -300,6 +302,15 @@ extractor's vocabulary is built automatically from the Makers table.
 
 Adding a new scoring preset: edit `watch_app/scoring/presets.py`. Any new
 preset is immediately available in the CLI and web UI.
+
+Debugging slow scans: `run_scan()` emits one `phase=NAME duration=Xs` log
+line per phase (seed, sources, gphg_models, scoring, enrichment), plus a
+`phase=source name=X duration=Ys mentions=N` line per source inside the
+sources phase. Grep `phase=` in the scan log to localize where time goes.
+In practice the sources phase dominates, and almost all of its variance is
+upstream HTTP behavior (the intermittent YouTube RSS outage, occasional
+GPHG slowness) rather than anything in our code — a healthy-network scan
+runs the sources phase in ~40s, a bad-window scan can be 3-4x that.
 
 ## License
 

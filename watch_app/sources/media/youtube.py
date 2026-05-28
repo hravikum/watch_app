@@ -25,9 +25,11 @@ The pattern in the n8n thread is that failures cluster in specific
 UTC hours (09:00-12:00 reported), though our own observation suggests
 the pattern isn't strictly time-bound.
 
-Mitigation: we override `_fetch_feed_text` to retry on 404 and 500
-with short backoff. This catches single-request glitches without
-adding meaningful latency on success. Retries inside the same scan
+Mitigation: we override `_fetch_feed_text` to retry on transient 5xx
+errors with short backoff. This catches single-request glitches without
+adding meaningful latency on success. We do NOT retry 404s: during the
+ongoing outage they are sustained (never recover within a scan), so
+retrying them only burns backoff time. Retries inside the same scan
 won't help if we're inside a longer outage window — those days the
 channel just won't contribute. Cumulative data over weeks is the right
 unit of measurement, not per-scan reliability.
@@ -79,9 +81,13 @@ CHANNELS_YAML = (
 #: YouTube descriptions are often boilerplate-heavy. Tighter cap than RSS.
 YOUTUBE_EXCERPT_CHARS = 500
 
-#: HTTP status codes worth retrying. Empirically, YouTube's feed endpoint
-#: returns these intermittently for valid channel IDs.
-RETRYABLE_STATUS_CODES = (404, 500, 502, 503, 504)
+#: HTTP status codes worth retrying. 5xx are conventional transient
+#: server errors. 404 is deliberately excluded: during the 2025-2026
+#: YouTube feed outage, 404s are sustained across all retries within a
+#: scan (never observed succeeding on retry), so retrying a 404 only
+#: wastes backoff time. A 404 that genuinely is a one-request glitch
+#: will be picked up on the next scheduled scan.
+RETRYABLE_STATUS_CODES = (500, 502, 503, 504)
 
 #: Number of attempts including the initial one. So MAX_ATTEMPTS=3 means
 #: 1 initial + 2 retries.
@@ -132,14 +138,16 @@ class YouTubeChannelSource(RSSSource):
         return super()._extract_excerpt(entry)
 
     def _fetch_feed_text(self) -> str | None:
-        """Fetch the feed with retry on known-flaky YouTube error codes.
+        """Fetch the feed with retry on transient 5xx errors.
 
         YouTube returns 404 and 500 intermittently for valid, active
-        channel IDs. We retry up to MAX_ATTEMPTS times with short backoff.
+        channel IDs. We retry 5xx up to MAX_ATTEMPTS times with short
+        backoff, but NOT 404 — during the ongoing outage 404s are
+        sustained across retries, so retrying them only wastes time.
 
-        On non-retryable errors (e.g. true 403, real connection failure),
-        we log and give up immediately rather than waste time. The
-        scan continues with other sources.
+        On non-retryable errors (e.g. 404, true 403, real connection
+        failure), we log and give up immediately rather than waste time.
+        The scan continues with other sources.
         """
         last_status: int | None = None
         for attempt in range(1, MAX_ATTEMPTS + 1):

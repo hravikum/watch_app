@@ -396,14 +396,36 @@ For quick reference on what shipped when:
       `cli enrich` now lists per-field proposals in the dry-run table.
       All 2Q tests still pass via backwards-compat shim on
       EnrichmentProposal.
+- 2V  Scan phase-timing instrumentation + YouTube 404 retry fix.
+      Investigation started from "the LLM is slow in the daily run" but
+      phase timing disproved it: a `_phase_timer` context manager in
+      run_scan() now logs `phase=NAME duration=Xs` for seed/sources/
+      gphg_models/scoring/enrichment, plus per-source timing inside the
+      sources loop. Revealed the sources phase is ~99% of run time and
+      the cost is upstream HTTP (YouTube RSS outage, GPHG slowness), not
+      the LLM (which runs ~1s/call, ~5 calls/scan). Second change:
+      dropped 404 from YouTube's RETRYABLE_STATUS_CODES (5xx only) since
+      outage 404s never recover within a scan's retries — saves ~50s on
+      bad-window days. Channel IDs for the 0-mention channels were
+      verified correct (not changed). No DB changes, no new deps.
+- 2V-doc  README + NOTES updated for 2V: corrected the HTTP read timeout
+      reference (30s → actual 10s), updated the YouTube source description
+      to 5xx-only retry, added a "debugging slow scans" note pointing at
+      the phase= logs, revised the stale "scan over 1 minute = something
+      wrong" guidance, and expanded the YouTube finding with the
+      intermittent-outage understanding. Doc-only.
 
 ## Findings logged from the week-1 data review (2G)
 
 **HTTP timeout fix.** Two scheduled scans took 17 minutes and 37 minutes
 respectively. Single GPHG fetch hung; httpx's float timeout didn't actually
-enforce per-phase ceilings. Fixed with `httpx.Timeout(connect=10, read=30,
-write=10, pool=5)`. If a future scan ever exceeds ~1 minute, something
-unrelated is wrong.
+enforce per-phase ceilings. Fixed with `httpx.Timeout(connect=10, read=10,
+write=10, pool=5)`. Note (updated 2V): the old guidance here — "if a scan
+exceeds ~1 minute something is wrong" — turned out to be too strong. Scans
+can legitimately reach 2+ minutes during upstream HTTP trouble (the YouTube
+RSS outage, GPHG slowness) without anything being wrong on our side. Use the
+`phase=` timing logs (2V) to tell a genuine problem from an upstream bad
+window before assuming a regression.
 
 **Parmigiani-style accumulation in prestige_weighted_mentions.**
 Parmigiani Fleurier had 14 GPHG nominee URLs (they enter many watches
@@ -438,6 +460,22 @@ probably a wrong channel ID (correct fix in 2N-hotfix2). A channel
 where the ID is verifiably correct but the endpoint still 404s
 persistently is a YouTube-side problem worth disabling (2N-hotfix3
 on WatchAdvisor).
+
+Updated 2V: the failure is better understood as a broad *intermittent
+outage* than a per-channel issue. Observed one scan where all 16
+channels returned 404/500, then the very next scan (same IDs, no code
+change) where all 16 returned 200 — and the bad window coincided with
+GPHG read-timeouts and Reddit 403s, suggesting whole-window network
+trouble rather than three independent upstream problems. Consequence
+for the earlier diagnostic rule: a single bad scan proves nothing about
+a channel ID now, because *every* channel can 404 in a bad window. Only
+distrust a channel ID if it fails while *peers in the same scan*
+succeed. We re-verified the Urban Gentry / Time Teller / Worn & Wound
+IDs (all 0-mention at the time) against YouTube's handle resolution —
+all three were correct and returned 15 entries each once the outage
+lifted. Also in 2V: stopped retrying 404 (5xx only), since outage 404s
+are sustained across a scan's retries and never recover within it —
+retrying just burned ~50s/scan on bad-window days for no benefit.
 
 ## Potential future scoring refinements (not urgent)
 

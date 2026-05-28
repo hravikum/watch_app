@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import logging
 import re
+import time
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Iterable
 
@@ -35,6 +37,20 @@ from watch_app.storage.models import Mention, ScanRun, Source as SourceRow
 
 
 logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def _phase_timer(name: str):
+    """Log wall-clock duration of a phase. Always logs, even on exception.
+
+    Used inside run_scan() to localize where time is spent across the major
+    phases of a scan. Output format is grep-friendly: `phase=NAME duration=Xs`.
+    """
+    start = time.perf_counter()
+    try:
+        yield
+    finally:
+        logger.info("phase=%s duration=%.2fs", name, time.perf_counter() - start)
 
 
 def default_sources() -> list[Source]:
@@ -362,67 +378,79 @@ def run_scan(
 
     try:
         with session_scope() as session:
-            # Load curated known-makers first, so the rule-based extractor has
-            # its vocabulary populated from the very first source.
-            seed_stats = load_seed_makers(session)
-            stats["seed_created"] = seed_stats["created"]
-            stats["seed_updated"] = seed_stats["updated"]
-            session.flush()
-            # Any change to the Makers table invalidates the extractor's cached
-            # vocabulary. Drop it so _get_vocab rebuilds on the next call.
-            invalidate_vocab_cache()
+            with _phase_timer("seed"):
+                # Load curated known-makers first, so the rule-based extractor has
+                # its vocabulary populated from the very first source.
+                seed_stats = load_seed_makers(session)
+                stats["seed_created"] = seed_stats["created"]
+                stats["seed_updated"] = seed_stats["updated"]
+                session.flush()
+                # Any change to the Makers table invalidates the extractor's cached
+                # vocabulary. Drop it so _get_vocab rebuilds on the next call.
+                invalidate_vocab_cache()
 
-            for source in sources:
-                logger.info("Fetching from source: %s", source.name)
-                source_row = _upsert_source_row(session, source)
+            with _phase_timer("sources"):
+                for source in sources:
+                    logger.info("Fetching from source: %s", source.name)
+                    source_row = _upsert_source_row(session, source)
 
-                try:
-                    raws = list(source.fetch())
-                except Exception:
-                    logger.exception("Source %s failed; skipping", source.name)
-                    continue
+                    src_start = time.perf_counter()
+                    try:
+                        raws = list(source.fetch())
+                    except Exception:
+                        logger.exception("Source %s failed; skipping", source.name)
+                        continue
 
-                for raw in raws:
-                    stats["mentions_written"] += _ingest_mention(
-                        session=session,
-                        raw=raw,
-                        source_row=source_row,
-                        use_llm=use_llm,
-                    )
+                    for raw in raws:
+                        stats["mentions_written"] += _ingest_mention(
+                            session=session,
+                            raw=raw,
+                            source_row=source_row,
+                            use_llm=use_llm,
+                        )
 
-                stats["sources_run"] += 1
-
-            # Fetch GPHG model detail pages for any new mentions. Cached,
-            # so amortizes to zero cost after the first run that includes
-            # this code.
-            stats["models_fetched"] = _fetch_gphg_models(session)
-
-            # Score under every preset so the UI can flip between them without
-            # re-running.
-            for preset_name in PRESETS:
-                created = rank_all_makers(session, preset_name, normalize=normalize)
-                stats["makers_scored"] = len(created)  # same count per preset
-
-            # Automatic enrichment (2T). Find newly-discovered makers
-            # (enriched_at IS NULL) and fill in missing fields via LLM.
-            # Capped at 25 makers per scan to bound cost. Failures here
-            # are logged but don't mark the scan as failed — the main
-            # scan body succeeded, enrichment is best-effort.
-            stats["fields_enriched"] = 0
-            try:
-                from watch_app.extraction.enrich import auto_enrich_unenriched_makers
-                stats["fields_enriched"] = auto_enrich_unenriched_makers(
-                    session, limit=25
-                )
-                if stats["fields_enriched"] > 0:
                     logger.info(
-                        "Auto-enrichment wrote %d field value(s)",
-                        stats["fields_enriched"],
+                        "phase=source name=%s duration=%.2fs mentions=%d",
+                        source.name,
+                        time.perf_counter() - src_start,
+                        len(raws),
                     )
-            except Exception as exc:
-                logger.warning(
-                    "Auto-enrichment failed (scan otherwise completed): %s", exc,
-                )
+                    stats["sources_run"] += 1
+
+            with _phase_timer("gphg_models"):
+                # Fetch GPHG model detail pages for any new mentions. Cached,
+                # so amortizes to zero cost after the first run that includes
+                # this code.
+                stats["models_fetched"] = _fetch_gphg_models(session)
+
+            with _phase_timer("scoring"):
+                # Score under every preset so the UI can flip between them without
+                # re-running.
+                for preset_name in PRESETS:
+                    created = rank_all_makers(session, preset_name, normalize=normalize)
+                    stats["makers_scored"] = len(created)  # same count per preset
+
+            with _phase_timer("enrichment"):
+                # Automatic enrichment (2T). Find newly-discovered makers
+                # (enriched_at IS NULL) and fill in missing fields via LLM.
+                # Capped at 25 makers per scan to bound cost. Failures here
+                # are logged but don't mark the scan as failed — the main
+                # scan body succeeded, enrichment is best-effort.
+                stats["fields_enriched"] = 0
+                try:
+                    from watch_app.extraction.enrich import auto_enrich_unenriched_makers
+                    stats["fields_enriched"] = auto_enrich_unenriched_makers(
+                        session, limit=25
+                    )
+                    if stats["fields_enriched"] > 0:
+                        logger.info(
+                            "Auto-enrichment wrote %d field value(s)",
+                            stats["fields_enriched"],
+                        )
+                except Exception as exc:
+                    logger.warning(
+                        "Auto-enrichment failed (scan otherwise completed): %s", exc,
+                    )
     except Exception as e:
         # Record failure in its own transaction.
         with session_scope() as meta_session:
