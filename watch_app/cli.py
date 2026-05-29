@@ -412,7 +412,7 @@ def schedule() -> None:
     <key>StartCalendarInterval</key>
     <dict>
         <key>Hour</key>
-        <integer>7</integer>
+        <integer>22</integer>
         <key>Minute</key>
         <integer>0</integer>
     </dict>
@@ -433,8 +433,8 @@ def schedule() -> None:
         "[bold cyan]Setting up daily scans via launchd[/bold cyan]\n"
     )
     console.print(
-        "This will schedule a scan every day at 7:00 AM (local time).\n"
-        "launchd catches up if your Mac was asleep at 7am.\n"
+        "This will schedule a scan every day at 9:00 PM (local time).\n"
+        "launchd catches up if your Mac was asleep at 9:00 PM.\n"
     )
 
     # Check that venv exists; complain if not.
