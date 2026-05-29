@@ -18,6 +18,7 @@ from pathlib import Path
 import yaml
 from sqlalchemy.orm import Session
 
+from watch_app import taste
 from watch_app.storage.models import Maker
 
 
@@ -71,6 +72,21 @@ def load_seed_makers(session: Session) -> dict[str, int]:
         website = entry.get("website")
         is_independent = entry.get("is_independent", True)
 
+        # Curated taste dimensions. Validate against the controlled vocabulary;
+        # a bad value drops only this entry's taste fields (with a warning) so
+        # a typo can't crash a scheduled scan. The real guard is a test that
+        # validates the whole committed YAML.
+        taste_values: dict = {}
+        try:
+            taste.validate_taste_fields(entry)
+            taste_values = {
+                field: entry[field]
+                for field in taste.TASTE_FIELDS
+                if entry.get(field) is not None
+            }
+        except ValueError as exc:
+            logger.warning("Ignoring taste fields: %s", exc)
+
         if existing is None:
             session.add(
                 Maker(
@@ -80,6 +96,7 @@ def load_seed_makers(session: Session) -> dict[str, int]:
                     founded_year=founded_year,
                     website=website,
                     is_independent=is_independent,
+                    **taste_values,
                 )
             )
             stats["created"] += 1
@@ -94,6 +111,11 @@ def load_seed_makers(session: Session) -> dict[str, int]:
             # Overwrite is_independent from YAML — it's the authoritative source
             # for curated entries.
             existing.is_independent = is_independent
+            # Taste dimensions: YAML is the curated source of truth, so write
+            # any present values through (overwrite). Fields the YAML omits are
+            # left untouched.
+            for field, value in taste_values.items():
+                setattr(existing, field, value)
             stats["updated"] += 1
 
     logger.info(

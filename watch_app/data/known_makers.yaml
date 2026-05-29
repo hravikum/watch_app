@@ -23,35 +23,84 @@
 makers:
   # --- LV Watch Prize edition 1 (2023/24) — winner + finalists ---
   - canonical_name: "Raúl Pagès"
+    aesthetic_tags: ["classical"]
+    maker_type: "solo-watchmaker"
+    price_band: "haute"
+    output_scale: "one-off"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "in-house"
     website: "https://www.raulpages.com"
     aliases: ["Raul Pages"]
     country: "Switzerland"
     founded_year: 2014
   - canonical_name: "Simon Brette"
+    aesthetic_tags: ["classical"]
+    maker_type: "solo-watchmaker"
+    price_band: "high"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "in-house"
     website: "https://simonbrette.com"
     country: "France"
     founded_year: 2022
   - canonical_name: "Petermann Bédat"
+    aesthetic_tags: ["classical"]
+    maker_type: "small-atelier"
+    price_band: "haute"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["chiming", "time-only"]
+    movement_origin: "in-house"
     website: "https://www.petermann-bedat.ch"
     aliases: ["Petermann Bedat", "Petermann-Bédat", "Petermann-Bedat"]
     country: "Switzerland"
     founded_year: 2017
   - canonical_name: "Cyril Brivet-Naudot"
+    aesthetic_tags: ["vintage-inspired", "classical"]
+    maker_type: "solo-watchmaker"
+    price_band: "haute"
+    output_scale: "one-off"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "in-house"
     website: "https://www.brivet-naudot.com"
     country: "France"
     founded_year: 2018
   - canonical_name: "Andreas Strehler"
+    aesthetic_tags: ["classical", "modern"]
+    maker_type: "solo-watchmaker"
+    price_band: "haute"
+    output_scale: "one-off"
+    distribution: "direct"
+    complication_focus: ["calendar", "time-only"]
+    movement_origin: "in-house"
     website: "https://www.astrehler.ch"
     country: "Switzerland"
     founded_year: 2002
 
   # --- LV Watch Prize edition 2 (2025/26) — finalists ---
   - canonical_name: "Hazemann & Monnin"
+    aesthetic_tags: ["classical"]
+    maker_type: "small-atelier"
+    price_band: "high"
+    output_scale: "one-off"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "in-house"
     website: "https://hazemann-monnin.ch"
     aliases: ["Hazemann and Monnin", "Alexandre Hazemann", "Victor Monnin"]
     country: "France"
     founded_year: 2024
   - canonical_name: "Daizoh Makihara"
+    aesthetic_tags: ["classical"]
+    maker_type: "solo-watchmaker"
+    price_band: "haute"
+    output_scale: "one-off"
+    distribution: "direct"
+    complication_focus: ["time-only", "tourbillon"]
+    movement_origin: "in-house"
     website: "https://www.daizohmakihara.jp"
     aliases: ["Daizoh Makihara Watchcraft"]
     country: "Japan"
@@ -62,6 +111,13 @@ makers:
     country: "China"
     founded_year: 2023
   - canonical_name: "Bernhard Lederer"
+    aesthetic_tags: ["classical"]
+    maker_type: "small-atelier"
+    price_band: "high"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "in-house"
     website: "https://www.bernhardlederer.com"
     aliases: ["Lederer"]
     country: "Switzerland"
@@ -86,6 +142,13 @@ makers:
     country: "Germany"
     founded_year: 2019
   - canonical_name: "Auffret Paris"
+    aesthetic_tags: ["classical", "vintage-inspired"]
+    maker_type: "solo-watchmaker"
+    price_band: "haute"
+    output_scale: "one-off"
+    distribution: "direct"
+    complication_focus: ["tourbillon", "time-only"]
+    movement_origin: "in-house"
     website: "https://www.auffret-paris.com"
     aliases: ["Théo Auffret", "Theo Auffret", "Auffret"]
     country: "France"
@@ -96,14 +159,35 @@ makers:
 
   # --- AHCI members and long-established independents ---
   - canonical_name: "Philippe Dufour"
+    aesthetic_tags: ["classical"]
+    maker_type: "solo-watchmaker"
+    price_band: "haute"
+    output_scale: "one-off"
+    distribution: "allocation-waitlist"
+    complication_focus: ["time-only", "chiming"]
+    movement_origin: "in-house"
     country: "Switzerland"
     founded_year: 1992
   - canonical_name: "F.P. Journe"
+    aesthetic_tags: ["classical"]
+    maker_type: "established-indie"
+    price_band: "haute"
+    output_scale: "50-500"
+    distribution: "dealer-only"
+    complication_focus: ["time-only", "tourbillon", "chiming"]
+    movement_origin: "in-house"
     website: "https://www.fpjourne.com"
     aliases: ["FP Journe", "François-Paul Journe", "Francois-Paul Journe"]
     country: "Switzerland"
     founded_year: 1999
   - canonical_name: "Kari Voutilainen"
+    aesthetic_tags: ["classical"]
+    maker_type: "small-atelier"
+    price_band: "haute"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only", "chronograph"]
+    movement_origin: "in-house"
     website: "https://voutilainen.ch"
     aliases: ["Voutilainen"]
     country: "Finland"
@@ -117,10 +201,24 @@ makers:
     country: "Switzerland"
     founded_year: 1983
   - canonical_name: "Konstantin Chaykin"
+    aesthetic_tags: ["avant-garde"]
+    maker_type: "small-atelier"
+    price_band: "high"
+    output_scale: "50-500"
+    distribution: "direct"
+    complication_focus: ["time-only", "astronomical"]
+    movement_origin: "modified-base"
     website: "https://chaykin.ru"
     country: "Russia"
     founded_year: 2003
   - canonical_name: "Roger Smith"
+    aesthetic_tags: ["classical"]
+    maker_type: "solo-watchmaker"
+    price_band: "haute"
+    output_scale: "sub-50"
+    distribution: "allocation-waitlist"
+    complication_focus: ["time-only", "calendar"]
+    movement_origin: "in-house"
     website: "https://www.rwsmithwatches.com"
     aliases: ["R.W. Smith", "Roger W. Smith"]
     country: "United Kingdom"
@@ -128,24 +226,59 @@ makers:
   - canonical_name: "Kikuo Ibe"
     country: "Japan"
   - canonical_name: "Hajime Asaoka"
+    aesthetic_tags: ["classical", "modern"]
+    maker_type: "solo-watchmaker"
+    price_band: "haute"
+    output_scale: "one-off"
+    distribution: "direct"
+    complication_focus: ["time-only", "tourbillon", "chronograph"]
+    movement_origin: "in-house"
     website: "https://hajime-asaoka.com"
     country: "Japan"
     founded_year: 2009
   - canonical_name: "Masahiro Kikuno"
+    aesthetic_tags: ["vintage-inspired", "classical"]
+    maker_type: "solo-watchmaker"
+    price_band: "haute"
+    output_scale: "one-off"
+    distribution: "direct"
+    complication_focus: ["time-only", "calendar"]
+    movement_origin: "in-house"
     website: "https://www.masahirokikuno.jp"
     country: "Japan"
     founded_year: 2011
   - canonical_name: "Naoya Hida"
+    aesthetic_tags: ["vintage-inspired", "classical"]
+    maker_type: "small-atelier"
+    price_band: "high"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "modified-base"
     website: "https://naoyahida.com"
     aliases: ["Naoya Hida & Co.", "Naoya Hida and Co"]
     country: "Japan"
     founded_year: 2018
   - canonical_name: "Kudoke"
+    aesthetic_tags: ["dressy", "classical"]
+    maker_type: "small-atelier"
+    price_band: "mid"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "modified-base"
     website: "https://www.kudoke.eu"
     aliases: ["Stefan Kudoke"]
     country: "Germany"
     founded_year: 2007
   - canonical_name: "Habring²"
+    aesthetic_tags: ["tool", "classical"]
+    maker_type: "small-atelier"
+    price_band: "mid"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["chronograph", "time-only"]
+    movement_origin: "modified-base"
     website: "https://habring.com"
     aliases: ["Habring", "Habring2"]
     country: "Austria"
@@ -156,6 +289,13 @@ makers:
     country: "Netherlands"
     founded_year: 2008
   - canonical_name: "Christiaan van der Klaauw"
+    aesthetic_tags: ["classical"]
+    maker_type: "small-atelier"
+    price_band: "high"
+    output_scale: "50-500"
+    distribution: "dealer-only"
+    complication_focus: ["astronomical"]
+    movement_origin: "modified-base"
     website: "https://www.klaauw.com"
     aliases: ["CvdK", "Van der Klaauw"]
     country: "Netherlands"
@@ -163,6 +303,13 @@ makers:
 
   # --- Independent indies with strong enthusiast / press presence ---
   - canonical_name: "MB&F"
+    aesthetic_tags: ["avant-garde"]
+    maker_type: "established-indie"
+    price_band: "haute"
+    output_scale: "50-500"
+    distribution: "dealer-only"
+    complication_focus: ["tourbillon", "astronomical"]
+    movement_origin: "in-house"
     website: "https://www.mbandf.com"
     aliases: ["Maximilian Büsser & Friends"]
     country: "Switzerland"
@@ -175,27 +322,69 @@ makers:
     # Bey-Haut; watches assembled by Nicolas Delaloye (AHCI member,
     # 8 years at Patek Philippe Museum). Debut: La Parfaite, Jan 2026.
   - canonical_name: "H. Moser & Cie."
+    aesthetic_tags: ["modern", "dressy"]
+    maker_type: "heritage-relaunch"
+    price_band: "high"
+    output_scale: "500-plus"
+    distribution: "dealer-only"
+    complication_focus: ["time-only", "calendar"]
+    movement_origin: "in-house"
     website: "https://www.h-moser.com"
     aliases: ["H. Moser", "Moser"]
     country: "Switzerland"
     founded_year: 1828
   - canonical_name: "Urwerk"
+    aesthetic_tags: ["avant-garde"]
+    maker_type: "established-indie"
+    price_band: "haute"
+    output_scale: "50-500"
+    distribution: "dealer-only"
+    complication_focus: ["time-only"]
+    movement_origin: "in-house"
     website: "https://www.urwerk.com"
     country: "Switzerland"
     founded_year: 1997
   - canonical_name: "De Bethune"
+    aesthetic_tags: ["modern", "avant-garde"]
+    maker_type: "established-indie"
+    price_band: "haute"
+    output_scale: "50-500"
+    distribution: "dealer-only"
+    complication_focus: ["tourbillon", "astronomical"]
+    movement_origin: "in-house"
     website: "https://www.debethune.ch"
     country: "Switzerland"
     founded_year: 2002
   - canonical_name: "Greubel Forsey"
+    aesthetic_tags: ["classical", "modern"]
+    maker_type: "established-indie"
+    price_band: "haute"
+    output_scale: "sub-50"
+    distribution: "dealer-only"
+    complication_focus: ["tourbillon"]
+    movement_origin: "in-house"
     website: "https://www.greubelforsey.com"
     country: "Switzerland"
     founded_year: 2004
   - canonical_name: "Laurent Ferrier"
+    aesthetic_tags: ["classical", "dressy"]
+    maker_type: "established-indie"
+    price_band: "haute"
+    output_scale: "50-500"
+    distribution: "dealer-only"
+    complication_focus: ["time-only", "tourbillon"]
+    movement_origin: "in-house"
     website: "https://www.laurentferrier.ch"
     country: "Switzerland"
     founded_year: 2008
   - canonical_name: "Ressence"
+    aesthetic_tags: ["modern"]
+    maker_type: "established-indie"
+    price_band: "high"
+    output_scale: "50-500"
+    distribution: "dealer-only"
+    complication_focus: ["time-only"]
+    movement_origin: "modified-base"
     website: "https://www.ressencewatches.com"
     country: "Belgium"
     founded_year: 2010
@@ -205,11 +394,25 @@ makers:
     country: "Switzerland"
     founded_year: 2012
   - canonical_name: "Atelier Akrivia"
+    aesthetic_tags: ["classical"]
+    maker_type: "small-atelier"
+    price_band: "haute"
+    output_scale: "sub-50"
+    distribution: "allocation-waitlist"
+    complication_focus: ["time-only", "chiming"]
+    movement_origin: "in-house"
     website: "https://akrivia.com"
     aliases: ["Akrivia", "Rexhep Rexhepi"]
     country: "Switzerland"
     founded_year: 2012
   - canonical_name: "Ming"
+    aesthetic_tags: ["modern"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    output_scale: "50-500"
+    distribution: "direct"
+    complication_focus: ["time-only", "chronograph"]
+    movement_origin: "modified-base"
     website: "https://ming.watch"
     aliases: ["Ming Thein"]
     country: "Malaysia"
@@ -596,6 +799,13 @@ makers:
     founded_year: 2004
     # English direct-to-consumer brand; independently owned, in-house movements (Cal. SH21 etc.)
   - canonical_name: "Trilobe"
+    aesthetic_tags: ["modern"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    output_scale: "50-500"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "modified-base"
     website: "https://www.trilobe.com"
     country: "France"
     founded_year: 2018

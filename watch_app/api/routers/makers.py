@@ -16,6 +16,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
 from watch_app.config import get_settings
+from watch_app import taste
 from watch_app.scoring.methodology import (
     SIGNAL_DESCRIPTIONS,
     build_source_contributions,
@@ -175,7 +176,28 @@ def _fetch_maker_detail(maker_id: int) -> dict | None:
             "signals": signals,
             "mentions": mention_list,
             "models": models,
+            "profile": _build_profile(maker),
         }
+
+
+def _build_profile(maker: Maker) -> list[dict]:
+    """Build the display rows for the maker profile panel.
+
+    One row per taste dimension that has a value, in TASTE_FIELDS order, with
+    tokens turned into human-readable labels. Returns [] for an untagged maker
+    so the template omits the panel entirely.
+    """
+    rows: list[dict] = []
+    for field in taste.TASTE_FIELDS:
+        value = getattr(maker, field)
+        if not value:
+            continue
+        if field in taste.MULTI_VALUE_FIELDS:
+            display_values = [taste.display_label(v) for v in value]
+        else:
+            display_values = [taste.display_label(value)]
+        rows.append({"label": taste.FIELD_LABELS[field], "tags": display_values})
+    return rows
 
 
 # --- Routes ---

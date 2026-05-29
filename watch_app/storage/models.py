@@ -71,6 +71,18 @@ class Maker(Base):
     enriched_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     enriched_fields: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
 
+    # Taste / character dimensions — curated, used by the maker profile panel
+    # and (later) the multi-dimension explorer. All nullable: an untagged
+    # maker simply renders no profile. The controlled vocabulary lives in
+    # watch_app/taste.py; the seed loader validates against it. See chunk 3A.
+    aesthetic_tags: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    complication_focus: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    maker_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    price_band: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    output_scale: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    distribution: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    movement_origin: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
     mentions: Mapped[list["Mention"]] = relationship(back_populates="maker")
     signals: Mapped[list["Signal"]] = relationship(back_populates="maker")
     scores: Mapped[list["Score"]] = relationship(back_populates="maker")
