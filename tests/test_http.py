@@ -11,6 +11,10 @@ import pytest
 
 from watch_app import http as http_module
 
+# Exercises the real watch_app.http.get (httpx layer is mocked per-test);
+# opt out of the global real-HTTP block.
+pytestmark = pytest.mark.real_http
+
 
 @pytest.fixture
 def tmp_cache(tmp_path, monkeypatch):

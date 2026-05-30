@@ -325,7 +325,7 @@ watch_app/
 │   └── youtube_channels.yaml  # 15 YouTube channels with prestige weights and tier annotations
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 372 tests; run with `make test`
+tests/                    # 399 tests; run with `make test` (~30s, no network)
 alembic/                  # Schema migrations
 ```
 
@@ -350,7 +350,7 @@ alembic/                  # Schema migrations
 ## Development
 
 ```bash
-make test         # Full suite; expects 372 passing
+make test         # Full suite (~30s); expects 399 passing
 pytest -v tests/test_ranker.py  # Run one file
 pytest -v -k hidden_gem         # Run tests matching a name
 ```

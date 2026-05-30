@@ -516,6 +516,16 @@ For quick reference on what shipped when:
       the manual-tagging home for the abstainers (Barrelhand et al.) the
       auto-tagger can't reach. Seed makers excluded (their taste lives in the
       YAML). No schema change.
+- 3I  Test-suite speedup. `make test` was 10-29 min locally because `run_scan`
+      (in test_pipeline / test_scan_runs / test_orchestrator_with_rss) made
+      real Anthropic enrichment+taste calls for every unenriched seed maker
+      and real `http.get` calls for DummySource's example.com URLs (serialized
+      by the 1.5s/host rate limiter). Two autouse conftest fixtures now stub
+      the enrichment/taste lookups (abstain) and block real `watch_app.http.get`
+      (RuntimeError), with a `real_http` marker opt-out for test_http.py.
+      pytest.ini registers the marker and pins the pytest-asyncio loop scope to
+      silence its deprecation warning. Full suite: ~30s, 399 passing, zero real
+      external calls (so no more API spend per run). No production code touched.
 
 ## Findings logged from the week-1 data review (2G)
 
@@ -618,14 +628,18 @@ bump `anthropic` to a current release that supports httpx 0.28+ — a larger
 change with its own surface area, left for when there's reason to touch the
 LLM client.
 
-**Test suite is slow on the dev machine — worth investigating next.** `make
-test` has been taking 10-29 minutes locally while the identical suite runs in
-~100s elsewhere. That 15-20x gap almost certainly means some tests make real
-network calls (the source/HTTP tests are prime suspects) instead of mocked
-ones. At that length the suite stops being a usable feedback loop. Next
-cleanup: `pytest --durations=20` to find the offenders, then mock their HTTP
-so the suite runs in seconds. This is probably more valuable day-to-day than
-any new feature.
+**Test suite was slow on the dev machine — FIXED in 3I.** `make test` had
+been taking 10-29 minutes locally. The cause wasn't unmocked source tests (those
+mock their own `http_get`); it was `run_scan` itself. Its enrichment and taste
+phases run on every scan regardless of `use_llm`, so each scan test made real,
+billable Anthropic calls for every unenriched seed maker — and the GPHG
+detail-fetch step (`_fetch_gphg_models`) issued real `http.get` calls for the
+DummySource's `example.com` URLs, serialized by the 1.5s/host rate limiter.
+Fixed with two autouse conftest guards: one stubs the enrichment/taste lookups
+to abstain, the other blocks real `watch_app.http.get` (with a `real_http`
+marker opt-out for the one test that exercises the real client). Suite now runs
+in ~30s and makes no real external calls. `pytest --durations` is the way to
+catch any future regression.
 
 ## Potential future scoring refinements (not urgent)
 
