@@ -75,6 +75,24 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   (known-list validated), and is_independent (strict YES/NO/NONE).
   Capped at 25 makers per scan. Manual `cli enrich --commit` still
   works for one-off backfills.
+- **Auto-tags taste for discovered makers.** After the factual
+  enrichment phase, any auto-discovered independent that hasn't been
+  taste-attempted yet gets its seven taste / character dimensions
+  drafted via Haiku 4.5, constrained to the controlled vocabulary and
+  abstaining when unsure. The prompt is informed by the maker's recent
+  press mentions (titles + excerpts), which lets it confidently tag niche
+  brands it wouldn't know by name alone. Written tags are flagged the
+  same "auto" way for review. Gated by `taste_enriched_at` (stamped once
+  per maker, even on abstention) so nothing is re-queried; capped at 25
+  per scan. `cli enrich --taste` backfills older discoveries; add
+  `--retag` to re-attempt makers that previously abstained.
+- **Review &amp; edit tags (admin).** A `/review` page lists every
+  discovered maker with its taste dimensions and factual fields, all
+  editable in-place; saving overwrites the drafts and clears the "auto"
+  flag, since the value is now human-reviewed. Gated behind
+  `WATCH_APP_ADMIN` (off by default, so it's never exposed on a public
+  deployment). Seed makers are excluded — their taste stays curated in
+  the YAML.
 - **Catches new makers in debut articles.** When an article title
   starts with a journalism convention marker like "Introducing:",
   "Hands On:", or "First Look:" AND the rule-based extractor only

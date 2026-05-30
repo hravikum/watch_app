@@ -47,6 +47,14 @@ Three modes:
 fields and the 25-maker cap, automatic enrichment per scan tops out
 around $0.20 even in pathological cases. Realistic per-scan cost is
 under $0.01 once initial backfill is done.
+
+## Taste tagging (chunk 3F)
+
+Separate from the factual field registry above, `auto_tag_taste_for_discovered`
+fills the seven taste/character dimensions for auto-discovered independents.
+It runs on the orchestrator's taste phase and via `cli enrich --taste`. See
+the "Taste tagging" section near the bottom of this module for why it has its
+own `taste_enriched_at` gate rather than riding the `enriched_at` path.
 """
 from __future__ import annotations
 
@@ -58,10 +66,12 @@ from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session
 
+from watch_app import taste
 from watch_app.http import get as http_get
 from watch_app.llm.client import (
     lookup_maker_country,
     lookup_maker_independence,
+    lookup_maker_taste,
     lookup_maker_website,
 )
 from watch_app.storage.models import Maker
@@ -539,3 +549,211 @@ def auto_enrich_unenriched_makers(session: Session, limit: int = 25) -> int:
             )
 
     return apply_enrichments(session, proposals)
+
+
+# ---------- Taste tagging for auto-discovered makers (chunk 3F) ----------
+#
+# The factual fields above (website/country/is_independent) are filled on the
+# `enriched_at IS NULL` path. Taste is handled separately because:
+#
+#   1. Its gate is `taste_enriched_at IS NULL`, not `enriched_at IS NULL` — so
+#      makers already enriched for the factual fields (enriched_at set) still
+#      get their taste tagged on a later scan.
+#   2. The LLM abstains heavily by design, so we stamp `taste_enriched_at` on
+#      every attempt (even a full abstention) rather than retrying forever.
+#   3. Only auto-discovered independents are in scope; seed makers get their
+#      taste from the curated YAML via the seed loader, and conglomerates are
+#      out of the discovery vocabulary entirely.
+#
+# Values are sanitized against the controlled vocabulary (taste.sanitize_taste)
+# and written with the same "auto" marker (enriched_fields) the factual fields
+# use, so the discoveries view / profile panel flag them for human review.
+
+
+@dataclass
+class TasteProposal:
+    """Sanitized, in-vocabulary taste tags drafted for one maker.
+
+    ``tags`` may be empty if the model abstained on everything — such a
+    proposal still stamps ``taste_enriched_at`` on apply so the maker isn't
+    retried, but writes no fields.
+    """
+
+    maker_id: int
+    canonical_name: str
+    tags: dict
+
+
+def _has_any_taste(maker: Maker) -> bool:
+    """True if the maker already carries at least one taste field value."""
+    return any(_current_value(maker, f) for f in taste.TASTE_FIELDS)
+
+
+def iter_untagged_discovered_independents(
+    session: Session, include_attempted: bool = False
+) -> list[Maker]:
+    """Auto-discovered independents that need taste tags.
+
+    "Auto-discovered" = canonical_name not in the seed YAML (the same
+    Definition A the discoveries view uses). Ordered by canonical_name for
+    stable dry-run output.
+
+    `include_attempted` toggles the gate:
+
+    - False (default, and the on-scan path): only makers with
+      `taste_enriched_at IS NULL` — never attempted. This is what keeps the
+      heavy-abstaining tagger from re-querying the same makers every scan.
+    - True (the `--retag` path): any maker that currently has *no* taste at
+      all, regardless of whether it was attempted before. This re-opens the
+      previously-abstained makers (e.g. for a better, context-aware prompt)
+      while still skipping anything that already got tags.
+    """
+    from watch_app.scoring.discovery import _load_seed_names
+
+    seed_names = _load_seed_names()
+    query = session.query(Maker).filter(Maker.is_independent.is_(True))
+    if not include_attempted:
+        query = query.filter(Maker.taste_enriched_at.is_(None))
+    candidates = query.order_by(Maker.canonical_name).all()
+
+    result: list[Maker] = []
+    for m in candidates:
+        if m.canonical_name in seed_names:
+            continue
+        if include_attempted and _has_any_taste(m):
+            continue  # already tagged — --retag only re-attempts the untagged
+        result.append(m)
+    return result
+
+
+def _gather_taste_context(
+    maker: Maker, max_mentions: int = 5, max_chars: int = 1200
+) -> str | None:
+    """Build a compact press-mention context block for the taste prompt.
+
+    Pulls the maker's mention titles + excerpts (most recent first,
+    de-duplicated by title), which for niche makers carries far more signal
+    than the bare name. Returns None when there's nothing useful to send.
+    """
+    mentions = sorted(
+        maker.mentions,
+        key=lambda x: (x.published_at or x.discovered_at),
+        reverse=True,
+    )
+    lines: list[str] = []
+    seen_titles: set[str] = set()
+    for m in mentions:
+        title = (m.title or "").strip()
+        if not title or title in seen_titles:
+            continue
+        seen_titles.add(title)
+        excerpt = (m.excerpt or "").strip().replace("\n", " ")
+        line = f"- {title}" + (f": {excerpt[:200]}" if excerpt else "")
+        lines.append(line)
+        if len(lines) >= max_mentions:
+            break
+    if not lines:
+        return None
+    block = "\n".join(lines)
+    return block[:max_chars]
+
+
+def _propose_taste_for_maker(session: Session, maker: Maker) -> TasteProposal:
+    """Look up + sanitize taste tags for one maker. No DB writes."""
+    context = _gather_taste_context(maker)
+    raw = lookup_maker_taste(
+        session, maker.canonical_name, country=maker.country, context=context
+    )
+    clean = taste.sanitize_taste(raw)
+    return TasteProposal(
+        maker_id=maker.id, canonical_name=maker.canonical_name, tags=clean
+    )
+
+
+def propose_taste_for_discovered(
+    session: Session, limit: int | None = None, include_attempted: bool = False
+) -> list[TasteProposal]:
+    """Draft taste tags for untagged discovered independents. No DB writes.
+
+    Calls the (cached) LLM once per maker. `limit` caps the number of makers
+    considered; None means all. `include_attempted` re-opens previously
+    abstained makers (the `--retag` path). Used by the `cli enrich --taste`
+    dry-run.
+    """
+    makers = iter_untagged_discovered_independents(
+        session, include_attempted=include_attempted
+    )
+    if limit is not None and len(makers) > limit:
+        makers = makers[:limit]
+    return [_propose_taste_for_maker(session, m) for m in makers]
+
+
+def apply_taste_proposals(
+    session: Session, proposals: list[TasteProposal]
+) -> int:
+    """Write drafted taste tags to the DB and stamp taste_enriched_at.
+
+    Returns the count of taste field values written. Every maker in
+    `proposals` is stamped with taste_enriched_at (even on abstention) so it
+    isn't re-attempted. The never-overwrite rule applies: a taste field that
+    already has a value is left untouched. Written fields are added to
+    enriched_fields so the UI marks them "auto".
+    """
+    count = 0
+    for prop in proposals:
+        maker = session.query(Maker).filter_by(id=prop.maker_id).first()
+        if maker is None:
+            logger.warning(
+                "Maker id=%d disappeared between propose and apply", prop.maker_id
+            )
+            continue
+        existing_fields = list(maker.enriched_fields or [])
+        for field_name, value in prop.tags.items():
+            if _current_value(maker, field_name) is not None:
+                continue
+            setattr(maker, field_name, value)
+            if field_name not in existing_fields:
+                existing_fields.append(field_name)
+            count += 1
+        maker.enriched_fields = existing_fields
+        # Stamp regardless of whether anything was written, so an abstention
+        # isn't retried on every future scan.
+        maker.taste_enriched_at = datetime.now(timezone.utc)
+    session.commit()
+    return count
+
+
+def auto_tag_taste_for_discovered(session: Session, limit: int = 25) -> int:
+    """Automatically taste-tag auto-discovered independents on scan (3F).
+
+    Called by the orchestrator after the factual enrichment phase. Commits
+    immediately; capped at `limit` makers per scan to bound LLM cost. A single
+    maker's failure is logged and skipped so the batch continues.
+
+    Returns the count of taste field values written.
+    """
+    makers = iter_untagged_discovered_independents(session)
+    if not makers:
+        return 0
+
+    if len(makers) > limit:
+        logger.info(
+            "Taste tagging: %d untagged discovered makers, processing first %d "
+            "(remainder picked up on next scan)",
+            len(makers), limit,
+        )
+        makers = makers[:limit]
+    else:
+        logger.info("Taste tagging: processing %d untagged discovered makers", len(makers))
+
+    proposals: list[TasteProposal] = []
+    for maker in makers:
+        try:
+            proposals.append(_propose_taste_for_maker(session, maker))
+        except Exception as exc:
+            logger.warning(
+                "Taste tagging failed for %s: %s — skipping this maker",
+                maker.canonical_name, exc,
+            )
+
+    return apply_taste_proposals(session, proposals)

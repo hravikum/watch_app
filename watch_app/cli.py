@@ -272,6 +272,21 @@ def enrich(
         help="Actually write changes to the DB. Without this flag, runs in "
              "dry-run mode (shows proposals only).",
     ),
+    taste: bool = typer.Option(
+        False,
+        "--taste",
+        help="Tag auto-discovered independents with taste / character "
+             "dimensions instead of the factual fields. Dry-run unless "
+             "--commit is given.",
+    ),
+    retag: bool = typer.Option(
+        False,
+        "--retag",
+        help="With --taste: also re-attempt makers that were tried before but "
+             "got no tags (e.g. earlier abstentions), now that the prompt uses "
+             "press-mention context. Skips makers that already have tags. "
+             "No effect without --taste.",
+    ),
 ) -> None:
     """Enrich auto-discovered makers with missing metadata via LLM lookup.
 
@@ -293,6 +308,17 @@ def enrich(
 
     Cost: roughly $0.003 per maker enriched (one Haiku call per field).
     Backfilling 30 makers across 3 fields costs ~$0.10 total.
+
+    With --taste, instead tags auto-discovered independents with the seven
+    taste / character dimensions (one Haiku call per maker, constrained to the
+    controlled vocabulary, abstaining when unsure). Useful for backfilling
+    makers discovered before 3F; new discoveries are tagged automatically
+    after each scan. The prompt is informed by the maker's recent press
+    mentions (3G), which sharply reduces abstention on niche makers.
+
+    Add --retag to also re-attempt makers tried before but left untagged
+    (earlier abstentions) — useful right after the context-aware prompt
+    landed. It skips makers that already have tags, so it never clobbers.
     """
     from rich.console import Console
     from rich.table import Table
@@ -306,6 +332,89 @@ def enrich(
 
     console = Console()
     mode = "COMMIT" if commit else "DRY-RUN"
+
+    if taste:
+        from watch_app import taste as taste_vocab
+        from watch_app.extraction.enrich import (
+            apply_taste_proposals,
+            iter_untagged_discovered_independents,
+            propose_taste_for_discovered,
+        )
+
+        console.print(f"[bold]Taste tagging — discovered makers ({mode})[/bold]")
+        if retag:
+            console.print(
+                "[dim]--retag: re-attempting previously-untagged makers with "
+                "mention context.[/dim]"
+            )
+        with session_scope() as session:
+            n = len(
+                iter_untagged_discovered_independents(
+                    session, include_attempted=retag
+                )
+            )
+            if n == 0:
+                console.print(
+                    "[green]No untagged auto-discovered independents. "
+                    "Nothing to do.[/green]"
+                )
+                return
+            console.print(
+                f"Found [yellow]{n}[/yellow] untagged discovered "
+                f"independent(s). Drafting taste via Claude..."
+            )
+            proposals = propose_taste_for_discovered(
+                session, include_attempted=retag
+            )
+
+            table = Table(title="Proposed taste tags")
+            table.add_column("Maker", style="cyan")
+            table.add_column("Dimension")
+            table.add_column("Value(s)")
+            tagged = 0
+            abstained = 0
+            for p in proposals:
+                if not p.tags:
+                    abstained += 1
+                    table.add_row(
+                        p.canonical_name, "[dim]—[/dim]", "[dim]abstained[/dim]"
+                    )
+                    continue
+                tagged += 1
+                first = True
+                for field_name in taste_vocab.TASTE_FIELDS:
+                    if field_name not in p.tags:
+                        continue
+                    value = p.tags[field_name]
+                    display = (
+                        ", ".join(value) if isinstance(value, list) else str(value)
+                    )
+                    table.add_row(
+                        p.canonical_name if first else "",
+                        taste_vocab.FIELD_LABELS.get(field_name, field_name),
+                        display,
+                    )
+                    first = False
+            console.print(table)
+            console.print(
+                f"\n[bold]Summary:[/bold] {tagged} maker(s) with tags, "
+                f"{abstained} abstained."
+            )
+
+            if not commit:
+                console.print(
+                    "\n[yellow]Dry run.[/yellow] Re-run with [bold]--commit[/bold] "
+                    "to write tags and mark the listed makers as taste-attempted."
+                )
+                return
+
+            written = apply_taste_proposals(session, proposals)
+            console.print(
+                f"\n[green]Wrote {written} taste field value(s); marked "
+                f"{len(proposals)} maker(s) as taste-attempted.[/green]"
+            )
+        return
+
     console.print(f"[bold]Maker enrichment ({mode})[/bold]")
 
     with session_scope() as session:

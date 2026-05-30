@@ -473,6 +473,49 @@ For quick reference on what shipped when:
       work: feature inventory, draft-taste CLI, a taste-dimensions section,
       project-layout additions, test count 326→372, Layers 1a/1b marked
       shipped, design questions resolved, this chunk log. Doc-only.
+- 3F  Taste tagging for auto-discovered makers. Closes the gap where a
+      discovered maker (e.g. Barrelhand) got the factual fields but no
+      taste/character tags, because draft-taste (3B) only walks the seed
+      YAML and the factual on-scan enricher's registry doesn't include taste.
+      New `taste_enriched_at` column (migration 0007) is the once-per-maker
+      gate, separate from `enriched_at` so already-enriched makers still get
+      taste, and stamped even on abstention so the heavy-abstaining LLM isn't
+      re-queried every scan. `auto_tag_taste_for_discovered()` selects
+      non-seed independents with taste_enriched_at IS NULL, calls the existing
+      cached `lookup_maker_taste`, sanitizes to vocabulary, writes with the
+      "auto" enriched_fields marker, capped at 25/scan; wired as a new `taste`
+      phase in run_scan after enrichment. `cli enrich --taste` adds a
+      dry-run/commit backfill path for makers discovered before this. Scoped
+      to discovered makers only — seed taste stays curated in the YAML. The
+      review/edit UI (originally paired as the next half) is deferred to its
+      own chunk.
+- 3G  Context-aware taste prompt + retag. The 3F tagger fed Haiku only a bare
+      name, so genuinely niche makers (Barrelhand, Beaubleu, Spaceone…)
+      abstained. `lookup_maker_taste` now takes an optional `context` block
+      built from the maker's recent mention titles + excerpts (most-recent
+      first, deduped, capped) — for Barrelhand that surfaces "San Francisco
+      mechanical engineer… next-generation tool watch… mission-grade space
+      watch," more than enough to tag. Prompt version bumped v1→v2 (context is
+      in the cache key). Because 3F already stamped `taste_enriched_at` on the
+      abstainers, a better prompt wouldn't reach them on the normal gate, so
+      `cli enrich --taste --retag` re-opens makers that were attempted but
+      left untagged (skips anything already tagged, so no clobber). On-scan
+      tagging keeps the strict `taste_enriched_at IS NULL` gate; retag is
+      CLI-only and explicit.
+- 3H  Review/edit UI (admin). New `/review` page (FastAPI route + Jinja
+      template, matching the existing stone/amber style) lists every
+      discovered non-seed maker with its seven taste dimensions plus the
+      factual fields, all editable: checkboxes for the multi-value dims,
+      selects for the single-value ones, text/number/checkbox for
+      country/founded/website/independence. POST `/review/maker/{id}`
+      validates against the vocabulary, then overwrites (human is
+      authoritative — emptying a field clears it), drops the edited fields'
+      "auto" markers, and stamps taste_enriched_at. Gated by a new
+      `admin_mode` setting (WATCH_APP_ADMIN, default off) — routes 404 when
+      off, and the Discoveries page only shows the entry link when on. This is
+      the manual-tagging home for the abstainers (Barrelhand et al.) the
+      auto-tagger can't reach. Seed makers excluded (their taste lives in the
+      YAML). No schema change.
 
 ## Findings logged from the week-1 data review (2G)
 

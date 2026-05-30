@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Form, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func
 from sqlalchemy.orm import joinedload
@@ -422,5 +422,149 @@ def discoveries(request: Request) -> HTMLResponse:
         context={
             "discovered": discovered,
             "count": len(discovered),
+            "admin_mode": get_settings().admin_mode,
         },
     )
+
+
+# --- Review / edit (admin-only, chunk 3H) ---
+
+
+def _require_admin() -> None:
+    """Gate admin-only routes. 404 (not 403) so the page is invisible when off."""
+    if not get_settings().admin_mode:
+        raise HTTPException(status_code=404)
+
+
+def _fetch_discovered_for_review() -> list[dict]:
+    """Discovered (non-seed) makers with their taste + factual fields, for the
+    review grid. Newest first. Each dict carries the current taste values and
+    a per-field `auto` flag so the template can show what still needs vetting.
+    """
+    from watch_app.scoring.discovery import _load_seed_names
+
+    seed_names = _load_seed_names()
+    tracked = taste.TASTE_FIELDS + ("country", "founded_year", "website", "is_independent")
+    out: list[dict] = []
+    with session_scope() as session:
+        rows = session.query(Maker).order_by(Maker.first_seen_at.desc()).all()
+        for m in rows:
+            if m.canonical_name in seed_names:
+                continue
+            taste_values = {f: getattr(m, f) for f in taste.TASTE_FIELDS}
+            out.append(
+                {
+                    "id": m.id,
+                    "canonical_name": m.canonical_name,
+                    "country": m.country,
+                    "founded_year": m.founded_year,
+                    "website": m.website,
+                    "is_independent": m.is_independent,
+                    "taste": taste_values,
+                    "has_taste": any(taste_values.values()),
+                    "auto": {f: (f in (m.enriched_fields or [])) for f in tracked},
+                }
+            )
+    return out
+
+
+@router.get("/review", response_class=HTMLResponse)
+def review(request: Request) -> HTMLResponse:
+    """Admin page for reviewing and editing taste tags on discovered makers.
+
+    Lists every auto-discovered (non-seed) maker with its seven taste
+    dimensions plus the factual fields, all editable. Fields filled by LLM
+    enrichment are flagged "auto"; saving an edit clears that flag, since the
+    value is now human-reviewed. Seed makers are intentionally absent — their
+    taste is curated in the YAML. Gated by WATCH_APP_ADMIN.
+    """
+    _require_admin()
+    makers = _fetch_discovered_for_review()
+    return templates.TemplateResponse(
+        request=request,
+        name="review.html",
+        context={
+            "makers": makers,
+            "count": len(makers),
+            "vocabulary": taste.VOCABULARY,
+            "field_labels": taste.FIELD_LABELS,
+            "multi_fields": list(taste.MULTI_VALUE_FIELDS),
+            "single_fields": list(taste.SINGLE_VALUE_FIELDS),
+            "display_label": taste.display_label,
+        },
+    )
+
+
+@router.post("/review/maker/{maker_id}")
+def review_save(
+    maker_id: int,
+    aesthetic_tags: list[str] = Form(default=[]),
+    complication_focus: list[str] = Form(default=[]),
+    maker_type: str = Form(default=""),
+    price_band: str = Form(default=""),
+    output_scale: str = Form(default=""),
+    distribution: str = Form(default=""),
+    movement_origin: str = Form(default=""),
+    country: str = Form(default=""),
+    founded_year: str = Form(default=""),
+    website: str = Form(default=""),
+    is_independent: str = Form(default=""),
+) -> RedirectResponse:
+    """Persist edits from the review grid for one maker.
+
+    Human edits are authoritative, so this overwrites (not never-overwrite):
+    an emptied field is cleared. Validates taste values against the controlled
+    vocabulary first. On save, the edited fields drop their "auto" markers and
+    taste_enriched_at is stamped so the auto-tagger won't revisit. Redirects
+    back to /review (POST-redirect-GET).
+    """
+    _require_admin()
+
+    submitted_multi = {
+        "aesthetic_tags": aesthetic_tags,
+        "complication_focus": complication_focus,
+    }
+    submitted_single = {
+        "maker_type": maker_type or None,
+        "price_band": price_band or None,
+        "output_scale": output_scale or None,
+        "distribution": distribution or None,
+        "movement_origin": movement_origin or None,
+    }
+    # Defense-in-depth: reject anything out of vocabulary (the UI only offers
+    # valid options, but never trust the request).
+    to_check: dict = {k: v for k, v in submitted_multi.items() if v}
+    to_check.update({k: v for k, v in submitted_single.items() if v})
+    try:
+        taste.validate_taste_fields(to_check)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    from datetime import datetime, timezone
+
+    with session_scope() as session:
+        m = session.query(Maker).filter_by(id=maker_id).first()
+        if m is None:
+            raise HTTPException(status_code=404)
+
+        for field, vals in submitted_multi.items():
+            setattr(m, field, vals or None)
+        for field, val in submitted_single.items():
+            setattr(m, field, val)
+
+        m.country = country.strip() or None
+        m.website = website.strip() or None
+        fy = founded_year.strip()
+        m.founded_year = int(fy) if fy.isdigit() else None
+        m.is_independent = is_independent == "on"
+
+        editable = set(taste.TASTE_FIELDS) | {
+            "country", "founded_year", "website", "is_independent",
+        }
+        m.enriched_fields = [
+            f for f in (m.enriched_fields or []) if f not in editable
+        ]
+        m.taste_enriched_at = datetime.now(timezone.utc)
+        session.commit()
+
+    return RedirectResponse(url="/review", status_code=303)

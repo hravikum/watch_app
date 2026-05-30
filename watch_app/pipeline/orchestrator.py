@@ -451,6 +451,29 @@ def run_scan(
                     logger.warning(
                         "Auto-enrichment failed (scan otherwise completed): %s", exc,
                     )
+
+            with _phase_timer("taste"):
+                # Automatic taste tagging (3F). Tags auto-discovered
+                # independents on the taste_enriched_at IS NULL gate, capped at
+                # 25 per scan. Best-effort, like factual enrichment — a failure
+                # here doesn't mark the scan as failed.
+                stats["taste_fields_tagged"] = 0
+                try:
+                    from watch_app.extraction.enrich import (
+                        auto_tag_taste_for_discovered,
+                    )
+                    stats["taste_fields_tagged"] = auto_tag_taste_for_discovered(
+                        session, limit=25
+                    )
+                    if stats["taste_fields_tagged"] > 0:
+                        logger.info(
+                            "Taste tagging wrote %d field value(s)",
+                            stats["taste_fields_tagged"],
+                        )
+                except Exception as exc:
+                    logger.warning(
+                        "Taste tagging failed (scan otherwise completed): %s", exc,
+                    )
     except Exception as e:
         # Record failure in its own transaction.
         with session_scope() as meta_session:

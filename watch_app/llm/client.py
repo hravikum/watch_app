@@ -461,11 +461,18 @@ def lookup_maker_independence(
     return is_independent
 
 
-LOOKUP_TASTE_PROMPT_VERSION = "v1-2026-05-28"
+# v2 (3G): the prompt now accepts an optional `context` block of recent press
+# mentions, which sharply reduces abstention on niche makers the model doesn't
+# know by name alone. Bumped from v1 so context-aware lookups don't collide
+# with the old bare-name cache entries.
+LOOKUP_TASTE_PROMPT_VERSION = "v2-2026-05-30"
 
 
 def lookup_maker_taste(
-    session: Session, maker_name: str, country: str | None = None
+    session: Session,
+    maker_name: str,
+    country: str | None = None,
+    context: str | None = None,
 ) -> dict:
     """Ask Claude to draft taste / character tags for a watchmaker.
 
@@ -475,15 +482,20 @@ def lookup_maker_taste(
     vocabulary (``taste.sanitize_taste``) — this function does not guarantee
     in-vocabulary output, since the model may invent tokens.
 
-    Results are cached by (model, prompt_version, maker_name, country). The
-    prompt allows null per field and biases toward abstention on output
-    scale / distribution / movement origin, which are hard to know for niche
-    makers — a gap is preferable to a wrong tag.
+    ``context`` is an optional block of recent press mentions (titles +
+    excerpts) for the maker. For niche makers the model doesn't recognize by
+    name, this is the difference between a confident tag and a blank
+    abstention — see the Barrelhand case in chunk 3G.
+
+    Results are cached by (model, prompt_version, maker_name, country,
+    context). The prompt allows null per field and biases toward abstention on
+    output scale / distribution / movement origin, which are hard to know for
+    niche makers — a gap is preferable to a wrong tag.
     """
     from watch_app import taste
 
     input_content = _normalize_for_hashing(
-        {"maker": maker_name, "country": country or ""}
+        {"maker": maker_name, "country": country or "", "context": context or ""}
     )
 
     cached = get_cached(
@@ -502,9 +514,17 @@ def lookup_maker_taste(
         return ", ".join(taste.VOCABULARY[field])
 
     country_hint = f" (based in {country})" if country else ""
+    context_block = ""
+    if context:
+        context_block = (
+            f"\nRecent press mentions of this maker (use them to inform your "
+            f"tags — they often reveal style, complications, scale and origin):\n"
+            f"{context}\n"
+        )
     user_prompt = (
         f"You are tagging the independent watchmaker or brand {maker_name!r}"
-        f"{country_hint} with character tags for a watch-discovery tool.\n\n"
+        f"{country_hint} with character tags for a watch-discovery tool.\n"
+        f"{context_block}\n"
         f"Return a JSON object with exactly these keys. Use ONLY the listed "
         f"values. Use null (or [] for the list fields) for anything you are "
         f"not confident about — a missing tag is far better than a wrong one.\n\n"

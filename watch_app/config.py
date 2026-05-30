@@ -45,6 +45,11 @@ class Settings(BaseSettings):
         alias="WATCH_APP_DEFAULT_PRESET",
     )
 
+    # --- Admin ---
+    # Gates the /review tag-editing page. Off by default so it's never exposed
+    # on a public deployment; set WATCH_APP_ADMIN=1 locally to enable it.
+    admin_mode: bool = Field(default=False, alias="WATCH_APP_ADMIN")
+
     # --- Paths (derived, not env-configurable) ---
     @property
     def data_dir(self) -> Path:

@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Review tags · Watch App{% endblock %}
+
+{% block content %}
+<header class="mb-8">
+  <h1 class="text-2xl font-semibold tracking-tight text-stone-900">Review &amp; edit tags</h1>
+  <p class="mt-2 text-sm text-stone-600 max-w-2xl leading-relaxed">
+    Auto-discovered makers and their taste tags. Edit anything and save —
+    your edits are authoritative and overwrite the drafted values. Fields
+    marked <span class="text-amber-700">auto</span> were filled by LLM
+    enrichment and haven't been reviewed yet; saving clears that flag.
+    {% if count %}<strong>{{ count }}</strong> maker{% if count != 1 %}s{% endif %}.{% endif %}
+  </p>
+  <p class="mt-3 text-xs text-stone-500 max-w-2xl leading-relaxed">
+    Seed makers aren't shown — their taste is curated in
+    <code class="bg-stone-100 px-1.5 py-0.5 rounded text-stone-700">watch_app/data/known_makers.yaml</code>.
+  </p>
+</header>
+
+{% if count == 0 %}
+<div class="bg-white border border-stone-200 rounded-xl p-8 text-center text-stone-500">
+  <p class="text-sm">No auto-discovered makers to review yet.</p>
+</div>
+{% else %}
+
+<div class="space-y-5">
+  {% for m in makers %}
+  <form method="post" action="/review/maker/{{ m.id }}"
+        class="bg-white border border-stone-200 rounded-xl p-5">
+    <div class="flex items-baseline justify-between mb-4">
+      <h2 class="text-base font-semibold text-stone-900">
+        <a href="/makers/{{ m.id }}"
+           class="hover:underline decoration-stone-400 underline-offset-2">{{ m.canonical_name }}</a>
+        {% if not m.has_taste %}
+          <span class="ml-2 text-[10px] uppercase tracking-widest text-stone-400 border border-stone-200 rounded px-1.5 py-0.5">untagged</span>
+        {% endif %}
+      </h2>
+      <button type="submit"
+              class="text-xs uppercase tracking-[0.1em] font-medium text-white bg-stone-900 hover:bg-stone-700 transition rounded-lg px-4 py-2">
+        Save
+      </button>
+    </div>
+
+    {# --- Factual fields --- #}
+    <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-5">
+      <label class="block">
+        <span class="text-[11px] uppercase tracking-[0.1em] text-stone-500 font-medium">Country
+          {% if m.auto["country"] %}<span class="text-amber-700">auto</span>{% endif %}</span>
+        <input type="text" name="country" value="{{ m.country or '' }}"
+               class="mt-1 w-full text-sm border border-stone-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-stone-300" />
+      </label>
+      <label class="block">
+        <span class="text-[11px] uppercase tracking-[0.1em] text-stone-500 font-medium">Founded
+          {% if m.auto["founded_year"] %}<span class="text-amber-700">auto</span>{% endif %}</span>
+        <input type="number" name="founded_year" value="{{ m.founded_year or '' }}"
+               class="mt-1 w-full text-sm border border-stone-200 rounded-lg px-2.5 py-1.5 tabular focus:outline-none focus:ring-2 focus:ring-stone-300" />
+      </label>
+      <label class="block sm:col-span-2">
+        <span class="text-[11px] uppercase tracking-[0.1em] text-stone-500 font-medium">Website
+          {% if m.auto["website"] %}<span class="text-amber-700">auto</span>{% endif %}</span>
+        <input type="text" name="website" value="{{ m.website or '' }}"
+               class="mt-1 w-full text-sm border border-stone-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-stone-300" />
+      </label>
+    </div>
+
+    <label class="inline-flex items-center gap-2 mb-5 text-sm text-stone-700">
+      <input type="checkbox" name="is_independent" {% if m.is_independent %}checked{% endif %}
+             class="rounded border-stone-300 text-stone-900 focus:ring-stone-300" />
+      Independent
+      {% if m.auto["is_independent"] %}<span class="text-[10px] uppercase tracking-widest text-amber-700">auto</span>{% endif %}
+    </label>
+
+    {# --- Taste: multi-value (checkbox groups) --- #}
+    {% for field in multi_fields %}
+    <div class="mb-4">
+      <div class="text-[11px] uppercase tracking-[0.1em] text-stone-500 font-medium mb-1.5">
+        {{ field_labels[field] }}
+        {% if m.auto[field] %}<span class="text-amber-700">auto</span>{% endif %}
+      </div>
+      <div class="flex flex-wrap gap-2">
+        {% for opt in vocabulary[field] %}
+        <label class="inline-flex items-center gap-1.5 text-sm text-stone-700 border border-stone-200 rounded-lg px-2.5 py-1 cursor-pointer hover:bg-stone-50">
+          <input type="checkbox" name="{{ field }}" value="{{ opt }}"
+                 {% if m.taste[field] and opt in m.taste[field] %}checked{% endif %}
+                 class="rounded border-stone-300 text-stone-900 focus:ring-stone-300" />
+          {{ display_label(opt) }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+
+    {# --- Taste: single-value (selects) --- #}
+    <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      {% for field in single_fields %}
+      <label class="block">
+        <span class="text-[11px] uppercase tracking-[0.1em] text-stone-500 font-medium">{{ field_labels[field] }}
+          {% if m.auto[field] %}<span class="text-amber-700">auto</span>{% endif %}</span>
+        <select name="{{ field }}"
+                class="mt-1 w-full text-sm border border-stone-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-stone-300">
+          <option value="">—</option>
+          {% for opt in vocabulary[field] %}
+          <option value="{{ opt }}" {% if m.taste[field] == opt %}selected{% endif %}>{{ display_label(opt) }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% endfor %}
+    </div>
+  </form>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

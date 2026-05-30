@@ -83,6 +83,14 @@ class Maker(Base):
     distribution: Mapped[str | None] = mapped_column(String(30), nullable=True)
     movement_origin: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
+    # Set once the taste auto-tagger has attempted this maker (chunk 3F),
+    # whether or not it produced any tags. It's the once-per-maker gate for
+    # automatic taste tagging of auto-discovered makers — distinct from
+    # `enriched_at`, which tracks the factual on-scan enrichment (website /
+    # country / is_independent). Stays None for seed makers (their taste is
+    # curated in the YAML) and for any maker the tagger hasn't reached yet.
+    taste_enriched_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
     mentions: Mapped[list["Mention"]] = relationship(back_populates="maker")
     signals: Mapped[list["Signal"]] = relationship(back_populates="maker")
     scores: Mapped[list["Score"]] = relationship(back_populates="maker")
