@@ -36,6 +36,21 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   case material and diameter, movement type, power reserve, water resistance,
   price, limited edition count, image. Scoped intentionally to GPHG nominees
   so the data quality stays high (every spec field has a verified source URL).
+- **Carries curated taste dimensions per maker.** Each independent maker
+  can be tagged across seven character dimensions — aesthetic (classical,
+  modern, avant-garde, vintage-inspired, tool, dressy), what they're known
+  for (time-only, chronograph, tourbillon, calendar, chiming, astronomical),
+  maker type, price band, output scale, distribution, and movement origin.
+  They render as a "Profile" panel on the detail page. These are descriptive,
+  for navigating by taste — they do **not** feed scoring. The controlled
+  vocabulary lives in `watch_app/taste.py`; the seed loader validates every
+  tag against it.
+- **Drafts taste tags via LLM for review.** `python -m watch_app.cli
+  draft-taste` walks untagged independent makers, asks Haiku 4.5 for the
+  seven dimensions constrained to the vocabulary (abstaining when unsure),
+  and — with `--commit` — writes drafts into the seed YAML for human review
+  via `git diff`. Conglomerate brands are skipped. Curation aid, not a
+  runtime path.
 - **Compares makers across both presets** at `/comparison`. One sortable
   table with every maker's `rising_star` rank, `hidden_gem` rank, and the
   divergence between them. Sorting by divergence surfaces makers the two
@@ -127,6 +142,14 @@ python -m watch_app.cli maker "Simon Brette"    # Details + full mention list
 python -m watch_app.cli history --limit 30      # Recent scan runs
 python -m watch_app.cli schedule                # Print launchd setup
 
+python -m watch_app.cli enrich                  # Dry-run: propose website/country/independence for unenriched makers
+python -m watch_app.cli enrich --commit         # Write proposals to DB
+
+python -m watch_app.cli draft-taste             # Dry-run: propose taste tags for untagged independents
+python -m watch_app.cli draft-taste --commit    # Write drafts into the seed YAML (review the git diff)
+python -m watch_app.cli draft-taste --only "Grönefeld,Czapek"   # Draft specific makers
+python -m watch_app.cli draft-taste --limit 10  # Cap the batch (useful for a pilot)
+
 python -m watch_app.cli serve                   # Web UI at http://localhost:8000
 ```
 
@@ -156,6 +179,37 @@ preset weights compose cleanly. The two presets:
 - **`hidden_gem`** weights obscurity almost exclusively. Caps eligibility at 2
   mentions — anyone with 3+ mentions is filtered out. Prestige and recency act
   as tiny tie-breakers within the zero-mention tail.
+
+## Maker taste dimensions
+
+Separate from scoring, each independent maker can carry curated **taste
+dimensions** — the data that lets you navigate by your own taste rather than
+only a global ranking. They're shown as a "Profile" panel on the maker detail
+page and are the foundation for the planned multi-filter explorer.
+
+Seven dimensions, two multi-tag and five single-value, all optional:
+
+| Dimension | Kind | Vocabulary |
+|---|---|---|
+| `aesthetic_tags` | multi | classical, modern, avant-garde, vintage-inspired, tool, dressy |
+| `complication_focus` | multi | time-only, chronograph, tourbillon, calendar, chiming, astronomical |
+| `maker_type` | single | solo-watchmaker, small-atelier, heritage-relaunch, microbrand, established-indie |
+| `price_band` | single | entry (<$2k), mid ($2k–10k), high ($10k–50k), haute ($50k+) |
+| `output_scale` | single | one-off, sub-50, 50-500, 500-plus (watches/yr) |
+| `distribution` | single | direct, dealer-only, gallery, allocation-waitlist |
+| `movement_origin` | single | in-house, modified-base, stock-base |
+
+The vocabulary is intentionally small and lives in `watch_app/taste.py`, which
+is the single source of truth. `validate_taste_fields()` rejects anything out
+of vocabulary; the seed loader calls it per entry, and a test
+(`test_committed_seed_yaml_is_all_in_vocabulary`) runs it across the whole
+committed YAML so a typo fails the suite rather than silently fragmenting the
+tags. These fields are descriptive judgment — they never affect scores.
+
+Tagging was done in two passes: a hand-tagged core of well-known makers, then
+an LLM-assisted bulk pass via `draft-taste` (Haiku, constrained to the
+vocabulary, abstaining when unsure), with every draft reviewed in the YAML
+before commit.
 
 ## The methodology page
 
@@ -231,14 +285,17 @@ watch_app/
 │   ├── awards/           # GPHG list scraper (gphg.py) + per-watch detail parser (gphg_detail.py)
 │   ├── dummy.py          # Test source for unit tests
 │   └── base.py           # Source / RawMention protocol
-├── extraction/           # Rule-based entity extraction; resolver.py fuzzy-matches to Makers
+├── extraction/           # Rule-based entity extraction; resolver.py fuzzy-matches to Makers;
+│                         # taste_draft.py drafts taste tags via LLM into the seed YAML (Layer 1b)
+├── taste.py              # Controlled vocabulary for the 7 taste dimensions + validation (single source of truth)
 ├── llm/                  # Anthropic client + content-hash response cache
 ├── scoring/              # signals.py computes the 7 signals; ranker.py composes them under presets;
 │                         # methodology.py builds worked examples and source-contribution stats;
 │                         # queries.py has fetch_top_makers, fetch_all_makers_comparison,
 │                         # and fetch_rank_changes used by the web UI;
 │                         # discovery.py finds auto-discovered makers (not in seed YAML)
-├── storage/              # SQLAlchemy models (Maker, Mention, Signal, Score, ScanRun, Source, WatchModel)
+├── storage/              # SQLAlchemy models (Maker, Mention, Signal, Score, ScanRun, Source, WatchModel).
+│                         # Maker also carries the 7 taste-dimension columns (migration 0006)
 ├── pipeline/             # orchestrator.py wires the layers: fetch → extract → resolve → store →
 │                         # fetch GPHG model details → score
 ├── api/                  # FastAPI routers; makers.py has dashboard, detail, methodology,
@@ -246,11 +303,11 @@ watch_app/
 ├── web/templates/        # Jinja2 + HTMX (dashboard.html, maker_detail.html, methodology.html,
 │                         # comparison.html, movers.html, discoveries.html, _makers_table.html)
 ├── data/
-│   ├── known_makers.yaml      # The 125-maker curated seed (117 with website URLs)
+│   ├── known_makers.yaml      # The ~127-maker curated seed, most independents now carrying taste tags
 │   └── youtube_channels.yaml  # 15 YouTube channels with prestige weights and tier annotations
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 326 tests; run with `make test`
+tests/                    # 372 tests; run with `make test`
 alembic/                  # Schema migrations
 ```
 
@@ -275,7 +332,7 @@ alembic/                  # Schema migrations
 ## Development
 
 ```bash
-make test         # Full suite; expects 326 passing
+make test         # Full suite; expects 372 passing
 pytest -v tests/test_ranker.py  # Run one file
 pytest -v -k hidden_gem         # Run tests matching a name
 ```
