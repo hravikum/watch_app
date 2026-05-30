@@ -751,17 +751,12 @@ makers:
     country: "Germany"
     founded_year: 1961
   - canonical_name: "Glashütte Original"
-    aesthetic_tags: ["classical", "dressy"]
-    maker_type: "established-indie"
-    price_band: "high"
-    output_scale: "500-plus"
-    distribution: "dealer-only"
-    complication_focus: ["tourbillon", "calendar"]
-    movement_origin: "in-house"
     website: "https://www.glashuette-original.com"
     aliases: ["Glashutte Original"]
     country: "Germany"
     founded_year: 1845
+    is_independent: false
+    # Swatch Group (acquired 2000)
   - canonical_name: "Armin Strom"
     aesthetic_tags: ["modern", "classical"]
     maker_type: "small-atelier"
@@ -774,17 +769,12 @@ makers:
     country: "Switzerland"
     founded_year: 2006
   - canonical_name: "Arnold & Son"
-    aesthetic_tags: ["classical", "dressy"]
-    maker_type: "established-indie"
-    price_band: "haute"
-    output_scale: "sub-50"
-    distribution: "dealer-only"
-    complication_focus: ["tourbillon", "time-only"]
-    movement_origin: "in-house"
     website: "https://www.arnoldandson.com"
     aliases: ["Arnold and Son"]
     country: "United Kingdom"
     founded_year: 1764
+    is_independent: false
+    # Citizen Group, via La Joux-Perret (acquired 2012)
   - canonical_name: "Andersen Genève"
     aesthetic_tags: ["classical", "dressy"]
     maker_type: "small-atelier"
@@ -830,14 +820,11 @@ makers:
     is_independent: false
     # Revived under Bulgari (LVMH) in 2024.
   - canonical_name: "Angelus"
-    aesthetic_tags: ["modern", "tool"]
-    maker_type: "heritage-relaunch"
-    price_band: "high"
-    complication_focus: ["chronograph"]
-    movement_origin: "in-house"
     website: "https://angelus-watches.com"
     country: "Switzerland"
     founded_year: 1891
+    is_independent: false
+    # Citizen Group, via La Joux-Perret (since 2011)
   - canonical_name: "Parmigiani Fleurier"
     aesthetic_tags: ["classical", "dressy"]
     maker_type: "established-indie"
