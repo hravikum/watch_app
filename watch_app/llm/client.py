@@ -459,3 +459,104 @@ def lookup_maker_independence(
     )
 
     return is_independent
+
+
+LOOKUP_TASTE_PROMPT_VERSION = "v1-2026-05-28"
+
+
+def lookup_maker_taste(
+    session: Session, maker_name: str, country: str | None = None
+) -> dict:
+    """Ask Claude to draft taste / character tags for a watchmaker.
+
+    Returns a dict with up to seven keys (the taste dimensions). Values are
+    vocabulary tokens (or lists of tokens), or null where the model isn't
+    confident. The caller MUST sanitize the result against the controlled
+    vocabulary (``taste.sanitize_taste``) — this function does not guarantee
+    in-vocabulary output, since the model may invent tokens.
+
+    Results are cached by (model, prompt_version, maker_name, country). The
+    prompt allows null per field and biases toward abstention on output
+    scale / distribution / movement origin, which are hard to know for niche
+    makers — a gap is preferable to a wrong tag.
+    """
+    from watch_app import taste
+
+    input_content = _normalize_for_hashing(
+        {"maker": maker_name, "country": country or ""}
+    )
+
+    cached = get_cached(
+        session=session,
+        model=ENRICHMENT_MODEL,
+        prompt_version=LOOKUP_TASTE_PROMPT_VERSION,
+        input_content=input_content,
+    )
+    if cached is not None:
+        logger.debug("Taste lookup cache hit for %r", maker_name)
+        return cached
+
+    logger.info("Looking up taste for %r via LLM", maker_name)
+
+    def opts(field: str) -> str:
+        return ", ".join(taste.VOCABULARY[field])
+
+    country_hint = f" (based in {country})" if country else ""
+    user_prompt = (
+        f"You are tagging the independent watchmaker or brand {maker_name!r}"
+        f"{country_hint} with character tags for a watch-discovery tool.\n\n"
+        f"Return a JSON object with exactly these keys. Use ONLY the listed "
+        f"values. Use null (or [] for the list fields) for anything you are "
+        f"not confident about — a missing tag is far better than a wrong one.\n\n"
+        f"- aesthetic_tags (list, 1-3 of): {opts('aesthetic_tags')}\n"
+        f"- complication_focus (list, 1-3 of) — what they're known for: "
+        f"{opts('complication_focus')}\n"
+        f"- maker_type (one of): {opts('maker_type')}\n"
+        f"- price_band (one of): {opts('price_band')} "
+        f"(entry <$2k, mid $2k-10k, high $10k-50k, haute $50k+)\n"
+        f"- output_scale (one of) — watches per year: {opts('output_scale')}\n"
+        f"- distribution (one of): {opts('distribution')}\n"
+        f"- movement_origin (one of): {opts('movement_origin')} "
+        f"(in-house = own movements, modified-base = reworked stock ebauche, "
+        f"stock-base = unmodified stock movement)\n\n"
+        f"Be especially willing to use null for output_scale, distribution, "
+        f"and movement_origin unless you specifically know them for this maker.\n"
+        f"Reply with only the JSON object, no other text.\n"
+    )
+
+    client = _get_client()
+    message = client.messages.create(
+        model=ENRICHMENT_MODEL,
+        max_tokens=300,
+        messages=[{"role": "user", "content": user_prompt}],
+    )
+
+    raw_text = ""
+    for block in message.content:
+        if getattr(block, "type", None) == "text":
+            raw_text += block.text
+
+    cleaned = raw_text.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned
+        if cleaned.endswith("```"):
+            cleaned = cleaned.rsplit("```", 1)[0]
+    try:
+        parsed = json.loads(cleaned)
+        if not isinstance(parsed, dict):
+            parsed = {}
+    except json.JSONDecodeError:
+        logger.warning(
+            "Taste lookup for %r returned non-JSON: %r", maker_name, raw_text[:200]
+        )
+        parsed = {}
+
+    set_cached(
+        session=session,
+        model=ENRICHMENT_MODEL,
+        prompt_version=LOOKUP_TASTE_PROMPT_VERSION,
+        input_content=input_content,
+        response=parsed,
+    )
+
+    return parsed

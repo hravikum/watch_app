@@ -371,6 +371,125 @@ def enrich(
         console.print(f"\n[green]Wrote {written} field value(s) to the database.[/green]")
 
 
+@app.command("draft-taste")
+def draft_taste(
+    commit: bool = typer.Option(
+        False,
+        "--commit",
+        help="Write drafts into known_makers.yaml. Without this flag, runs "
+             "in dry-run mode (shows proposals only).",
+    ),
+    limit: int = typer.Option(
+        0, "--limit", help="Only process the first N untagged independents (0 = all)."
+    ),
+    only: str = typer.Option(
+        "",
+        "--only",
+        help="Comma-separated canonical names to draft, overriding the "
+             "untagged-independent scan (used for the pilot).",
+    ),
+) -> None:
+    """Draft taste tags for untagged independent makers via Haiku, into the YAML.
+
+    Curation aid for Layer 1b. For each untagged independent maker, asks
+    Claude for the seven taste dimensions constrained to the controlled
+    vocabulary, sanitizes the result, and (with --commit) writes drafts into
+    known_makers.yaml for review. Conglomerates are skipped.
+
+    Default is dry-run: prints proposals without writing. LLM responses are
+    cached, so dry-run + commit doesn't double-bill. Always review the diff
+    (git diff watch_app/data/known_makers.yaml) before committing the YAML.
+
+    Cost: one Haiku call per maker (~$0.001 each). All 60 untagged
+    independents cost well under $0.10.
+    """
+    from rich.table import Table
+
+    from watch_app import taste
+    from watch_app.extraction.seed import _load_yaml
+    from watch_app.extraction.taste_draft import (
+        is_tagged,
+        propose_taste,
+        untagged_independents,
+        write_drafts_to_yaml,
+    )
+
+    mode = "COMMIT" if commit else "DRY-RUN"
+    console.print(f"[bold]Taste drafting ({mode})[/bold]")
+
+    entries = _load_yaml()
+    if only.strip():
+        wanted = {n.strip() for n in only.split(",") if n.strip()}
+        by_name = {e.get("canonical_name"): e for e in entries}
+        targets = []
+        for n in wanted:
+            match = by_name.get(n)
+            if match is None:
+                console.print(f"[yellow]Not in seed, skipping:[/yellow] {n}")
+            elif is_tagged(match):
+                console.print(f"[dim]Already tagged, skipping:[/dim] {n}")
+            else:
+                targets.append(match)
+    else:
+        targets = untagged_independents(entries)
+        if limit > 0:
+            targets = targets[:limit]
+
+    if not targets:
+        console.print("[green]Nothing to draft.[/green]")
+        return
+
+    console.print(f"Drafting [yellow]{len(targets)}[/yellow] maker(s) via Haiku...")
+
+    display_fields = [
+        "aesthetic_tags",
+        "complication_focus",
+        "maker_type",
+        "price_band",
+        "output_scale",
+        "distribution",
+        "movement_origin",
+    ]
+
+    proposals = []
+    with session_scope() as session:
+        for entry in targets:
+            proposals.append(propose_taste(session, entry))
+
+    table = Table(title="Proposed taste tags")
+    table.add_column("Maker", style="cyan")
+    for f in display_fields:
+        table.add_column(taste.FIELD_LABELS[f])
+
+    filled = 0
+    for p in proposals:
+        if p.tags:
+            filled += 1
+
+        def cell(field: str) -> str:
+            value = p.tags.get(field)
+            if value is None:
+                return "[dim]—[/dim]"
+            return ", ".join(value) if isinstance(value, list) else value
+
+        table.add_row(p.canonical_name, *(cell(f) for f in display_fields))
+
+    console.print(table)
+    console.print(f"{filled}/{len(proposals)} maker(s) got at least one tag.")
+
+    if commit:
+        written = write_drafts_to_yaml(proposals)
+        console.print(
+            f"\n[green]Wrote drafts for {written} maker(s) into "
+            f"known_makers.yaml.[/green]"
+        )
+        console.print(
+            "[dim]Review with: git diff watch_app/data/known_makers.yaml[/dim]"
+        )
+    else:
+        console.print("[dim]Dry-run. Re-run with --commit to write the YAML.[/dim]")
+
+
 @app.command()
 def schedule() -> None:
     """Print instructions for setting up a daily scheduled scan via launchd.
@@ -412,7 +531,7 @@ def schedule() -> None:
     <key>StartCalendarInterval</key>
     <dict>
         <key>Hour</key>
-        <integer>22</integer>
+        <integer>7</integer>
         <key>Minute</key>
         <integer>0</integer>
     </dict>
@@ -433,8 +552,8 @@ def schedule() -> None:
         "[bold cyan]Setting up daily scans via launchd[/bold cyan]\n"
     )
     console.print(
-        "This will schedule a scan every day at 9:00 PM (local time).\n"
-        "launchd catches up if your Mac was asleep at 9:00 PM.\n"
+        "This will schedule a scan every day at 7:00 AM (local time).\n"
+        "launchd catches up if your Mac was asleep at 7am.\n"
     )
 
     # Check that venv exists; complain if not.

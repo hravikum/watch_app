@@ -121,6 +121,38 @@ def display_label(token: str) -> str:
     return DISPLAY_LABELS.get(token, token.replace("-", " ").capitalize())
 
 
+def sanitize_taste(raw: dict) -> dict:
+    """Coerce a raw (possibly LLM-produced) taste dict to in-vocabulary values.
+
+    For each taste field, keep only values present in the controlled
+    vocabulary and drop the rest. Multi-value fields become a de-duplicated
+    filtered list (omitted entirely if nothing valid survives); single-value
+    fields are kept only if valid. Non-taste keys are ignored. The returned
+    dict contains only fields with a non-empty valid value and is guaranteed
+    to pass ``validate_taste_fields``.
+    """
+    clean: dict = {}
+
+    for field in MULTI_VALUE_FIELDS:
+        value = raw.get(field)
+        if not isinstance(value, list):
+            continue
+        allowed = VOCABULARY[field]
+        kept: list[str] = []
+        for v in value:
+            if v in allowed and v not in kept:
+                kept.append(v)
+        if kept:
+            clean[field] = kept
+
+    for field in SINGLE_VALUE_FIELDS:
+        value = raw.get(field)
+        if isinstance(value, str) and value in VOCABULARY[field]:
+            clean[field] = value
+
+    return clean
+
+
 def validate_taste_fields(entry: dict) -> None:
     """Raise ``ValueError`` if any taste field in ``entry`` is out of vocabulary.
 

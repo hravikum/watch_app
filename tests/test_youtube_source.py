@@ -298,17 +298,20 @@ def test_retry_success_on_first_attempt_no_sleep():
     mock_sleep.assert_not_called()
 
 
-def test_retry_recovers_after_404():
-    """404 first, 200 on retry → returns the 200 response."""
+def test_404_not_retried():
+    """404 is deliberately non-retryable (2V): during the YouTube feed outage
+    404s are sustained across retries, so we give up immediately rather than
+    burn backoff. → returns None after a single call, with no sleeps."""
     source = YouTubeChannelSource(
         name="Test", channel_id="UCTEST", prestige_weight=0.5
     )
     responses = [_mock_response(404), _mock_response(200, "<feed>ok</feed>")]
     with patch("watch_app.sources.media.youtube.http_get", side_effect=responses) as mock_get, \
-         patch("watch_app.sources.media.youtube.time.sleep"):
+         patch("watch_app.sources.media.youtube.time.sleep") as mock_sleep:
         result = source._fetch_feed_text()
-    assert result == "<feed>ok</feed>"
-    assert mock_get.call_count == 2
+    assert result is None
+    assert mock_get.call_count == 1  # 404 short-circuits — the 200 is never reached
+    mock_sleep.assert_not_called()
 
 
 def test_retry_recovers_after_500():
@@ -324,16 +327,17 @@ def test_retry_recovers_after_500():
 
 
 def test_retry_gives_up_after_max_attempts():
-    """All MAX_ATTEMPTS return 404 → return None, no crash."""
+    """All MAX_ATTEMPTS return a retryable 5xx → return None, no crash."""
+    from watch_app.sources.media.youtube import MAX_ATTEMPTS
+
     source = YouTubeChannelSource(
         name="Test", channel_id="UCTEST", prestige_weight=0.5
     )
-    responses = [_mock_response(404) for _ in range(5)]
+    responses = [_mock_response(503) for _ in range(MAX_ATTEMPTS)]
     with patch("watch_app.sources.media.youtube.http_get", side_effect=responses) as mock_get, \
          patch("watch_app.sources.media.youtube.time.sleep"):
         result = source._fetch_feed_text()
     assert result is None
-    from watch_app.sources.media.youtube import MAX_ATTEMPTS
     assert mock_get.call_count == MAX_ATTEMPTS
 
 
@@ -385,11 +389,11 @@ def test_retry_uses_browser_user_agent():
 
 
 def test_retry_backoff_increases():
-    """The backoff sleep duration should grow between attempts."""
+    """The backoff sleep duration should grow between retryable attempts."""
     source = YouTubeChannelSource(
         name="Test", channel_id="UCTEST", prestige_weight=0.5
     )
-    responses = [_mock_response(404), _mock_response(404), _mock_response(404)]
+    responses = [_mock_response(503), _mock_response(503), _mock_response(503)]
     with patch("watch_app.sources.media.youtube.http_get", side_effect=responses), \
          patch("watch_app.sources.media.youtube.time.sleep") as mock_sleep:
         source._fetch_feed_text()
