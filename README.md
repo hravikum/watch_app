@@ -105,6 +105,13 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   aesthetic, type, complications, and movement origin, and normalized
   over the dimensions both makers actually have tagged. Each match shows
   the shared characteristics that drove it.
+- **Promote a discovery to seed** — once a discovered maker proves worth
+  keeping, `cli promote "<name>"` (or the per-maker button in `/review`)
+  serializes its curated fields and taste into a new `known_makers.yaml`
+  entry, which you review with `git diff` and commit. It then reconciles
+  onto the existing DB row on the next scan and joins the curated set.
+  Dry-run by default; blocks exact name collisions and asks you to
+  confirm fuzzy near-matches.
 - **Catches new makers in debut articles.** When an article title
   starts with a journalism convention marker like "Introducing:",
   "Hands On:", or "First Look:" AND the rule-based extractor only
@@ -337,7 +344,7 @@ watch_app/
 │   └── youtube_channels.yaml  # 15 YouTube channels with prestige weights and tier annotations
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 421 tests; run with `make test` (~30s, no network)
+tests/                    # 434 tests; run with `make test` (~30s, no network)
 alembic/                  # Schema migrations
 ```
 
@@ -362,7 +369,7 @@ alembic/                  # Schema migrations
 ## Development
 
 ```bash
-make test         # Full suite (~30s); expects 421 passing
+make test         # Full suite (~30s); expects 434 passing
 pytest -v tests/test_ranker.py  # Run one file
 pytest -v -k hidden_gem         # Run tests matching a name
 ```

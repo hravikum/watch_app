@@ -712,6 +712,86 @@ def schedule() -> None:
     )
 
 
+@app.command()
+def promote(
+    maker: str = typer.Argument(
+        ..., help="Maker to promote, by numeric id or exact canonical name."
+    ),
+    commit: bool = typer.Option(
+        False,
+        "--commit",
+        help="Append the entry to known_makers.yaml. Without this flag, runs "
+        "in dry-run mode (shows the entry and any warnings only).",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Proceed past a fuzzy near-match warning (use only after "
+        "confirming the maker is genuinely distinct).",
+    ),
+) -> None:
+    """Promote an auto-discovered maker into the curated seed YAML.
+
+    Serializes the maker's current curated fields (name, aliases, country,
+    founded year, website, is_independent, and its populated taste dimensions)
+    into a new entry appended under a "Promoted from discovery" section. On the
+    next scan the seed loader reconciles onto the existing DB row, and the maker
+    leaves the discovered views.
+
+    Default is dry-run: prints the entry plus any blockers/warnings and writes
+    nothing. Re-run with --commit to write, then review the diff
+    (git diff watch_app/data/known_makers.yaml) before committing the YAML.
+
+    Tip: tag the maker fully in /review first — promotion is the graduation
+    step, and a promoted maker is curated via the YAML from then on.
+    """
+    from watch_app.extraction.promote import promote_to_seed
+
+    with session_scope() as session:
+        target = None
+        if maker.isdigit():
+            target = session.query(Maker).filter_by(id=int(maker)).first()
+        if target is None:
+            target = session.query(Maker).filter_by(canonical_name=maker).first()
+        if target is None:
+            console.print(f"[red]No maker found for '{maker}'.[/red]")
+            raise typer.Exit(1)
+
+        mode = "COMMIT" if commit else "DRY-RUN"
+        console.print(
+            f"[bold]Promote '{target.canonical_name}' \u2192 seed YAML ({mode})[/bold]\n"
+        )
+        result = promote_to_seed(session, target, commit=commit, force=force)
+
+        console.print("[dim]Entry to append:[/dim]")
+        console.print(result.entry_text.rstrip())
+        console.print("")
+        for blocker in result.blockers:
+            console.print(f"[red]\u2717 {blocker}[/red]")
+        for item in result.needs_confirm:
+            console.print(f"[yellow]\u26a0 {item}[/yellow]")
+        for warning in result.warnings:
+            console.print(f"[dim]\u2022 {warning}[/dim]")
+
+        if result.written:
+            console.print(
+                "\n[green]Written.[/green] Review with "
+                "[dim]git diff watch_app/data/known_makers.yaml[/dim] and commit."
+            )
+        elif not commit:
+            hint = "Re-run with --commit to write."
+            if result.needs_confirm:
+                hint += " Add --force to proceed past the near-match."
+            console.print(f"\n[yellow]Dry run — nothing written.[/yellow] {hint}")
+        elif result.blockers:
+            console.print("\n[red]Not written — resolve the blocker above.[/red]")
+        elif result.needs_confirm:
+            console.print(
+                "\n[yellow]Not written — near-match. Re-run with --force if "
+                "the maker is genuinely distinct.[/yellow]"
+            )
+
+
 def main() -> None:
     app()
 

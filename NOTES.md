@@ -549,6 +549,21 @@ For quick reference on what shipped when:
       tags that drove them. Real-data check: Dufour → Raúl Pagès, Roger Smith,
       Akrivia, Strehler — exactly right. Pure function in taste.py; ~160-maker
       pairwise compute is trivial, no precomputation.
+- 3L  Promote a discovery to seed. `extraction/promote.py` serializes a
+      discovered maker's curated fields + populated taste into a new
+      known_makers.yaml entry (matching the hand-curated style; null dims
+      omitted so the loader's overwrite is a no-op) and appends it under a
+      trailing "# --- Promoted from discovery ---" section, reusing the
+      line-based write so existing formatting/comments survive. Validates the
+      whole file re-parses and all taste is in-vocabulary before writing — no
+      half-entry on failure. Guardrails: hard-block exact canonical/alias
+      collision (also makes re-promotion idempotent), confirm-required on a
+      rapidfuzz WRatio near-match (≥88, `--force` to override), soft-warn if
+      untagged. Exposed as `cli promote <id|name>` (dry-run/--commit/--force)
+      and a per-maker "Promote" button in /review (admin; same logic, 409 +
+      CLI hint on blocker/near-match). After promotion the maker reconciles
+      onto its existing DB row on the next scan and leaves the discovered
+      views; further curation is via the YAML. No schema change.
 
 ## Findings logged from the week-1 data review (2G)
 

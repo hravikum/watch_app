@@ -570,6 +570,34 @@ def review_save(
     return RedirectResponse(url="/review", status_code=303)
 
 
+@router.post("/review/promote/{maker_id}")
+def review_promote(maker_id: int) -> RedirectResponse:
+    """Promote a discovered maker into the seed YAML from the review grid.
+
+    Calls the same logic as `cli promote`. On success the maker is appended to
+    known_makers.yaml and (being seed now) drops off this page. A hard blocker
+    (collision) or a fuzzy near-match returns 409 with the reason — the
+    near-match case is intentionally routed to the CLI, where `--force` can
+    confirm it after you've seen the dry-run.
+    """
+    _require_admin()
+    from watch_app.extraction.promote import promote_to_seed
+
+    with session_scope() as session:
+        m = session.query(Maker).filter_by(id=maker_id).first()
+        if m is None:
+            raise HTTPException(status_code=404)
+        result = promote_to_seed(session, m, commit=True, force=False)
+        if not result.written:
+            reasons = result.blockers + result.needs_confirm
+            detail = " ".join(reasons) if reasons else "Could not promote."
+            if result.needs_confirm:
+                detail += " Use `cli promote --force` if it's genuinely distinct."
+            raise HTTPException(status_code=409, detail=detail)
+
+    return RedirectResponse(url="/review", status_code=303)
+
+
 # --- Taste explorer (Layer 2a, chunk 3J) ---
 
 
