@@ -792,6 +792,113 @@ def promote(
             )
 
 
+@app.command()
+def dupes(
+    threshold: int = typer.Option(
+        85, "--threshold", help="Minimum WRatio score (0-100) to report."
+    ),
+) -> None:
+    """List near-duplicate makers — pairs with very similar names — for review.
+
+    These are candidates that may be the same maker split across two rows.
+    Eyeball them and merge any real duplicates with `watch-app merge`.
+    """
+    from watch_app.extraction.maker_admin import find_near_duplicates
+
+    with session_scope() as session:
+        pairs = find_near_duplicates(session, threshold=threshold)
+        if not pairs:
+            console.print(f"[green]No maker pairs scored >= {threshold}.[/green]")
+            return
+        table = Table(title=f"Near-duplicate makers (WRatio >= {threshold})")
+        table.add_column("Score", justify="right")
+        table.add_column("Maker A")
+        table.add_column("id", justify="right")
+        table.add_column("Maker B")
+        table.add_column("id", justify="right")
+        for p in pairs:
+            table.add_row(
+                f"{p.score:.0f}", p.a_name, str(p.a_id), p.b_name, str(p.b_id)
+            )
+        console.print(table)
+        console.print(
+            "[dim]Merge a real duplicate with: "
+            "watch-app merge <from-id> <into-id> --commit[/dim]"
+        )
+
+
+@app.command()
+def merge(
+    from_maker: str = typer.Argument(
+        ..., help="Maker to merge FROM (id or name) — must be a discovered maker."
+    ),
+    into_maker: str = typer.Argument(
+        ..., help="Maker to merge INTO (id or name) — the surviving maker."
+    ),
+    commit: bool = typer.Option(
+        False, "--commit", help="Apply the merge. Dry-run otherwise."
+    ),
+) -> None:
+    """Merge one maker into another: reassign its mentions and watch models,
+
+    fold its name + aliases in as aliases, drop its derived rows, and delete it.
+    Dry-run by default. The FROM maker must be a discovered (non-seed) maker.
+    """
+    from watch_app.extraction.maker_admin import merge_makers
+
+    with session_scope() as session:
+        plan = merge_makers(session, from_maker, into_maker, commit=commit)
+        for blocker in plan.blockers:
+            console.print(f"[red]\u2717 {blocker}[/red]")
+        if plan.blockers:
+            raise typer.Exit(1)
+
+        console.print(f"[bold]Merge '{plan.from_name}' \u2192 '{plan.into_name}'[/bold]")
+        console.print(f"  mentions reassigned: {plan.mentions_reassigned}")
+        console.print(f"  mentions de-duped (already on target): {plan.mentions_deduped}")
+        console.print(f"  watch models reassigned: {plan.watch_models_reassigned}")
+        console.print(
+            f"  derived rows dropped: {plan.signals_deleted} signals, "
+            f"{plan.scores_deleted} scores (recomputed next scan)"
+        )
+        console.print(f"  aliases added to target: {plan.aliases_added or 'none'}")
+        if plan.done:
+            console.print(
+                "\n[green]Merged.[/green] Re-run a scan to rescore the surviving maker."
+            )
+        else:
+            console.print("\n[yellow]Dry run.[/yellow] Re-run with --commit to apply.")
+
+
+@app.command()
+def unalias(
+    maker: str = typer.Argument(..., help="Maker (id or name) to remove an alias from."),
+    alias: str = typer.Argument(..., help="The alias string to remove."),
+    commit: bool = typer.Option(
+        False, "--commit", help="Apply the removal. Dry-run otherwise."
+    ),
+) -> None:
+    """Remove a bad alias from a maker (e.g. a wrong fuzzy auto-merge)."""
+    from watch_app.extraction.maker_admin import remove_alias
+
+    with session_scope() as session:
+        res = remove_alias(session, maker, alias, commit=commit)
+        for blocker in res.blockers:
+            console.print(f"[red]\u2717 {blocker}[/red]")
+        if res.blockers:
+            raise typer.Exit(1)
+        verb = "Removed" if res.removed else "Would remove"
+        console.print(f"[bold]{verb} alias '{res.alias}' from '{res.maker_name}'.[/bold]")
+        if res.seed_warning:
+            console.print(
+                "[yellow]\u26a0 This is a seed maker. If the alias is defined in "
+                "known_makers.yaml it will be re-added on the next scan — remove it "
+                "there too.[/yellow]"
+            )
+        if not res.removed:
+            console.print("\n[yellow]Dry run.[/yellow] Re-run with --commit to apply.")
+
+
 def main() -> None:
     app()
 

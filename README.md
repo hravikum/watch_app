@@ -187,6 +187,14 @@ python -m watch_app.cli draft-taste --commit    # Write drafts into the seed YAM
 python -m watch_app.cli draft-taste --only "Grönefeld,Czapek"   # Draft specific makers
 python -m watch_app.cli draft-taste --limit 10  # Cap the batch (useful for a pilot)
 
+python -m watch_app.cli promote "<maker>"       # Dry-run: serialize a discovered maker as a seed YAML entry
+python -m watch_app.cli promote "<maker>" --commit   # Append it to known_makers.yaml (review the git diff)
+
+python -m watch_app.cli dupes                   # List near-duplicate makers (possible split rows) for review
+python -m watch_app.cli merge <from> <into>     # Dry-run: fold one maker into another (mentions, aliases)
+python -m watch_app.cli merge <from> <into> --commit
+python -m watch_app.cli unalias "<maker>" "<alias>"  # Remove a bad alias (e.g. a wrong fuzzy merge); --commit to apply
+
 python -m watch_app.cli serve                   # Web UI at http://localhost:8000
 ```
 
@@ -346,7 +354,7 @@ watch_app/
 │   └── youtube_channels.yaml  # 15 YouTube channels with prestige weights and tier annotations
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 442 tests; run with `make test` (~30s, no network)
+tests/                    # 455 tests; run with `make test` (~30s, no network)
 alembic/                  # Schema migrations
 ```
 
@@ -371,7 +379,7 @@ alembic/                  # Schema migrations
 ## Development
 
 ```bash
-make test         # Full suite (~30s); expects 442 passing
+make test         # Full suite (~30s); expects 455 passing
 pytest -v tests/test_ranker.py  # Run one file
 pytest -v -k hidden_gem         # Run tests matching a name
 ```

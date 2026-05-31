@@ -574,6 +574,24 @@ For quick reference on what shipped when:
       (category, prestige weight, active, last scraped). Read-only — weight
       tuning stays a scoring-config concern. No schema change. Next: resolver
       robustness (affix normalization + merge/unalias CLI + dupes report).
+- 3N  Resolver robustness (prevent + remedy + observe). resolver._normalize now
+      also removes periods and strips generic maker affixes (leading
+      atelier/manufacture/maison/montres/horlogerie; trailing &cie/&co/sa/ag/
+      gmbh/inc/ltd/llc/watches/watchmaking/watchcraft) — matching-only, never
+      rewrites a stored name. This pulls apart the &Co./Atelier false-positive
+      clusters (which sat at WRatio 86, one bad extraction from the 90 auto-
+      merge line) and lands true variants (Atelier Akrivia~Akrivia, FP~F.P.) at
+      the exact step. Audited the real seed: zero new cross-maker collisions.
+      The entities normalizer (literal text matching) intentionally stays
+      simpler; the resolver one is now a strict refinement, so it still matches
+      everything extraction produces — updated test_hyphen_normalization to lock
+      the shared core + the intended divergence. Fuzzy auto-aliases are now
+      logged. New extraction/maker_admin.py + CLI: `dupes` (near-duplicate
+      report), `merge <from> <into>` (reassign mentions/watch-models with
+      (source,url) de-dup, fold aliases, drop derived Signal/Score rows, delete
+      the row; dry-run default; blocks merging FROM a seed maker), `unalias`
+      (remove a bad alias; warns on seed makers since the loader re-adds YAML
+      aliases). No schema change.
 
 ## Findings logged from the week-1 data review (2G)
 

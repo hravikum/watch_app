@@ -12,6 +12,7 @@ unicode normalization for names like "Raúl Pagès" vs "Raul Pages", etc.).
 """
 from __future__ import annotations
 
+import logging
 import re
 import unicodedata
 
@@ -20,27 +21,49 @@ from sqlalchemy.orm import Session
 
 from watch_app.storage.models import Maker
 
+logger = logging.getLogger(__name__)
+
 
 FUZZY_MATCH_THRESHOLD = 90  # 0-100; above this we consider it the same maker
 
 
-# Same hyphen/whitespace collapse as extraction.entities._normalize.
-# Keeps the two normalization functions in sync so an article-extracted
-# candidate normalizes the same way as the seed entries it's matched
-# against. Updated in 2W-hyphen-norm.
+# Hyphen/whitespace collapse, shared in spirit with extraction.entities._normalize
+# (which serves a different job — finding names in article text). This function
+# is the resolution/dedup normalizer, so it also strips generic maker affixes.
 _HYPHEN_OR_WS = re.compile(r"[-\s]+")
+_PERIODS = re.compile(r"\.")
+
+# Generic prefixes/suffixes that don't distinguish one maker from another.
+# Stripped for MATCHING ONLY — a stored canonical_name is never rewritten.
+# Deliberately tight: brand-defining tokens ("& Son", "& Söhne", "& Arpels",
+# "& Friends") are NOT here. This pulls apart the false-positive clusters
+# ("Masa & Co." vs "Jacob & Co.") and lands true variants ("Atelier Akrivia"
+# ~ "Akrivia", "H. Moser & Cie." ~ "H. Moser") at the cheap exact-match step.
+_LEADING_AFFIX = re.compile(r"^(?:atelier|manufacture|maison|montres|horlogerie)\s+")
+_TRAILING_AFFIX = re.compile(
+    r"\s+(?:&\s+)?(?:cie|co|sa|ag|gmbh|inc|ltd|llc|watches|watchmaking|watchcraft)$"
+)
 
 
 def _normalize(name: str) -> str:
-    """Case-fold, strip diacritics, collapse hyphens/whitespace.
+    """Case-fold, strip diacritics and periods, collapse whitespace, then strip
+    generic maker affixes. Matching-only — never mutates stored names.
 
-    "Raúl Pagès" and "Raul Pages" should match.
-    "Petermann-Bédat" and "Petermann Bédat" should match.
+    "Raúl Pagès" ~ "Raul Pages"; "F.P. Journe" ~ "FP Journe";
+    "Atelier Akrivia" ~ "Akrivia"; "H. Moser & Cie." ~ "H. Moser".
     """
     nfkd = unicodedata.normalize("NFKD", name)
     stripped = "".join(c for c in nfkd if not unicodedata.combining(c))
     folded = stripped.casefold()
-    return _HYPHEN_OR_WS.sub(" ", folded).strip()
+    no_periods = _PERIODS.sub("", folded)
+    collapsed = _HYPHEN_OR_WS.sub(" ", no_periods).strip()
+
+    out = _LEADING_AFFIX.sub("", collapsed)
+    prev = ""
+    while prev != out:  # repeat so trailing affix chains collapse fully
+        prev = out
+        out = _TRAILING_AFFIX.sub("", out).strip()
+    return out or collapsed  # never reduce a name to the empty string
 
 
 def resolve_or_create_maker(session: Session, candidate_name: str) -> Maker:
@@ -85,6 +108,12 @@ def resolve_or_create_maker(session: Session, candidate_name: str) -> Maker:
                 if candidate_name not in (maker.aliases or []) and (
                     candidate_name != maker.canonical_name
                 ):
+                    logger.info(
+                        "Fuzzy-matched %r to maker %r (score %.0f); recording as alias.",
+                        candidate_name,
+                        maker.canonical_name,
+                        score,
+                    )
                     maker.aliases = [*(maker.aliases or []), candidate_name]
                     session.flush()
                 return maker

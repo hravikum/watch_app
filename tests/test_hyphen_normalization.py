@@ -56,19 +56,30 @@ def test_resolver_normalize_collapses_hyphen():
     assert resolver_normalize("Petermann-Bédat") == "petermann bedat"
 
 
-def test_entities_and_resolver_normalize_agree():
-    # Both functions must produce the same output for the same input,
-    # or the resolver won't match what the extractor produces.
-    samples = [
+def test_resolver_normalize_refines_entities_normalize():
+    # The two normalizers share a core (case-fold, diacritics, hyphen/space)
+    # so the resolver still matches what the extractor produces. They diverge
+    # beyond that by design (3N): the resolver additionally strips periods and
+    # generic maker affixes for dedup, which the extractor must NOT do since it
+    # matches literal article text. The resolver normalizer is thus a strict
+    # refinement — it maps more strings together, never fewer.
+    shared_core = [
         "Petermann-Bédat",
         "Petermann Bédat",
         "Raúl Pagès",
         "Lang & Heyne",
-        "A. Lange & Söhne",
-        "F.P. Journe",
     ]
-    for s in samples:
+    for s in shared_core:
         assert entities_normalize(s) == resolver_normalize(s), f"mismatch on {s!r}"
+
+    # Resolver-only reductions: period folding + affix stripping.
+    assert resolver_normalize("F.P. Journe") == "fp journe"
+    assert resolver_normalize("Atelier Akrivia") == "akrivia"
+    assert resolver_normalize("H. Moser & Cie.") == "h moser"
+    # Brand-defining "& X" tokens are preserved (not generic affixes).
+    assert resolver_normalize("Arnold & Son") == "arnold & son"
+    # The divergence from the extractor normalizer is real and intended.
+    assert entities_normalize("F.P. Journe") != resolver_normalize("F.P. Journe")
 
 
 # ---------- End-to-end extractor tests ----------
