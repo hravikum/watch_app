@@ -20,6 +20,7 @@ from watch_app import taste
 from watch_app.scoring.methodology import (
     SIGNAL_DESCRIPTIONS,
     build_source_contributions,
+    build_source_detail,
     build_worked_example,
 )
 from watch_app.scoring.presets import PRESETS
@@ -390,6 +391,23 @@ def methodology(request: Request) -> HTMLResponse:
             "source_contributions": source_contributions,
         },
     )
+
+
+@router.get("/sources/{source_id}", response_class=HTMLResponse)
+def source_detail(request: Request, source_id: int) -> HTMLResponse:
+    """Per-source drill-down: metadata, contribution stats, and the makers it
+
+    surfaced. Reached from the source-contributions table on /methodology.
+    """
+    with session_scope() as session:
+        detail = build_source_detail(session, source_id)
+        if detail is None:
+            raise HTTPException(status_code=404, detail=f"Source {source_id} not found")
+        return templates.TemplateResponse(
+            request=request,
+            name="source_detail.html",
+            context={"s": detail},
+        )
 
 
 @router.get("/discoveries", response_class=HTMLResponse)

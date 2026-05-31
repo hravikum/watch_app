@@ -564,6 +564,16 @@ For quick reference on what shipped when:
       CLI hint on blocker/near-match). After promotion the maker reconciles
       onto its existing DB row on the next scan and leaves the discovered
       views; further curation is via the YAML. No schema change.
+- 3M  Per-source detail page. New `/sources/{id}` drill-down reached from the
+      source-contributions table on /methodology (added source_id to the
+      SourceContribution dataclass to link). `build_source_detail()` in
+      methodology.py reuses the existing first-surfaced subquery (earliest
+      discovered_at per maker, MIN(source_id) tie-break) scoped to one source,
+      plus per-source totals, top makers by mention count, and recent mentions
+      (titles + links only, no excerpt reproduction). Shows source metadata
+      (category, prestige weight, active, last scraped). Read-only — weight
+      tuning stays a scoring-config concern. No schema change. Next: resolver
+      robustness (affix normalization + merge/unalias CLI + dupes report).
 
 ## Findings logged from the week-1 data review (2G)
 

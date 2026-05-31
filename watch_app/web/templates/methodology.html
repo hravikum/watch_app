@@ -179,7 +179,7 @@
         {% for s in source_contributions %}
         <tr class="border-t border-stone-100 {% if s.total_mentions == 0 %}text-stone-400{% endif %}">
           <td class="px-5 py-3 {% if s.total_mentions > 0 %}text-stone-900 font-medium{% endif %}">
-            {{ s.source_name }}
+            <a href="/sources/{{ s.source_id }}" class="hover:underline decoration-stone-400 underline-offset-2">{{ s.source_name }}</a>
           </td>
           <td class="px-5 py-3 text-stone-500 text-[13px]">{{ s.category }}</td>
           <td class="px-5 py-3 text-right font-mono tabular text-stone-600">{{ "%.1f"|format(s.prestige_weight) }}</td>

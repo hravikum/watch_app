@@ -263,7 +263,9 @@ from live code. The page has five sections:
 - **Source Contributions** — per-source statistics: total mentions, distinct
   makers covered, makers first-surfaced (the source-quality signal), and
   recent activity. Helps answer "is this source pulling its weight?" and
-  surfaces feeds that have gone silent.
+  surfaces feeds that have gone silent. Each source name links to a
+  **per-source detail page** (`/sources/{id}`) showing its metadata, the
+  makers it surfaced first, its most-covered makers, and recent mentions.
 - **Worked Examples** — for each preset, the currently top-ranked maker is
   walked through end-to-end: raw signal values, z-normalized values, preset
   weight, and per-signal contribution summing to their final composite score
@@ -344,7 +346,7 @@ watch_app/
 │   └── youtube_channels.yaml  # 15 YouTube channels with prestige weights and tier annotations
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 434 tests; run with `make test` (~30s, no network)
+tests/                    # 442 tests; run with `make test` (~30s, no network)
 alembic/                  # Schema migrations
 ```
 
@@ -369,7 +371,7 @@ alembic/                  # Schema migrations
 ## Development
 
 ```bash
-make test         # Full suite (~30s); expects 434 passing
+make test         # Full suite (~30s); expects 442 passing
 pytest -v tests/test_ranker.py  # Run one file
 pytest -v -k hidden_gem         # Run tests matching a name
 ```

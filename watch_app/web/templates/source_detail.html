@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}{{ s.source_name }} — Source — Watch App{% endblock %}
+
+{% block content %}
+<div class="mb-2">
+  <a href="/methodology" class="text-xs text-stone-400 hover:text-stone-700 transition">← Methodology</a>
+</div>
+
+{# --- Header --- #}
+<div class="mb-8">
+  <div class="flex items-baseline gap-3 flex-wrap">
+    <h1 class="text-3xl font-semibold tracking-tight">
+      {% if s.url %}
+      <a href="{{ s.url }}" target="_blank" rel="noopener noreferrer"
+         class="hover:underline decoration-stone-400 underline-offset-4">{{ s.source_name }}</a>
+      {% else %}{{ s.source_name }}{% endif %}
+    </h1>
+    <span class="text-[11px] uppercase tracking-[0.1em] text-stone-500 border border-stone-200 rounded px-2 py-0.5">{{ s.category }}</span>
+    {% if not s.active %}
+    <span class="text-[11px] uppercase tracking-[0.1em] text-amber-700 border border-amber-200 bg-amber-50 rounded px-2 py-0.5">inactive</span>
+    {% endif %}
+  </div>
+  <p class="mt-2 text-sm text-stone-500">
+    Prestige weight <span class="font-mono tabular text-stone-700">{{ "%.1f"|format(s.prestige_weight) }}</span>
+    {% if s.last_scraped_at %}· last scraped {{ s.last_scraped_at.strftime("%b %d, %Y") }}{% endif %}
+  </p>
+</div>
+
+{# --- Stats --- #}
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-10">
+  {% set stats = [
+    ("Mentions", s.total_mentions),
+    ("Distinct makers", s.distinct_makers),
+    ("First-surfaced", s.first_surfaced_count),
+    ("Last 7 days", s.mentions_recent),
+  ] %}
+  {% for label, value in stats %}
+  <div class="bg-white border border-stone-200 rounded-xl px-4 py-3">
+    <div class="text-2xl font-semibold tabular text-stone-900">{{ value }}</div>
+    <div class="text-[11px] uppercase tracking-[0.1em] text-stone-500 mt-1">{{ label }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+{# --- Makers first surfaced here --- #}
+{% if s.first_surfaced %}
+<section class="mb-10">
+  <h2 class="text-xs uppercase tracking-[0.15em] font-medium text-stone-500 mb-3">
+    Makers it surfaced first ({{ s.first_surfaced_count }})
+  </h2>
+  <div class="flex flex-wrap gap-1.5">
+    {% for m in s.first_surfaced %}
+    <a href="/makers/{{ m.maker_id }}"
+       class="text-[13px] text-stone-700 bg-white border border-stone-200 hover:border-stone-400 transition rounded-full px-3 py-1">{{ m.name }}</a>
+    {% endfor %}
+  </div>
+  <p class="mt-2 text-xs text-stone-400">
+    Makers whose earliest mention anywhere came from this source — its genuine discovery work.
+  </p>
+</section>
+{% endif %}
+
+{# --- Top makers from this source --- #}
+{% if s.top_makers %}
+<section class="mb-10">
+  <h2 class="text-xs uppercase tracking-[0.15em] font-medium text-stone-500 mb-3">Most-covered makers</h2>
+  <div class="bg-white border border-stone-200 rounded-xl divide-y divide-stone-100">
+    {% for m in s.top_makers %}
+    <div class="flex items-center justify-between px-4 py-2.5">
+      <a href="/makers/{{ m.maker_id }}" class="text-sm text-stone-800 hover:underline decoration-stone-400 underline-offset-2">{{ m.name }}</a>
+      <span class="text-xs font-mono tabular text-stone-500">{{ m.mention_count }} mention{% if m.mention_count != 1 %}s{% endif %}</span>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{# --- Recent mentions --- #}
+{% if s.recent_mentions %}
+<section class="mb-8">
+  <h2 class="text-xs uppercase tracking-[0.15em] font-medium text-stone-500 mb-3">Recent mentions</h2>
+  <div class="space-y-2">
+    {% for m in s.recent_mentions %}
+    <div class="bg-white border border-stone-200 rounded-xl px-4 py-3">
+      <div class="flex items-baseline justify-between gap-3">
+        {% if m.title %}
+          {% if m.url %}
+          <a href="{{ m.url }}" target="_blank" rel="noopener noreferrer"
+             class="text-sm text-stone-800 hover:underline decoration-stone-400 underline-offset-2">{{ m.title }}</a>
+          {% else %}<span class="text-sm text-stone-800">{{ m.title }}</span>{% endif %}
+        {% else %}
+          <a href="{{ m.url }}" target="_blank" rel="noopener noreferrer" class="text-sm text-stone-500 italic hover:underline">(untitled)</a>
+        {% endif %}
+        {% if m.when %}<span class="text-[11px] text-stone-400 flex-shrink-0">{{ m.when.strftime("%b %d") }}</span>{% endif %}
+      </div>
+      <a href="/makers/{{ m.maker_id }}" class="text-[12px] text-stone-500 hover:text-stone-800 transition">{{ m.maker_name }}</a>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if not s.total_mentions %}
+<div class="bg-white border border-stone-200 rounded-xl p-10 text-center text-stone-500">
+  No mentions from this source yet.
+</div>
+{% endif %}
+{% endblock %}

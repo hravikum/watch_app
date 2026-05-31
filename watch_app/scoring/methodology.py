@@ -325,6 +325,7 @@ class SourceContribution:
     distinct_makers: int
     first_surfaced_count: int  # makers whose first-ever mention came from this source
     mentions_recent: int  # mentions in last RECENT_WINDOW_DAYS days
+    source_id: int = 0  # for linking to the per-source detail page (3M)
 
 
 def build_source_contributions(session: Session) -> list[SourceContribution]:
@@ -430,9 +431,160 @@ def build_source_contributions(session: Session) -> list[SourceContribution]:
                 distinct_makers=distincts.get(s.id, 0),
                 first_surfaced_count=first_surfaced_by_source.get(s.id, 0),
                 mentions_recent=recents.get(s.id, 0),
+                source_id=s.id,
             )
         )
 
     # Sort by total mentions descending; ties broken by source name for stability.
     rows.sort(key=lambda r: (-r.total_mentions, r.source_name))
     return rows
+
+
+# --- Per-source detail (chunk 3M) ---
+
+
+@dataclass
+class SourceDetail:
+    """Everything the /sources/{id} drill-down needs for one source.
+
+    Reuses the same first-surfaced logic as build_source_contributions, scoped
+    to a single source and expanded into the actual maker lists.
+    """
+
+    source_id: int
+    source_name: str
+    category: str
+    url: str | None
+    prestige_weight: float
+    active: bool
+    last_scraped_at: datetime | None
+    total_mentions: int
+    distinct_makers: int
+    first_surfaced_count: int
+    mentions_recent: int
+    first_surfaced: list[dict]   # {maker_id, name}
+    top_makers: list[dict]       # {maker_id, name, mention_count}
+    recent_mentions: list[dict]  # {title, url, when, maker_id, maker_name}
+
+
+def build_source_detail(
+    session: Session, source_id: int, *, top_n: int = 10, recent_n: int = 12
+) -> SourceDetail | None:
+    """Build the per-source profile, or None if the source doesn't exist."""
+    from watch_app.storage.models import Maker, Mention, Source as SourceRow
+
+    source = session.get(SourceRow, source_id)
+    if source is None:
+        return None
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=RECENT_WINDOW_DAYS)
+    by_source = Mention.source_id == source_id
+
+    total_mentions = (
+        session.query(func.count(Mention.id)).filter(by_source).scalar() or 0
+    )
+    distinct_makers = (
+        session.query(func.count(func.distinct(Mention.maker_id)))
+        .filter(by_source)
+        .scalar()
+        or 0
+    )
+    mentions_recent = (
+        session.query(func.count(Mention.id))
+        .filter(by_source, Mention.discovered_at >= cutoff)
+        .scalar()
+        or 0
+    )
+
+    # First-surfaced makers credited to this source (same tie-break as the
+    # contributions table: earliest discovered_at per maker, MIN(source_id) on
+    # ties), expanded to the maker list rather than just a count.
+    earliest_per_maker = (
+        session.query(
+            Mention.maker_id,
+            func.min(Mention.discovered_at).label("first_at"),
+        )
+        .group_by(Mention.maker_id)
+        .subquery()
+    )
+    surfacing_source = (
+        session.query(
+            Mention.maker_id,
+            func.min(Mention.source_id).label("source_id"),
+        )
+        .join(
+            earliest_per_maker,
+            (Mention.maker_id == earliest_per_maker.c.maker_id)
+            & (Mention.discovered_at == earliest_per_maker.c.first_at),
+        )
+        .group_by(Mention.maker_id)
+        .subquery()
+    )
+    first_rows = (
+        session.query(surfacing_source.c.maker_id, Maker.canonical_name)
+        .join(Maker, Maker.id == surfacing_source.c.maker_id)
+        .filter(surfacing_source.c.source_id == source_id)
+        .order_by(Maker.canonical_name)
+        .all()
+    )
+    first_surfaced = [{"maker_id": mid, "name": name} for mid, name in first_rows]
+
+    top_rows = (
+        session.query(
+            Mention.maker_id,
+            Maker.canonical_name,
+            func.count(Mention.id).label("c"),
+        )
+        .join(Maker, Maker.id == Mention.maker_id)
+        .filter(by_source)
+        .group_by(Mention.maker_id, Maker.canonical_name)
+        .order_by(func.count(Mention.id).desc(), Maker.canonical_name)
+        .limit(top_n)
+        .all()
+    )
+    top_makers = [
+        {"maker_id": mid, "name": name, "mention_count": c}
+        for mid, name, c in top_rows
+    ]
+
+    recent_rows = (
+        session.query(
+            Mention.title,
+            Mention.url,
+            Mention.discovered_at,
+            Mention.maker_id,
+            Maker.canonical_name,
+        )
+        .join(Maker, Maker.id == Mention.maker_id)
+        .filter(by_source)
+        .order_by(Mention.discovered_at.desc())
+        .limit(recent_n)
+        .all()
+    )
+    recent_mentions = [
+        {
+            "title": title,
+            "url": url,
+            "when": when,
+            "maker_id": mid,
+            "maker_name": mname,
+        }
+        for title, url, when, mid, mname in recent_rows
+    ]
+
+    return SourceDetail(
+        source_id=source.id,
+        source_name=source.name,
+        category=source.category,
+        url=source.url,
+        prestige_weight=source.prestige_weight,
+        active=source.active,
+        last_scraped_at=source.last_scraped_at,
+        total_mentions=total_mentions,
+        distinct_makers=distinct_makers,
+        first_surfaced_count=len(first_surfaced),
+        mentions_recent=mentions_recent,
+        first_surfaced=first_surfaced,
+        top_makers=top_makers,
+        recent_mentions=recent_mentions,
+    )
