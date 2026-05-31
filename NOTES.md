@@ -22,6 +22,74 @@ Before building anything new, spend 30 minutes just looking:
 
 Only after that review should you pick what to build next.
 
+## Next-feature tiering (captured 2026-05-31, after 3N)
+
+A consolidated, ranked view of what to build next, tiered by how good a bet
+each is *right now*. This supersedes the older "Near-term candidates" /
+"Sitting in the backlog" prose below for tracking purposes — several items
+there have since shipped: per-source detail page → 3M; resolver affix/fuzzy
+matching + merge/unalias/dupes → 3N; discovery→seed *graduation* via promote
+→ 3L (paste-a-paragraph seed entry is still open, see Tier 3).
+
+Lens: tiered for the **personal-tool** posture (current default; public
+deployment stays parked — see "Explicitly NOT doing"). Going public re-tiers
+everything — the personal-state features below become multi-user/auth
+features, and source breadth + methodology defensibility rise.
+
+### Tier 1 — strongest next bets
+- **Personal relationship state + notes per maker.** Mark each maker target /
+  watching / known / pass, plus a free-text notes field; filter the dashboard
+  and explorer by it. The smallest slice that serves the real goal ("makers
+  *I'd* act on", not the global ranking), it operationalizes the target-list /
+  engagement-research groundwork, and it establishes the single-user state
+  layer Layer 3 requires — so it de-risks the arc's headline while being useful
+  on day one. Modest effort; single-user/local, no auth.
+- **Velocity should use published_at, not discovered_at** (also in scoring
+  refinements below). The 90-day window currently counts day-1-ingested
+  historical articles as "recent", biasing velocity + movers — a correctness
+  issue in the signal everything else rides on, and it matters more to fix as
+  organic history accrues. Small; handle the missing-published_at fallback.
+
+### Tier 2 — high value, but sequence after the groundwork / a bit more data
+- **Layer 3 — capture reactions → adaptive ranking.** The arc's headline and
+  the real payoff, but premature until Layer 2 is *in use*, and it wants the
+  user-state layer from Tier 1. Build interest-state first, live with the
+  explorer a few weeks, then this.
+- **Engagement data per maker** (access / sales model / contact path / how to
+  commission or buy). The "act on it" end of the arc. Do the manual engagement
+  research on a few makers FIRST (in the Tier 1 notes field) to learn which
+  fields matter before committing schema, then schematize.
+- **Weekly "what changed" digest** (net-new). A summary from scan history — new
+  discoveries, biggest movers, newly-surfaced makers — as a CLI command and/or
+  a small page (markdown export is cheap). Reuses stored data and pairs with
+  the Tier 1 "watching" makers as a lightweight alert. Better as history grows.
+
+### Tier 3 — worthwhile, but lower leverage now or gated on time
+- **Data-driven prestige-weight tuning.** /methodology + the per-source page
+  (3M) make this analyzable, but it needs ~4-6 weeks of organic data to mean
+  anything. Analyze once the data's there; not a build-now.
+- **Automated seed entry** (paste a paragraph → LLM extracts fields → append
+  YAML). QoL, but promote already graduates discovered makers and the seed is
+  fairly complete — low marginal value until adding many brand-new seeds.
+- **GPHG multi-edition mention dedup.** Defensible either way; only if the
+  3×-nomination inflation looks wrong with more data.
+- **Saved explorer views / a tag-coverage health view** (net-new, light).
+  Bookmarkable filter combos, or a coverage-per-dimension view to steer
+  tagging. Premature — the explorer just shipped and filters re-enter fast.
+
+### Tier 4 — not now (a decision, or explicitly parked)
+- **Public deployment** — the fork in the road, not a feature; it re-tiers
+  everything above. Parked for good reasons (hosting, abuse, maker-rights,
+  cost). Decide deliberately before letting it drive the roadmap.
+- **Rank-change tracking + dashboard charts** — deferred until 3+ weeks of
+  data (see "Explicitly NOT doing").
+- **Instagram ingestion, search/filters/pagination, default-on LLM
+  extraction** — already declined; still the right call at this scale.
+
+Quick cleanup, not a feature: the XRBY / "Xrby La Montre D'Art" duplicate is
+now a 30-second `cli merge <orphan-id> <real-id> --commit` (3N) — the special
+SQL in CHUNK_2A_HOTFIX_NOTES.md is obsolete.
+
 ## Near-term candidates
 
 ### Reddit source (shipped in 2R — see chunk log)
