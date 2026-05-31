@@ -537,6 +537,18 @@ For quick reference on what shipped when:
       ranking run in Python over the ~160-maker universe — no SQLite JSON
       queries. Untagged makers are absent by design. Nav link added.
       Similarity ("makers like this") is the separate Layer 2b chunk.
+- 3K  "Makers like this" similarity (Layer 2b). `taste.similarity(a, b)` scores
+      two makers' taste as weighted overlap over the dimensions both have
+      populated (normalized by those weights, so sparse makers aren't
+      penalized; None when they share nothing). Jaccard on the multi-value
+      dimensions, exact match on single-value (no ordinal adjacency yet).
+      Weights lean on character — aesthetic_tags / maker_type /
+      complication_focus / movement_origin at 2.0, price_band / output_scale /
+      distribution at 1.0 (in `SIMILARITY_WEIGHTS`, tunable). A "Similar makers"
+      section on the detail page shows the top matches with a % and the shared
+      tags that drove them. Real-data check: Dufour → Raúl Pagès, Roger Smith,
+      Akrivia, Strehler — exactly right. Pure function in taste.py; ~160-maker
+      pairwise compute is trivial, no precomputation.
 
 ## Findings logged from the week-1 data review (2G)
 

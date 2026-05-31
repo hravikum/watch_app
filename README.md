@@ -99,6 +99,12 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   can see what's available. Matches are ranked by any scoring preset, so
   you can ask for "the rising stars among classical solo-watchmakers."
   Untagged makers are absent — nothing to filter them on.
+- **"Similar makers"** on each maker's detail page. Surfaces the closest
+  makers by taste — weighted overlap across the seven dimensions (Jaccard
+  on the multi-value ones, exact match on the rest), weighted toward
+  aesthetic, type, complications, and movement origin, and normalized
+  over the dimensions both makers actually have tagged. Each match shows
+  the shared characteristics that drove it.
 - **Catches new makers in debut articles.** When an article title
   starts with a journalism convention marker like "Introducing:",
   "Hands On:", or "First Look:" AND the rule-based extractor only
@@ -331,7 +337,7 @@ watch_app/
 │   └── youtube_channels.yaml  # 15 YouTube channels with prestige weights and tier annotations
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 410 tests; run with `make test` (~30s, no network)
+tests/                    # 421 tests; run with `make test` (~30s, no network)
 alembic/                  # Schema migrations
 ```
 
@@ -356,7 +362,7 @@ alembic/                  # Schema migrations
 ## Development
 
 ```bash
-make test         # Full suite (~30s); expects 410 passing
+make test         # Full suite (~30s); expects 421 passing
 pytest -v tests/test_ranker.py  # Run one file
 pytest -v -k hidden_gem         # Run tests matching a name
 ```

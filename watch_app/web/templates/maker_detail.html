@@ -75,6 +75,35 @@
 </section>
 {% endif %}
 
+{# --- Similar makers (by taste) --- #}
+{% if similar %}
+<section class="mb-8">
+  <h2 class="text-xs uppercase tracking-[0.15em] font-medium text-stone-500 mb-3">Similar makers</h2>
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    {% for s in similar %}
+    <a href="/makers/{{ s.maker_id }}"
+       class="block bg-white border border-stone-200 rounded-xl px-4 py-3 hover:border-stone-400 transition group">
+      <div class="flex items-baseline justify-between gap-2">
+        <span class="font-medium text-stone-900 group-hover:underline decoration-stone-400 underline-offset-2">{{ s.name }}</span>
+        <span class="text-[11px] tabular text-stone-400 flex-shrink-0">{{ s.match }}% match</span>
+      </div>
+      {% if s.country %}<div class="text-[12px] text-stone-500">{{ s.country }}</div>{% endif %}
+      {% if s.shared %}
+      <div class="mt-1.5 flex flex-wrap gap-1">
+        {% for tag in s.shared %}
+        <span class="text-[11px] text-stone-600 bg-stone-50 border border-stone-200 px-1.5 py-0.5 rounded-full">{{ tag }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </a>
+    {% endfor %}
+  </div>
+  <p class="mt-2 text-xs text-stone-400">
+    By overlap across taste dimensions, weighted toward aesthetic, type, complications, and movement.
+  </p>
+</section>
+{% endif %}
+
 {# --- GPHG-nominated watches --- #}
 {% if m.models %}
 <section class="mb-8">

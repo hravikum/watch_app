@@ -190,3 +190,55 @@ def validate_taste_fields(entry: dict) -> None:
         raise ValueError(
             f"Invalid taste fields for {name!r}: " + "; ".join(problems)
         )
+
+
+# --- Similarity (Layer 2b, chunk 3K) ---
+
+# Per-dimension weights for "makers like this". The dimensions that most define
+# a maker's character carry more weight than the practical-fit ones. Tunable.
+SIMILARITY_WEIGHTS: dict[str, float] = {
+    "aesthetic_tags": 2.0,
+    "maker_type": 2.0,
+    "complication_focus": 2.0,
+    "movement_origin": 2.0,
+    "price_band": 1.0,
+    "output_scale": 1.0,
+    "distribution": 1.0,
+}
+
+
+def _dimension_similarity(field: str, a, b) -> float:
+    """Per-dimension similarity in [0, 1]. Assumes both values are populated.
+
+    Multi-value dimensions use Jaccard overlap of their tag sets; single-value
+    dimensions are an exact match (1.0 or 0.0) — no ordinal adjacency in v1.
+    """
+    if field in MULTI_VALUE_FIELDS:
+        sa, sb = set(a), set(b)
+        union = sa | sb
+        return len(sa & sb) / len(union) if union else 0.0
+    return 1.0 if a == b else 0.0
+
+
+def similarity(a: dict, b: dict) -> float | None:
+    """Weighted-overlap similarity between two makers' taste, in [0, 1].
+
+    `a` and `b` map taste field -> value (list for multi-value dimensions, str
+    for single-value, or falsy when unpopulated). Only dimensions populated on
+    *both* makers contribute, and the result is normalized by those shared
+    dimensions' weights — so a sparsely-tagged maker isn't penalized for the
+    dimensions it simply hasn't been tagged on yet.
+
+    Returns None when the two share no populated dimension (incomparable).
+    """
+    accumulated = 0.0
+    total_weight = 0.0
+    for field, weight in SIMILARITY_WEIGHTS.items():
+        av, bv = a.get(field), b.get(field)
+        if not av or not bv:
+            continue
+        accumulated += weight * _dimension_similarity(field, av, bv)
+        total_weight += weight
+    if total_weight == 0:
+        return None
+    return accumulated / total_weight

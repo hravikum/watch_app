@@ -250,7 +250,7 @@ def maker_detail(request: Request, maker_id: int) -> HTMLResponse:
     return templates.TemplateResponse(
         request=request,
         name="maker_detail.html",
-        context={"m": detail},
+        context={"m": detail, "similar": _similar_makers(maker_id)},
     )
 
 
@@ -725,3 +725,64 @@ def explore_results(
             "any_filters": bool(filters),
         },
     )
+
+
+# --- "Makers like this" similarity (Layer 2b, chunk 3K) ---
+
+
+def _maker_taste_dict(m: Maker) -> dict:
+    return {f: getattr(m, f) for f in taste.TASTE_FIELDS}
+
+
+def _shared_labels(a: dict, b: dict, cap: int = 4) -> list[str]:
+    """Human labels for the taste values two makers share — the match's "why".
+
+    Vocabulary order is preserved for determinism.
+    """
+    labels: list[str] = []
+    for field in taste.TASTE_FIELDS:
+        av, bv = a.get(field), b.get(field)
+        if not av or not bv:
+            continue
+        if field in taste.MULTI_VALUE_FIELDS:
+            bset = set(bv)
+            for v in av:
+                if v in bset:
+                    labels.append(taste.display_label(v))
+        elif av == bv:
+            labels.append(taste.display_label(av))
+    return labels[:cap]
+
+
+def _similar_makers(maker_id: int, limit: int = 6) -> list[dict]:
+    """Top makers most similar to this one by taste (weighted overlap).
+
+    Empty if the target has no taste tags. Makers with no shared populated
+    dimension, or zero overlap on the ones they share, are excluded.
+    """
+    with session_scope() as session:
+        target = session.query(Maker).filter_by(id=maker_id).first()
+        if target is None or not _maker_has_taste(target):
+            return []
+        target_taste = _maker_taste_dict(target)
+
+        scored: list[tuple[float, Maker]] = []
+        for other in session.query(Maker).all():
+            if other.id == maker_id or not _maker_has_taste(other):
+                continue
+            sim = taste.similarity(target_taste, _maker_taste_dict(other))
+            if sim is None or sim <= 0:
+                continue
+            scored.append((sim, other))
+
+        scored.sort(key=lambda pair: pair[0], reverse=True)
+        return [
+            {
+                "maker_id": o.id,
+                "name": o.canonical_name,
+                "country": o.country,
+                "match": round(sim * 100),
+                "shared": _shared_labels(target_taste, _maker_taste_dict(o)),
+            }
+            for sim, o in scored[:limit]
+        ]
