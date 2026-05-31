@@ -568,3 +568,160 @@ def review_save(
         session.commit()
 
     return RedirectResponse(url="/review", status_code=303)
+
+
+# --- Taste explorer (Layer 2a, chunk 3J) ---
+
+
+def _maker_has_taste(m: Maker) -> bool:
+    """True if the maker carries at least one taste dimension value."""
+    return any(getattr(m, f) for f in taste.TASTE_FIELDS)
+
+
+def _maker_matches_filters(m: Maker, filters: dict[str, set]) -> bool:
+    """Faceted match: OR within a dimension, AND across dimensions.
+
+    A multi-value dimension matches if the maker's list overlaps the selection;
+    a single-value dimension matches if its value is among the selected.
+    Dimensions with no selection are ignored.
+    """
+    for dim, selected in filters.items():
+        if not selected:
+            continue
+        value = getattr(m, dim)
+        if dim in taste.MULTI_VALUE_FIELDS:
+            if not value or not (set(value) & selected):
+                return False
+        else:
+            if value not in selected:
+                return False
+    return True
+
+
+def _facet_counts(tagged: list[Maker]) -> dict[str, dict[str, int]]:
+    """How many tagged makers carry each vocabulary value (static, per option).
+
+    Computed over the whole tagged universe — not the current selection — so
+    the numbers are stable while filtering (the "simple" counts from the
+    design). Lets you avoid dead-end selections.
+    """
+    counts = {f: {v: 0 for v in taste.VOCABULARY[f]} for f in taste.TASTE_FIELDS}
+    for m in tagged:
+        for f in taste.MULTI_VALUE_FIELDS:
+            for v in getattr(m, f) or []:
+                if v in counts[f]:
+                    counts[f][v] += 1
+        for f in taste.SINGLE_VALUE_FIELDS:
+            v = getattr(m, f)
+            if v in counts[f]:
+                counts[f][v] += 1
+    return counts
+
+
+def _explore(preset: str, filters: dict[str, set]) -> dict:
+    """Filter the tagged-maker universe and rank the matches by preset score.
+
+    Returns the result rows (re-ranked 1..N within the filtered set), the
+    static facet counts, and the size of the tagged universe.
+    """
+    with session_scope() as session:
+        tagged = [m for m in session.query(Maker).all() if _maker_has_taste(m)]
+        facet = _facet_counts(tagged)
+        total_tagged = len(tagged)
+        matched = [m for m in tagged if _maker_matches_filters(m, filters)]
+
+        # Rank by the preset's latest scores. Pull the whole ranking once and
+        # index it; unscored makers sort to the end.
+        ranking = fetch_top_makers(session, preset, limit=100_000)
+        order = {r["maker_id"]: i for i, r in enumerate(ranking)}
+        score_mc = {r["maker_id"]: (r["score"], r["mention_count"]) for r in ranking}
+        matched.sort(key=lambda m: order.get(m.id, 10**9))
+
+        rows = []
+        for i, m in enumerate(matched, start=1):
+            score, mc = score_mc.get(m.id, (0.0, 0))
+            rows.append(
+                {
+                    "maker_id": m.id,
+                    "rank": i,
+                    "name": m.canonical_name,
+                    "country": m.country,
+                    "score": score,
+                    "mention_count": mc,
+                }
+            )
+    return {"makers": rows, "facet_counts": facet, "total_tagged": total_tagged}
+
+
+_TASTE_FILTER_PARAMS = list(taste.TASTE_FIELDS)
+
+
+def _resolve_preset(preset: str | None) -> str:
+    return preset if preset in PRESETS else get_settings().default_preset
+
+
+@router.get("/explore", response_class=HTMLResponse)
+def explore(request: Request, preset: str = Query(None)) -> HTMLResponse:
+    """The taste explorer: filter makers by taste dimensions, rank by preset.
+
+    Operates on every maker carrying at least one taste tag (seed and
+    discovered alike). Faceted filtering — OR within a dimension, AND across —
+    with static per-option counts; results ranked by the selected preset's
+    score. Untagged makers are absent (nothing to filter them on).
+    """
+    chosen = _resolve_preset(preset)
+    data = _explore(chosen, filters={})
+    return templates.TemplateResponse(
+        request=request,
+        name="explore.html",
+        context={
+            "presets": list(PRESETS.keys()),
+            "current_preset": chosen,
+            "taste_fields": list(taste.TASTE_FIELDS),
+            "vocabulary": taste.VOCABULARY,
+            "field_labels": taste.FIELD_LABELS,
+            "display_label": taste.display_label,
+            "facet_counts": data["facet_counts"],
+            "makers": data["makers"],
+            "result_count": len(data["makers"]),
+            "total_tagged": data["total_tagged"],
+            "any_filters": False,
+        },
+    )
+
+
+@router.get("/explore/results", response_class=HTMLResponse)
+def explore_results(
+    request: Request,
+    preset: str = Query(None),
+    aesthetic_tags: list[str] = Query(default=[]),
+    complication_focus: list[str] = Query(default=[]),
+    maker_type: list[str] = Query(default=[]),
+    price_band: list[str] = Query(default=[]),
+    output_scale: list[str] = Query(default=[]),
+    distribution: list[str] = Query(default=[]),
+    movement_origin: list[str] = Query(default=[]),
+) -> HTMLResponse:
+    """HTMX fragment: the filtered, ranked results for the explorer."""
+    chosen = _resolve_preset(preset)
+    raw = {
+        "aesthetic_tags": aesthetic_tags,
+        "complication_focus": complication_focus,
+        "maker_type": maker_type,
+        "price_band": price_band,
+        "output_scale": output_scale,
+        "distribution": distribution,
+        "movement_origin": movement_origin,
+    }
+    filters = {dim: set(vals) for dim, vals in raw.items() if vals}
+    data = _explore(chosen, filters)
+    return templates.TemplateResponse(
+        request=request,
+        name="_explore_results.html",
+        context={
+            "makers": data["makers"],
+            "result_count": len(data["makers"]),
+            "total_tagged": data["total_tagged"],
+            "any_filters": bool(filters),
+        },
+    )

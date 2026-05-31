@@ -526,6 +526,17 @@ For quick reference on what shipped when:
       pytest.ini registers the marker and pins the pytest-asyncio loop scope to
       silence its deprecation warning. Full suite: ~30s, 399 passing, zero real
       external calls (so no more API spend per run). No production code touched.
+- 3J  Taste explorer (Layer 2a). New `/explore` page: faceted filtering over
+      every maker carrying ≥1 taste tag (seed + discovered), OR within a
+      dimension and AND across, with static per-option counts. Matches are
+      ranked by a selectable scoring preset (reuses fetch_top_makers), so you
+      can ask for e.g. "rising stars among classical solo-watchmakers." All
+      seven dimensions render as checkbox groups (the multi/single split only
+      affects match logic, not the UI); the panel + preset live in one HTMX
+      form that re-fetches the results fragment on any change. Filtering and
+      ranking run in Python over the ~160-maker universe — no SQLite JSON
+      queries. Untagged makers are absent by design. Nav link added.
+      Similarity ("makers like this") is the separate Layer 2b chunk.
 
 ## Findings logged from the week-1 data review (2G)
 

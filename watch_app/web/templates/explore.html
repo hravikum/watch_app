@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Explore — Watch App{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+  <h1 class="text-3xl font-semibold tracking-tight">Explore by taste</h1>
+  <p class="mt-2 text-stone-600 text-[15px] leading-relaxed max-w-2xl">
+    Filter the makers that carry taste tags by the character you're after, and
+    rank the matches by any preset. Counts beside each option show how many
+    tagged makers have it. {{ total_tagged }} maker{% if total_tagged != 1 %}s{% endif %} tagged so far.
+  </p>
+</div>
+
+<form
+  hx-get="/explore/results"
+  hx-trigger="change"
+  hx-target="#explore-results"
+  hx-swap="innerHTML"
+  class="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-8"
+>
+  {# --- Filter panel --- #}
+  <aside class="space-y-5 lg:sticky lg:top-6 self-start">
+    {# Preset (rank-by) — radios so changing it re-ranks. #}
+    <div>
+      <div class="text-[11px] uppercase tracking-[0.1em] text-stone-500 font-medium mb-2">Rank by</div>
+      <div class="flex flex-wrap gap-1.5">
+        {% for p in presets %}
+        <label class="inline-flex items-center gap-1.5 text-sm border border-stone-200 rounded-lg px-2.5 py-1 cursor-pointer hover:bg-stone-50 has-[:checked]:bg-stone-900 has-[:checked]:text-white has-[:checked]:border-stone-900">
+          <input type="radio" name="preset" value="{{ p }}" {% if p == current_preset %}checked{% endif %} class="sr-only" />
+          {{ p.replace('_', ' ').title() }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# Taste dimensions — every dimension is a checkbox group (OR within). #}
+    {% for field in taste_fields %}
+    <fieldset class="border-t border-stone-100 pt-4">
+      <legend class="text-[11px] uppercase tracking-[0.1em] text-stone-500 font-medium mb-2">
+        {{ field_labels[field] }}
+      </legend>
+      <div class="space-y-1">
+        {% for opt in vocabulary[field] %}
+        {% set n = facet_counts[field][opt] %}
+        <label class="flex items-center justify-between gap-2 text-sm text-stone-700 cursor-pointer
+                      {% if n == 0 %}opacity-40{% endif %}">
+          <span class="inline-flex items-center gap-2">
+            <input type="checkbox" name="{{ field }}" value="{{ opt }}"
+                   class="rounded border-stone-300 text-stone-900 focus:ring-stone-300" />
+            {{ display_label(opt) }}
+          </span>
+          <span class="text-[11px] tabular text-stone-400">{{ n }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </fieldset>
+    {% endfor %}
+  </aside>
+
+  {# --- Results --- #}
+  <div id="explore-results">
+    {% include "_explore_results.html" %}
+  </div>
+</form>
+{% endblock %}
