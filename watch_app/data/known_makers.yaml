@@ -1487,3 +1487,15 @@ makers:
     website: "https://studiosarpaneva.com/"
     country: "Finland"
     founded_year: 2003
+  - canonical_name: "Ferdinand Berthoud"
+    aesthetic_tags: ["classical", "vintage-inspired", "dressy"]
+    maker_type: "small-atelier"
+    price_band: "haute"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only", "calendar"]
+    movement_origin: "in-house"
+    website: "https://www.ferdinandberthoud.ch/en"
+    country: "France"
+    founded_year: 1753
+    is_independent: false

@@ -189,3 +189,135 @@ def find_near_duplicates(session: Session, *, threshold: int = 85) -> list[DupeP
             pairs.append(DupePair(score, m1.id, m1.canonical_name, m2.id, m2.canonical_name))
     pairs.sort(key=lambda p: -p.score)
     return pairs
+
+
+# --- Delete (hard) -----------------------------------------------------------
+
+
+@dataclass
+class DeletePlan:
+    maker_name: str
+    mentions_deleted: int = 0
+    watch_models_deleted: int = 0
+    signals_deleted: int = 0
+    scores_deleted: int = 0
+    blockers: list[str] = field(default_factory=list)
+    done: bool = False
+
+
+def delete_maker(
+    session: Session, maker_ref: str, *, commit: bool = False
+) -> DeletePlan:
+    """Hard-delete a discovered maker and everything that references it: its
+    mentions, watch models, and derived signal/score rows.
+
+    Dry-run by default. Blocks seed makers — the loader re-creates those next
+    scan, so the known_makers.yaml entry must be removed instead. Note this does
+    NOT prevent re-discovery: if a live article still mentions the name, the next
+    scan's resolver creates the maker again. Suppress instead for recurring names.
+    """
+    maker = _resolve_maker(session, maker_ref)
+    if maker is None:
+        return DeletePlan(maker_name=maker_ref, blockers=[f"No maker found for '{maker_ref}'."])
+    if maker.canonical_name in _load_seed_names():
+        return DeletePlan(
+            maker_name=maker.canonical_name,
+            blockers=[
+                f"'{maker.canonical_name}' is a seed maker — the loader would re-create "
+                f"it next scan. Remove its known_makers.yaml entry instead."
+            ],
+        )
+
+    mentions = session.query(Mention).filter_by(maker_id=maker.id).count()
+    watch_models = session.query(WatchModel).filter_by(maker_id=maker.id).count()
+    signals = session.query(Signal).filter_by(maker_id=maker.id).count()
+    scores = session.query(Score).filter_by(maker_id=maker.id).count()
+
+    if commit:
+        session.query(Mention).filter_by(maker_id=maker.id).delete()
+        session.query(WatchModel).filter_by(maker_id=maker.id).delete()
+        session.query(Signal).filter_by(maker_id=maker.id).delete()
+        session.query(Score).filter_by(maker_id=maker.id).delete()
+        session.delete(maker)
+        session.commit()
+
+    return DeletePlan(
+        maker_name=maker.canonical_name,
+        mentions_deleted=mentions,
+        watch_models_deleted=watch_models,
+        signals_deleted=signals,
+        scores_deleted=scores,
+        done=commit,
+    )
+
+
+# --- Suppress (soft, reversible) ---------------------------------------------
+
+
+@dataclass
+class SuppressResult:
+    maker_name: str
+    action: str                      # "suppress" | "unsuppress"
+    reason: str | None = None
+    already_in_state: bool = False   # already suppressed / already visible
+    blockers: list[str] = field(default_factory=list)
+    done: bool = False
+
+
+def suppress_maker(
+    session: Session, maker_ref: str, *, reason: str | None = None, commit: bool = False
+) -> SuppressResult:
+    """Hide a maker from /discoveries and score-based rankings without deleting
+    it. The row + mentions stay, so the resolver re-matches the name on later
+    scans (no re-creation) and the action is fully reversible. Dry-run by default.
+    """
+    maker = _resolve_maker(session, maker_ref)
+    if maker is None:
+        return SuppressResult(maker_ref, "suppress", blockers=[f"No maker found for '{maker_ref}'."])
+
+    already = bool(maker.is_suppressed)
+    if commit and not already:
+        maker.is_suppressed = True
+        if reason is not None:
+            maker.suppressed_reason = reason
+        session.commit()
+
+    return SuppressResult(
+        maker_name=maker.canonical_name,
+        action="suppress",
+        reason=reason if reason is not None else maker.suppressed_reason,
+        already_in_state=already,
+        done=commit and not already,
+    )
+
+
+def unsuppress_maker(
+    session: Session, maker_ref: str, *, commit: bool = False
+) -> SuppressResult:
+    """Reverse a suppression — the maker returns to /discoveries and the rankings."""
+    maker = _resolve_maker(session, maker_ref)
+    if maker is None:
+        return SuppressResult(maker_ref, "unsuppress", blockers=[f"No maker found for '{maker_ref}'."])
+
+    already_visible = not bool(maker.is_suppressed)
+    if commit and not already_visible:
+        maker.is_suppressed = False
+        maker.suppressed_reason = None
+        session.commit()
+
+    return SuppressResult(
+        maker_name=maker.canonical_name,
+        action="unsuppress",
+        already_in_state=already_visible,
+        done=commit and not already_visible,
+    )
+
+
+def list_suppressed(session: Session) -> list[Maker]:
+    """All currently-suppressed makers, ordered by name."""
+    return (
+        session.query(Maker)
+        .filter(Maker.is_suppressed.is_(True))
+        .order_by(Maker.canonical_name)
+        .all()
+    )

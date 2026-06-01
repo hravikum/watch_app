@@ -66,7 +66,7 @@ def fetch_top_makers(
     maker_ids = [s.maker_id for s in score_rows]
     makers_by_id = {
         m.id: m
-        for m in session.query(Maker).filter(Maker.id.in_(maker_ids)).all()
+        for m in session.query(Maker).filter(Maker.id.in_(maker_ids), Maker.is_suppressed.is_(False)).all()
     }
     mention_counts = dict(
         session.query(Mention.maker_id, func.count(Mention.id))
@@ -229,7 +229,7 @@ def fetch_rank_changes(
     all_ids = list(latest_by_maker.keys())
     makers_by_id = {
         m.id: m
-        for m in session.query(Maker).filter(Maker.id.in_(all_ids)).all()
+        for m in session.query(Maker).filter(Maker.id.in_(all_ids), Maker.is_suppressed.is_(False)).all()
     }
     mention_counts = dict(
         session.query(Mention.maker_id, func.count(Mention.id))

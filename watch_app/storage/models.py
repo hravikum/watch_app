@@ -54,6 +54,11 @@ class Maker(Base):
 
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_independent: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Suppression — hidden from /discoveries and score-based rankings, but row +
+    # mentions are kept so the resolver re-matches (not re-creates) the name on
+    # later scans. Reversible via `cli unsuppress`. See migration 0008.
+    is_suppressed: Mapped[bool] = mapped_column(Boolean, default=False)
+    suppressed_reason: Mapped[str | None] = mapped_column(String(300), nullable=True)
     production_volume_estimate: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )

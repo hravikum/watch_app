@@ -899,6 +899,124 @@ def unalias(
             console.print("\n[yellow]Dry run.[/yellow] Re-run with --commit to apply.")
 
 
+@app.command()
+def delete(
+    maker: str = typer.Argument(
+        ..., help="Maker (id or name) to delete — must be a discovered maker."
+    ),
+    commit: bool = typer.Option(
+        False, "--commit", help="Apply the deletion. Dry-run otherwise."
+    ),
+) -> None:
+    """Delete a discovered maker and all rows that reference it.
+
+    Dry-run by default. Refuses seed makers — remove the known_makers.yaml entry instead.
+    """
+    from watch_app.extraction.maker_admin import delete_maker
+
+    with session_scope() as session:
+        plan = delete_maker(session, maker, commit=commit)
+        for blocker in plan.blockers:
+            console.print(f"[red]\u2717 {blocker}[/red]")
+        if plan.blockers:
+            raise typer.Exit(1)
+
+        console.print(f"[bold]Delete '{plan.maker_name}'[/bold]")
+        console.print(f"  mentions deleted: {plan.mentions_deleted}")
+        console.print(f"  watch models deleted: {plan.watch_models_deleted}")
+        console.print(
+            f"  derived rows dropped: {plan.signals_deleted} signals, "
+            f"{plan.scores_deleted} scores"
+        )
+        if plan.done:
+            console.print("\n[green]Deleted.[/green]")
+        else:
+            console.print("\n[yellow]Dry run.[/yellow] Re-run with --commit to apply.")
+
+
+@app.command()
+def suppress(
+    maker: str = typer.Argument(
+        ..., help="Maker (id or name) to hide from discoveries + rankings."
+    ),
+    reason: str = typer.Option(
+        None, "--reason", help="Why it's being suppressed (shown in `suppressed`)."
+    ),
+    commit: bool = typer.Option(
+        False, "--commit", help="Apply. Dry-run otherwise."
+    ),
+) -> None:
+    """Hide a maker from discoveries and rankings without deleting it (reversible)."""
+    from watch_app.extraction.maker_admin import suppress_maker
+
+    with session_scope() as session:
+        res = suppress_maker(session, maker, reason=reason, commit=commit)
+        for blocker in res.blockers:
+            console.print(f"[red]\u2717 {blocker}[/red]")
+        if res.blockers:
+            raise typer.Exit(1)
+        if res.already_in_state:
+            console.print(f"[yellow]'{res.maker_name}' is already suppressed.[/yellow]")
+            return
+
+        line = f"[bold]Suppress '{res.maker_name}'[/bold]"
+        if res.reason:
+            line += f" \u2014 {res.reason}"
+        console.print(line)
+        if res.done:
+            console.print(
+                "\n[green]Suppressed.[/green] It drops out of /discoveries and the rankings."
+            )
+        else:
+            console.print("\n[yellow]Dry run.[/yellow] Re-run with --commit to apply.")
+
+
+@app.command()
+def unsuppress(
+    maker: str = typer.Argument(..., help="Maker (id or name) to un-hide."),
+    commit: bool = typer.Option(
+        False, "--commit", help="Apply. Dry-run otherwise."
+    ),
+) -> None:
+    """Reverse a suppression — the maker returns to discoveries and rankings."""
+    from watch_app.extraction.maker_admin import unsuppress_maker
+
+    with session_scope() as session:
+        res = unsuppress_maker(session, maker, commit=commit)
+        for blocker in res.blockers:
+            console.print(f"[red]\u2717 {blocker}[/red]")
+        if res.blockers:
+            raise typer.Exit(1)
+        if res.already_in_state:
+            console.print(f"[yellow]'{res.maker_name}' is not suppressed.[/yellow]")
+            return
+
+        console.print(f"[bold]Unsuppress '{res.maker_name}'[/bold]")
+        if res.done:
+            console.print("\n[green]Restored.[/green]")
+        else:
+            console.print("\n[yellow]Dry run.[/yellow] Re-run with --commit to apply.")
+
+
+@app.command()
+def suppressed() -> None:
+    """List makers currently hidden via `suppress`."""
+    from watch_app.extraction.maker_admin import list_suppressed
+
+    with session_scope() as session:
+        makers = list_suppressed(session)
+        if not makers:
+            console.print("[green]No suppressed makers.[/green]")
+            return
+        table = Table(title="Suppressed makers")
+        table.add_column("id", justify="right", style="dim")
+        table.add_column("Maker")
+        table.add_column("Reason", style="dim")
+        for m in makers:
+            table.add_row(str(m.id), m.canonical_name, m.suppressed_reason or "\u2014")
+        console.print(table)
+
+
 def main() -> None:
     app()
 

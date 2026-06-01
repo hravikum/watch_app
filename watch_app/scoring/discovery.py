@@ -115,6 +115,7 @@ def fetch_discovered_makers(session: Session) -> list[DiscoveredMaker]:
     # for ~125 names this is comparable in performance and far more readable.
     makers = (
         session.query(Maker)
+        .filter(Maker.is_suppressed.is_(False))
         .order_by(Maker.first_seen_at.desc())
         .all()
     )
