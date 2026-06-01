@@ -1161,3 +1161,329 @@ makers:
     country: "Switzerland"
     founded_year: 1925
     # Historic Swiss brand (1925), revived. Original Digitrend watch from the 1970s is being reissued.
+
+  # --- Promoted from discovery ---
+  - canonical_name: "Barrelhand"
+    aesthetic_tags: ["modern", "avant-garde", "tool"]
+    maker_type: "solo-watchmaker"
+    output_scale: "sub-50"
+    complication_focus: ["time-only"]
+    movement_origin: "modified-base"
+    website: "https://www.barrelhand.com/"
+    country: "United States"
+    founded_year: 2014
+  - canonical_name: "Albishorn"
+    aesthetic_tags: ["classical", "tool"]
+    maker_type: "solo-watchmaker"
+    price_band: "mid"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "in-house"
+    website: "https://albishorn-watches.ch/en"
+    country: "Switzerland"
+    founded_year: 2024
+  - canonical_name: "Niton"
+    aesthetic_tags: ["modern", "tool"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "in-house"
+    website: "https://niton.swiss/"
+    country: "Switzerland"
+    founded_year: 1919
+  - canonical_name: "Bradley Taylor"
+    aesthetic_tags: ["classical", "tool"]
+    maker_type: "solo-watchmaker"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "in-house"
+    website: "https://www.bradleytaylor.ca/"
+    country: "Canada"
+    founded_year: 2017
+  - canonical_name: "Charles Piguet"
+    aesthetic_tags: ["classical", "vintage-inspired"]
+    maker_type: "solo-watchmaker"
+    price_band: "high"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    country: "Switzerland"
+  - canonical_name: "Marco Lang"
+    aesthetic_tags: ["classical", "modern", "avant-garde"]
+    maker_type: "solo-watchmaker"
+    price_band: "high"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "in-house"
+    website: "https://www.marcolangwatches.com/en/main-page/"
+    country: "Switzerland"
+    founded_year: 2020
+  - canonical_name: "Horologically Unique"
+    aesthetic_tags: ["classical", "vintage-inspired"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    output_scale: "50-500"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://www.horologicallyunique.com/"
+    country: "Singapore"
+  - canonical_name: "The Unnamed Society"
+    aesthetic_tags: ["avant-garde"]
+    maker_type: "microbrand"
+    price_band: "haute"
+    output_scale: "sub-50"
+    website: "https://www.theunnamedsociety.com/"
+    country: "Switzerland"
+    founded_year: 2019
+  - canonical_name: "Tasaki"
+    aesthetic_tags: ["modern", "dressy"]
+    maker_type: "established-indie"
+    price_band: "high"
+    distribution: "dealer-only"
+    complication_focus: ["time-only"]
+    movement_origin: "modified-base"
+    website: "https://www.tasaki-global.com/watches/"
+    country: "Japan"
+    founded_year: 1959
+  - canonical_name: "Alain Silberstein"
+    aesthetic_tags: ["modern", "avant-garde"]
+    maker_type: "solo-watchmaker"
+    price_band: "haute"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    country: "France"
+  - canonical_name: "Timeless Swiss Watch"
+    aesthetic_tags: ["classical", "tool"]
+    maker_type: "solo-watchmaker"
+    price_band: "high"
+    output_scale: "sub-50"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://timeless-watch.ch/"
+    country: "Switzerland"
+    founded_year: 2020
+  - canonical_name: "Beda'a"
+    aesthetic_tags: ["modern", "avant-garde"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    output_scale: "50-500"
+    distribution: "direct"
+    complication_focus: ["astronomical"]
+    movement_origin: "stock-base"
+    website: "https://bedaawatches.com/"
+    country: "Qatar"
+    founded_year: 2016
+  - canonical_name: "Dennison"
+    aesthetic_tags: ["modern", "avant-garde"]
+    maker_type: "heritage-relaunch"
+    price_band: "high"
+    output_scale: "sub-50"
+    distribution: "allocation-waitlist"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://dennisonwatch.com/"
+    country: "United States"
+  - canonical_name: "Berneron"
+    aesthetic_tags: ["classical", "avant-garde", "vintage-inspired"]
+    maker_type: "solo-watchmaker"
+    price_band: "haute"
+    output_scale: "sub-50"
+    distribution: "allocation-waitlist"
+    complication_focus: ["time-only", "calendar"]
+    movement_origin: "in-house"
+    website: "https://www.berneron.ch/"
+    country: "Switzerland"
+    founded_year: 2025
+  - canonical_name: "Artya"
+    aesthetic_tags: ["modern", "avant-garde"]
+    maker_type: "small-atelier"
+    price_band: "haute"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only", "chronograph", "tourbillon"]
+    movement_origin: "in-house"
+    website: "https://www.artya.com/"
+    country: "Switzerland"
+    founded_year: 2009
+  - canonical_name: "Byrne"
+    aesthetic_tags: ["modern"]
+    maker_type: "solo-watchmaker"
+    price_band: "high"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["chronograph"]
+    movement_origin: "modified-base"
+    website: "https://en.byrnewatch.com/"
+    country: "Switzerland"
+    founded_year: 2022
+  - canonical_name: "Kazuo Maeda"
+    aesthetic_tags: ["classical", "vintage-inspired"]
+    maker_type: "solo-watchmaker"
+    price_band: "high"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    country: "Japan"
+    founded_year: 2024
+  - canonical_name: "Massena Lab"
+    aesthetic_tags: ["modern", "tool"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://www.massenalab.com"
+    country: "United States"
+    founded_year: 2018
+  - canonical_name: "Singer Reimagined"
+    aesthetic_tags: ["classical", "vintage-inspired", "tool"]
+    maker_type: "heritage-relaunch"
+    price_band: "high"
+    output_scale: "50-500"
+    distribution: "dealer-only"
+    complication_focus: ["time-only"]
+    movement_origin: "modified-base"
+    website: "https://singerreimagined.com/"
+    country: "Switzerland"
+    founded_year: 2017
+  - canonical_name: "Damiani"
+    aesthetic_tags: ["classical", "dressy"]
+    maker_type: "small-atelier"
+    price_band: "haute"
+    distribution: "dealer-only"
+    complication_focus: ["time-only"]
+    website: "https://www.damiani.com/en_us/"
+    country: "Italy"
+    founded_year: 1924
+  - canonical_name: "Beaubleu"
+    aesthetic_tags: ["classical", "vintage-inspired"]
+    maker_type: "solo-watchmaker"
+    price_band: "entry"
+    output_scale: "500-plus"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://beaubleu-paris.com/en"
+    country: "France"
+    founded_year: 2017
+  - canonical_name: "Kollokium"
+    aesthetic_tags: ["classical", "modern"]
+    maker_type: "small-atelier"
+    price_band: "mid"
+    output_scale: "50-500"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://kollokium.com/"
+    country: "Switzerland"
+    founded_year: 2020
+  - canonical_name: "Spaceone"
+    aesthetic_tags: ["modern", "avant-garde"]
+    maker_type: "solo-watchmaker"
+    price_band: "high"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "modified-base"
+    website: "https://spaceonewatches.com/"
+    country: "France"
+    founded_year: 2023
+  - canonical_name: "Beauregard"
+    aesthetic_tags: ["classical", "dressy"]
+    maker_type: "solo-watchmaker"
+    price_band: "high"
+    output_scale: "50-500"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "modified-base"
+    website: "https://beauregard.ch/en"
+    country: "Switzerland"
+    founded_year: 2018
+  - canonical_name: "Xrby La Montre D'Art"
+    aesthetic_tags: ["classical", "avant-garde"]
+    maker_type: "solo-watchmaker"
+    output_scale: "one-off"
+    distribution: "direct"
+    movement_origin: "stock-base"
+    website: "https://xrby.art/en/"
+    country: "France"
+    founded_year: 2020
+  - canonical_name: "Xhevdet Rexhepi"
+    aesthetic_tags: ["classical", "vintage-inspired"]
+    maker_type: "solo-watchmaker"
+    price_band: "mid"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "in-house"
+    website: "https://xhevdetrexhepi.com/en"
+    country: "Switzerland"
+    founded_year: 2023
+  - canonical_name: "Hyt"
+    aesthetic_tags: ["modern", "avant-garde"]
+    maker_type: "microbrand"
+    price_band: "haute"
+    output_scale: "sub-50"
+    movement_origin: "in-house"
+    website: "https://www.hyt.com"
+    country: "Switzerland"
+    founded_year: 2012
+  - canonical_name: "Felipe Pikullik"
+    aesthetic_tags: ["classical", "tool"]
+    maker_type: "solo-watchmaker"
+    price_band: "high"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "in-house"
+    website: "https://www.felipe-pikullik.de/"
+    country: "Germany"
+    founded_year: 2017
+  - canonical_name: "Hautlence"
+    aesthetic_tags: ["modern", "avant-garde"]
+    maker_type: "small-atelier"
+    price_band: "haute"
+    output_scale: "sub-50"
+    complication_focus: ["tourbillon"]
+    movement_origin: "in-house"
+    website: "https://www.hautlence.com"
+    country: "Switzerland"
+    founded_year: 2004
+  - canonical_name: "Rudis Sylva"
+    aesthetic_tags: ["classical", "vintage-inspired"]
+    maker_type: "solo-watchmaker"
+    price_band: "haute"
+    output_scale: "sub-50"
+    distribution: "dealer-only"
+    complication_focus: ["time-only"]
+    movement_origin: "in-house"
+    website: "https://www.rudissylva.ch/"
+    country: "Switzerland"
+    founded_year: 2005
+  - canonical_name: "Doxa"
+    aesthetic_tags: ["modern", "vintage-inspired", "tool"]
+    maker_type: "established-indie"
+    price_band: "mid"
+    output_scale: "500-plus"
+    distribution: "direct"
+    complication_focus: ["time-only", "chronograph"]
+    movement_origin: "stock-base"
+    website: "https://www.doxa.ch"
+    country: "Switzerland"
+    founded_year: 1889
+  - canonical_name: "Sarpaneva Watches"
+    aesthetic_tags: ["modern", "avant-garde", "tool"]
+    maker_type: "microbrand"
+    price_band: "high"
+    output_scale: "50-500"
+    distribution: "direct"
+    complication_focus: ["time-only", "astronomical"]
+    movement_origin: "in-house"
+    website: "https://studiosarpaneva.com/"
+    country: "Finland"
+    founded_year: 2003
