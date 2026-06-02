@@ -99,11 +99,18 @@ def _load_seed_names() -> set[str]:
     return names
 
 
-def fetch_discovered_makers(session: Session) -> list[DiscoveredMaker]:
+def fetch_discovered_makers(
+    session: Session, since: datetime | None = None
+) -> list[DiscoveredMaker]:
     """Return all auto-discovered makers, sorted by first_seen_at descending.
 
     Auto-discovered = canonical_name not present in the seed YAML's
     names or aliases (Definition A).
+
+    When `since` is given, restrict to makers first seen on or after that
+    instant (used by the weekly digest's "new discoveries this window"
+    section). The comparison runs in SQL — SQLite returns naive datetimes,
+    so a Python-side compare against a tz-aware cutoff would raise.
 
     Includes mention count and the list of sources that mentioned each
     maker, so the discovery view can show context without N+1 queries
@@ -114,12 +121,10 @@ def fetch_discovered_makers(session: Session) -> list[DiscoveredMaker]:
     # Find Makers whose canonical_name isn't in the seed.
     # Using a Python set filter rather than a SQL NOT IN with a large list:
     # for ~125 names this is comparable in performance and far more readable.
-    makers = (
-        session.query(Maker)
-        .filter(Maker.is_suppressed.is_(False))
-        .order_by(Maker.first_seen_at.desc())
-        .all()
-    )
+    query = session.query(Maker).filter(Maker.is_suppressed.is_(False))
+    if since is not None:
+        query = query.filter(Maker.first_seen_at >= since)
+    makers = query.order_by(Maker.first_seen_at.desc()).all()
     auto_discovered = [m for m in makers if m.canonical_name not in seed_names]
 
     if not auto_discovered:

@@ -422,6 +422,43 @@ def movers(
     )
 
 
+@router.get("/digest", response_class=HTMLResponse)
+def digest(
+    request: Request,
+    preset: str = Query("rising_star"),
+    days: int = Query(7),
+) -> HTMLResponse:
+    """Render the weekly "what changed" digest.
+
+    New discoveries, movers, and activity on watched/target makers over the
+    last `days` days under `preset`. Both inputs are validated against the
+    movers allow-lists; unknown values fall back to defaults. The template
+    surfaces the thin-history case (no baseline older than the window) so a
+    provisional digest isn't mistaken for a quiet week.
+    """
+    if preset not in _VALID_MOVERS_PRESETS:
+        preset = "rising_star"
+    if days not in _VALID_DAYS:
+        days = 7
+
+    from watch_app.scoring.digest import compute_weekly_digest
+
+    with session_scope() as session:
+        d = compute_weekly_digest(session, window_days=days, preset=preset)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="digest.html",
+        context={
+            "preset": preset,
+            "presets": _VALID_MOVERS_PRESETS,
+            "days": days,
+            "valid_days": _VALID_DAYS,
+            "digest": d,
+        },
+    )
+
+
 @router.get("/methodology", response_class=HTMLResponse)
 def methodology(request: Request) -> HTMLResponse:
     """Render the scoring methodology page.

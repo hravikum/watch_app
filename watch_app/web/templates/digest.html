@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% from "_macros.html" import state_badge %}
+
+{% block title %}What changed · Watch App{% endblock %}
+
+{% block content %}
+<header class="mb-8">
+  <h1 class="text-2xl font-semibold tracking-tight text-stone-900">What changed</h1>
+  <p class="mt-2 text-sm text-stone-600 max-w-2xl leading-relaxed">
+    A recap of the last {{ days }} day{% if days != 1 %}s{% endif %} under the
+    <strong>{{ preset.replace("_", " ") }}</strong> preset: new discoveries,
+    rank movers, and activity on the makers you've marked watching or target.
+  </p>
+
+  {# Preset and window selectors — round-trip to GET params, mirroring /movers. #}
+  <div class="mt-4 flex flex-wrap items-center gap-2 text-xs">
+    <div class="flex items-baseline gap-1.5">
+      <span class="uppercase tracking-[0.1em] text-stone-500">Preset:</span>
+      {% for p in presets %}
+      <a href="/digest?preset={{ p }}&days={{ days }}"
+         class="px-2.5 py-1 rounded {% if p == preset %}bg-stone-900 text-white{% else %}text-stone-600 hover:bg-stone-100{% endif %} transition">
+        {{ p.replace("_", " ") }}
+      </a>
+      {% endfor %}
+    </div>
+    <span class="text-stone-300 mx-2">·</span>
+    <div class="flex items-baseline gap-1.5">
+      <span class="uppercase tracking-[0.1em] text-stone-500">Window:</span>
+      {% for d in valid_days %}
+      <a href="/digest?preset={{ preset }}&days={{ d }}"
+         class="px-2.5 py-1 rounded {% if d == days %}bg-stone-900 text-white{% else %}text-stone-600 hover:bg-stone-100{% endif %} transition">
+        {{ d }}d
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if not digest.has_history %}
+  <p class="mt-4 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 max-w-2xl">
+    No score history older than this window yet — rank movement is provisional
+    (everything ranked reads as a new entrant until there's a baseline to
+    compare against).
+  </p>
+  {% endif %}
+</header>
+
+{% if digest.is_empty %}
+<div class="bg-white border border-stone-200 rounded-xl p-8 text-center text-stone-500">
+  <p class="text-sm">Nothing surfaced in the last {{ days }} days.</p>
+  <p class="text-xs mt-2">No new discoveries, no rank movement, and nothing
+  new on your list. Quieter weeks are normal as the data settles.</p>
+</div>
+{% else %}
+
+{# --- New discoveries --- #}
+<section class="mb-8">
+  <h2 class="text-xs uppercase tracking-[0.15em] font-medium text-stone-500 mb-3">
+    New discoveries
+    <span class="text-stone-400 font-normal normal-case tracking-normal ml-2">({{ digest.new_discoveries | length }})</span>
+  </h2>
+  {% if digest.new_discoveries %}
+  <div class="bg-white border border-stone-200 rounded-xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-stone-50 text-stone-500 uppercase text-[11px] tracking-[0.1em] font-medium">
+        <tr>
+          <th class="px-5 py-3 text-left">Maker</th>
+          <th class="px-5 py-3 text-left w-32">Country</th>
+          <th class="px-5 py-3 text-right w-20">Mentions</th>
+          <th class="px-5 py-3 text-left">Sources</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in digest.new_discoveries %}
+        <tr class="border-t border-stone-100 hover:bg-stone-50 transition-colors group">
+          <td class="px-5 py-3 font-medium group-hover:text-stone-900">
+            <a href="/makers/{{ m.id }}" class="hover:underline decoration-stone-400 underline-offset-2">{{ m.canonical_name }}</a>{{ state_badge(m.relationship_state) }}
+          </td>
+          <td class="px-5 py-3 text-stone-600 text-[13px]">{{ m.country or "—" }}</td>
+          <td class="px-5 py-3 text-right tabular text-stone-700">{{ m.mention_count }}</td>
+          <td class="px-5 py-3 text-stone-500 text-xs">{{ m.source_names | join(", ") or "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-xs text-stone-400">No new makers surfaced this window.</p>
+  {% endif %}
+</section>
+
+{# --- On your list (the personal alert) --- #}
+<section class="mb-8">
+  <h2 class="text-xs uppercase tracking-[0.15em] font-medium text-stone-500 mb-3">
+    On your list
+    <span class="text-stone-400 font-normal normal-case tracking-normal ml-2">({{ digest.watching | length }})</span>
+  </h2>
+  {% if digest.watching %}
+  <div class="bg-white border border-stone-200 rounded-xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-stone-50 text-stone-500 uppercase text-[11px] tracking-[0.1em] font-medium">
+        <tr>
+          <th class="px-5 py-3 text-left">Maker</th>
+          <th class="px-5 py-3 text-left w-28">Status</th>
+          <th class="px-5 py-3 text-right w-28">New mentions</th>
+          <th class="px-5 py-3 text-right w-24">Rank</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in digest.watching %}
+        <tr class="border-t border-stone-100 hover:bg-stone-50 transition-colors group">
+          <td class="px-5 py-3 font-medium group-hover:text-stone-900">
+            <a href="/makers/{{ a.maker_id }}" class="hover:underline decoration-stone-400 underline-offset-2">{{ a.canonical_name }}</a>
+            {% if a.newly_discovered %}<span class="ml-2 text-[10px] uppercase tracking-widest text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">new</span>{% endif %}
+          </td>
+          <td class="px-5 py-3">{{ state_badge(a.relationship_state) }}</td>
+          <td class="px-5 py-3 text-right tabular text-stone-700">{{ a.new_mentions or "—" }}</td>
+          <td class="px-5 py-3 text-right tabular text-sm">
+            {% if a.rank_change is not none and a.rank_change > 0 %}
+              <span class="text-green-700 font-medium">↑ {{ a.rank_change }}</span>
+            {% elif a.rank_change is not none and a.rank_change < 0 %}
+              <span class="text-red-700 font-medium">↓ {{ -a.rank_change }}</span>
+            {% elif a.current_rank is not none %}
+              <span class="text-stone-500">#{{ a.current_rank }}</span>
+            {% else %}
+              <span class="text-stone-300">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-xs text-stone-400">No movement on watched or target makers this
+  window. Mark makers from their detail page to populate this.</p>
+  {% endif %}
+</section>
+
+{# --- Movers --- #}
+{% macro mover_row(m, change_label, change_color) %}
+<tr class="border-t border-stone-100 hover:bg-stone-50 transition-colors group">
+  <td class="px-5 py-3 tabular text-sm text-{{ change_color }}-700 font-medium">{{ change_label }}</td>
+  <td class="px-5 py-3 font-medium group-hover:text-stone-900">
+    <a href="/makers/{{ m.maker_id }}" class="hover:underline decoration-stone-400 underline-offset-2">{{ m.canonical_name }}</a>
+  </td>
+  <td class="px-5 py-3 text-stone-600 text-[13px]">{{ m.country or "—" }}</td>
+  <td class="px-5 py-3 text-right tabular text-stone-500 text-xs">
+    {% if m.prior_rank %}#{{ m.prior_rank }}{% else %}<span class="text-stone-300">—</span>{% endif %}
+  </td>
+  <td class="px-5 py-3 text-right tabular text-stone-900 font-medium">#{{ m.current_rank }}</td>
+</tr>
+{% endmacro %}
+
+<section class="mb-8">
+  <h2 class="text-xs uppercase tracking-[0.15em] font-medium text-stone-500 mb-3">
+    Movers <span class="text-stone-400 font-normal normal-case tracking-normal ml-2">— {{ preset.replace("_", " ") }}</span>
+  </h2>
+  {% if digest.climbers or digest.fallers or digest.new_entrants %}
+  <div class="bg-white border border-stone-200 rounded-xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-stone-50 text-stone-500 uppercase text-[11px] tracking-[0.1em] font-medium">
+        <tr>
+          <th class="px-5 py-3 text-left w-20">Change</th>
+          <th class="px-5 py-3 text-left">Maker</th>
+          <th class="px-5 py-3 text-left w-32">Country</th>
+          <th class="px-5 py-3 text-right w-20">{{ days }}d ago</th>
+          <th class="px-5 py-3 text-right w-16">Now</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in digest.climbers %}{{ mover_row(m, "↑ " ~ m.rank_change, "green") }}{% endfor %}
+        {% for m in digest.fallers %}{{ mover_row(m, "↓ " ~ (-m.rank_change), "red") }}{% endfor %}
+        {% for m in digest.new_entrants %}{{ mover_row(m, "new", "stone") }}{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-xs text-stone-400">No rank movement of 3+ positions this window.</p>
+  {% endif %}
+</section>
+
+<p class="text-xs text-stone-500 leading-relaxed">
+  "In the window" means entered the data in the last {{ days }} days. See
+  <a href="/methodology" class="underline decoration-stone-400 underline-offset-2">methodology</a>
+  for how scores are computed, or <a href="/movers" class="underline decoration-stone-400 underline-offset-2">movers</a>
+  for the full rank-change view.
+</p>
+{% endif %}
+{% endblock %}

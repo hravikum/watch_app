@@ -60,6 +60,13 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   new entrants over a configurable lookback window (3, 7, or 14 days)
   under either preset. The "rising star" preset's purpose is finally
   visible as actual movement, not a static snapshot.
+- **Summarizes what changed** at `/digest` (and `cli digest`). A weekly
+  "what changed" recap over a configurable window: new discoveries, rank
+  movers, and — the personal part — activity on the makers you've marked
+  watching or target (new mentions, rank moves, or a brand-new discovery),
+  with quiet makers omitted so it reads as an alert. `cli digest --markdown`
+  emits a portable markdown export you can pipe to a file or email. No new
+  data — it composes the discovery and rank-change queries you already have.
 - **Links to maker websites** on every detail page where one exists. 117
   of 125 seed makers have a verified website URL — the remaining 8 (e.g.
   Philippe Dufour) genuinely don't have public web presence.
@@ -204,6 +211,10 @@ python -m watch_app.cli top --limit 50
 python -m watch_app.cli maker "Simon Brette"    # Details + full mention list
 python -m watch_app.cli history --limit 30      # Recent scan runs
 python -m watch_app.cli schedule                # Print launchd setup
+
+python -m watch_app.cli digest                  # "What changed" recap (last 7 days, default preset)
+python -m watch_app.cli digest --days 14 --preset hidden_gem
+python -m watch_app.cli digest --markdown > this-week.md   # Portable markdown export
 
 python -m watch_app.cli enrich                  # Dry-run: propose website/country/independence for unenriched makers
 python -m watch_app.cli enrich --commit         # Write proposals to DB
@@ -374,25 +385,26 @@ watch_app/
 │                         # methodology.py builds worked examples and source-contribution stats;
 │                         # queries.py has fetch_top_makers, fetch_all_makers_comparison,
 │                         # and fetch_rank_changes used by the web UI;
-│                         # discovery.py finds auto-discovered makers (not in seed YAML)
+│                         # discovery.py finds auto-discovered makers (not in seed YAML);
+│                         # digest.py composes the weekly "what changed" digest + markdown export
 ├── storage/              # SQLAlchemy models (Maker, Mention, Signal, Score, ScanRun, Source, WatchModel).
 │                         # Maker also carries the 7 taste-dimension columns (migration 0006),
 │                         # suppression columns (0008), and relationship_state + notes (0009)
 ├── pipeline/             # orchestrator.py wires the layers: fetch → extract → resolve → store →
 │                         # fetch GPHG model details → score
 ├── api/                  # FastAPI routers; makers.py has dashboard, detail (+ state form),
-│                         # methodology, comparison, movers, discoveries, explore, review (admin),
-│                         # and per-source routes
+│                         # methodology, comparison, movers, digest, discoveries, explore,
+│                         # review (admin), and per-source routes
 ├── web/templates/        # Jinja2 + HTMX (dashboard.html, maker_detail.html, methodology.html,
-│                         # comparison.html, movers.html, discoveries.html, explore.html,
-│                         # review.html, source_detail.html, _makers_table.html,
+│                         # comparison.html, movers.html, digest.html, discoveries.html,
+│                         # explore.html, review.html, source_detail.html, _makers_table.html,
 │                         # _explore_results.html, _macros.html)
 ├── data/
 │   ├── known_makers.yaml      # The ~127-maker curated seed, most independents now carrying taste tags
 │   └── youtube_channels.yaml  # 15 YouTube channels with prestige weights and tier annotations
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 483 tests; run with `make test` (~30s, no network)
+tests/                    # 495 tests; run with `make test` (~30s, no network)
 alembic/                  # Schema migrations
 ```
 

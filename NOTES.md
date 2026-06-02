@@ -34,8 +34,9 @@ matching + merge/unalias/dupes → 3N; discovery→seed *graduation* via promote
 Update (2026-06-02): both Tier 1 bets are now done — maker suppression + the
 /explore window shipped first (3O, 3P), then the suppressed-enrichment gate +
 velocity regression test (3Q), and Personal relationship state + notes (3R).
-Velocity was already correct in code. Tier 2 (Layer 3 reactions, engagement
-data, weekly digest) is the live frontier now.
+Velocity was already correct in code. Into Tier 2: the weekly digest shipped
+(3S, CLI + /digest), with a scheduled email task in progress. Layer 3
+(reactions → adaptive ranking) and engagement-data-per-maker remain.
 
 Lens: tiered for the **personal-tool** posture (current default; public
 deployment stays parked — see "Explicitly NOT doing"). Going public re-tiers
@@ -60,10 +61,12 @@ features, and source breadth + methodology defensibility rise.
   commission or buy). The "act on it" end of the arc. Do the manual engagement
   research on a few makers FIRST (in the Tier 1 notes field) to learn which
   fields matter before committing schema, then schematize.
-- **Weekly "what changed" digest** (net-new). A summary from scan history — new
-  discoveries, biggest movers, newly-surfaced makers — as a CLI command and/or
-  a small page (markdown export is cheap). Reuses stored data and pairs with
-  the Tier 1 "watching" makers as a lightweight alert. Better as history grows.
+- **Weekly "what changed" digest — COMPLETED (3S).** A summary from scan
+  history — new discoveries, movers, and activity on watched/target makers —
+  as a `digest` CLI command (with `--markdown` export) *and* a `/digest` page,
+  both over a shared `compute_weekly_digest`. Reuses stored data (no schema
+  change) and the watching section is the Tier 1 "watching" pairing. Next on
+  this: an email task that sends it on a schedule (in progress).
 
 ### Tier 3 — worthwhile, but lower leverage now or gated on time
 - **Data-driven prestige-weight tuning.** /methodology + the per-source page
@@ -681,6 +684,23 @@ For quick reference on what shipped when:
       macro); filterable on the dashboard ("Your list" links) and the /explore
       sidebar. The dashboard filter is a ranking view, so a marked-but-unscored
       maker won't appear there — noted on the page and in code.
+- 3S  Weekly "what changed" digest. New `scoring/digest.py` with a shared
+      `compute_weekly_digest(window_days, preset)` returning three sections:
+      new discoveries (non-seed makers first seen in the window — via a new
+      optional `since=` arg on fetch_discovered_makers), movers (straight from
+      the fetch_rank_changes / movers engine), and "on your list" — watched or
+      target makers that had activity in the window (new mentions, a rank move,
+      or being newly discovered); stable no-activity makers are omitted so the
+      section reads as an alert. Two surfaces over the one function: a `digest`
+      CLI command (`--days`, `--preset`, `--markdown` for portable export) and
+      a `/digest` page (first in the nav as "What changed"). `render_digest_
+      markdown` is the export renderer. "In the window" = entered the data in
+      the window (first_seen_at / mention discovered_at), deliberately distinct
+      from velocity's published_at basis (documented in the module). Thin-
+      history (<window of score baseline) is flagged on both surfaces. All
+      window comparisons run in SQL — SQLite returns naive datetimes, so
+      "newly discovered" is derived from the SQL-filtered id set, not a Python
+      compare. No schema change.
 
 ## Findings logged from the week-1 data review (2G)
 

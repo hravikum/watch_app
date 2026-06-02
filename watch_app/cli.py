@@ -149,6 +149,112 @@ def top(
 
 
 @app.command()
+def digest(
+    preset: str = typer.Option(
+        None,
+        "--preset",
+        help=f"One of: {', '.join(PRESETS.keys())}. Defaults to the configured preset.",
+    ),
+    days: int = typer.Option(7, "--days", help="Window length in days (1-30)."),
+    markdown: bool = typer.Option(
+        False, "--markdown", help="Emit a portable markdown document instead of a table."
+    ),
+) -> None:
+    """Summarize what changed in the last `days` days: new discoveries,
+
+    movers, and activity on the makers you've marked watching/target.
+    """
+    from watch_app.scoring.digest import (
+        compute_weekly_digest,
+        render_digest_markdown,
+        _fmt_change,
+    )
+
+    preset_name = preset or get_settings().default_preset
+    if preset_name not in PRESETS:
+        console.print(
+            f"[red]Unknown preset {preset_name!r}.[/red] Known: {', '.join(PRESETS.keys())}"
+        )
+        raise typer.Exit(1)
+
+    with session_scope() as session:
+        d = compute_weekly_digest(session, window_days=days, preset=preset_name)
+
+        if markdown:
+            # Plain stdout so it pipes/redirects cleanly to a file.
+            print(render_digest_markdown(d))
+            return
+
+        console.print(
+            f"[bold cyan]What changed[/bold cyan] — last {d.window_days} days "
+            f"[dim](preset: {d.preset})[/dim]"
+        )
+        if not d.has_history:
+            console.print(
+                "[yellow]No score history older than this window yet — rank "
+                "movement is provisional.[/yellow]"
+            )
+        if d.is_empty:
+            console.print("[dim]Nothing surfaced in this window.[/dim]")
+            return
+
+        console.print(f"\n[bold]New discoveries[/bold] ({len(d.new_discoveries)})")
+        if d.new_discoveries:
+            for m in d.new_discoveries:
+                country = f" [dim]· {m.country}[/dim]" if m.country else ""
+                console.print(
+                    f"  • {m.canonical_name}{country} "
+                    f"[dim]({m.mention_count} mention(s))[/dim]"
+                )
+        else:
+            console.print("  [dim]none[/dim]")
+
+        console.print(f"\n[bold]On your list[/bold] ({len(d.watching)})")
+        if d.watching:
+            wt = Table(show_header=True, header_style="dim")
+            wt.add_column("Maker")
+            wt.add_column("State", style="dim")
+            wt.add_column("New mentions", justify="right")
+            wt.add_column("Rank", justify="right")
+            for a in d.watching:
+                rank_cell = (
+                    _fmt_change(a.rank_change)
+                    if a.rank_change
+                    else (f"#{a.current_rank}" if a.current_rank is not None else "—")
+                )
+                label = a.relationship_state + (" · new" if a.newly_discovered else "")
+                wt.add_row(a.canonical_name, label, str(a.new_mentions), rank_cell)
+            console.print(wt)
+        else:
+            console.print("  [dim]no movement on watched or target makers[/dim]")
+
+        console.print(f"\n[bold]Movers[/bold] — {d.preset}")
+        _print_mover_block("Climbers", d.climbers)
+        _print_mover_block("Fallers", d.fallers)
+        _print_mover_block("New entrants", d.new_entrants, entrants=True)
+
+
+def _print_mover_block(title: str, rows: list, entrants: bool = False) -> None:
+    from watch_app.scoring.digest import _fmt_change
+
+    console.print(f"  [bold dim]{title}[/bold dim] ({len(rows)})")
+    if not rows:
+        console.print("    [dim]none[/dim]")
+        return
+    for r in rows:
+        if entrants:
+            console.print(
+                f"    • {r['canonical_name']} [dim]entered at #{r['current_rank']}[/dim]"
+            )
+        else:
+            console.print(
+                f"    • {r['canonical_name']} "
+                f"[dim]#{r['prior_rank']} → #{r['current_rank']} "
+                f"({_fmt_change(r['rank_change'])})[/dim]"
+            )
+
+
+@app.command()
 def maker(name: str = typer.Argument(..., help="Canonical name or alias.")) -> None:
     """Show everything we know about one maker."""
     with session_scope() as session:
