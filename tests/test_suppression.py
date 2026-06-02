@@ -218,3 +218,44 @@ def test_suppressed_excluded_from_comparison(session):
 
     names = [r["canonical_name"] for r in fetch_all_makers_comparison(session, "rising_star", "hidden_gem")]
     assert DISCOVERED not in names
+
+
+# ---------- cost: suppressed makers don't get re-enriched (chunk A) ----------
+
+
+def test_suppressed_excluded_from_factual_enrichment(test_engine):
+    """A suppressed, unenriched maker must not be an auto-enrichment candidate."""
+    from watch_app.extraction.enrich import iter_unenriched_makers
+
+    with session_scope() as s:
+        s.add(Maker(canonical_name=DISCOVERED, is_independent=True))  # enriched_at IS NULL
+
+    with session_scope() as s:
+        names = [m.canonical_name for m in iter_unenriched_makers(s, only_auto_enrichable=True)]
+        assert DISCOVERED in names
+
+    with session_scope() as s:
+        suppress_maker(s, DISCOVERED, commit=True)
+
+    with session_scope() as s:
+        names = [m.canonical_name for m in iter_unenriched_makers(s, only_auto_enrichable=True)]
+        assert DISCOVERED not in names
+
+
+def test_suppressed_excluded_from_taste_tagging(test_engine):
+    """A suppressed discovered independent must not be a taste-tagging candidate."""
+    from watch_app.extraction.enrich import iter_untagged_discovered_independents
+
+    with session_scope() as s:
+        s.add(Maker(canonical_name=DISCOVERED, is_independent=True))  # taste_enriched_at IS NULL
+
+    with session_scope() as s:
+        names = [m.canonical_name for m in iter_untagged_discovered_independents(s)]
+        assert DISCOVERED in names
+
+    with session_scope() as s:
+        suppress_maker(s, DISCOVERED, commit=True)
+
+    with session_scope() as s:
+        names = [m.canonical_name for m in iter_untagged_discovered_independents(s)]
+        assert DISCOVERED not in names

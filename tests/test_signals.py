@@ -191,6 +191,38 @@ def test_velocity_90d(session, maker_with_mentions):
     assert compute_velocity_90d(session, maker_with_mentions) == 2.0
 
 
+def test_velocity_uses_published_at_not_discovered_at(session):
+    """Velocity must key off published_at, not the day we ingested the article.
+
+    The historical-backfill trap: an article published 200 days ago but
+    discovered (ingested) today must NOT count as recent. And an article with
+    no published_at falls back to discovered_at.
+    """
+    now = datetime.now(timezone.utc)
+    m = Maker(canonical_name="Velocity Precedence", aliases=[], is_independent=True)
+    src = SourceRow(name="VP Src", category="media", prestige_weight=0.5)
+    session.add_all([m, src])
+    session.flush()
+    session.add_all([
+        # Old article, ingested today: published_at wins → excluded.
+        Mention(
+            maker_id=m.id, source_id=src.id, url="https://vp/old",
+            title="old, freshly ingested",
+            published_at=now - timedelta(days=200),
+            discovered_at=now,
+        ),
+        # No published_at: falls back to discovered_at (recent) → counted.
+        Mention(
+            maker_id=m.id, source_id=src.id, url="https://vp/nopub",
+            title="no published_at",
+            published_at=None,
+            discovered_at=now - timedelta(days=5),
+        ),
+    ])
+    session.commit()
+    assert compute_velocity_90d(session, m) == 1.0
+
+
 def test_first_seen_recency_clamped_at_cap(session):
     """Mention older than RECENCY_CAP_DAYS → 0.0."""
     m = Maker(canonical_name="Old", aliases=[])

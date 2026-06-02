@@ -31,24 +31,37 @@ there have since shipped: per-source detail page → 3M; resolver affix/fuzzy
 matching + merge/unalias/dupes → 3N; discovery→seed *graduation* via promote
 → 3L (paste-a-paragraph seed entry is still open, see Tier 3).
 
+Update (2026-06-02): both Tier 1 bets are now done — maker suppression + the
+/explore window shipped first (3O, 3P), then the suppressed-enrichment gate +
+velocity regression test (3Q), and Personal relationship state + notes (3R).
+Velocity was already correct in code. Tier 2 (Layer 3 reactions, engagement
+data, weekly digest) is the live frontier now.
+
 Lens: tiered for the **personal-tool** posture (current default; public
 deployment stays parked — see "Explicitly NOT doing"). Going public re-tiers
 everything — the personal-state features below become multi-user/auth
 features, and source breadth + methodology defensibility rise.
 
 ### Tier 1 — strongest next bets
-- **Personal relationship state + notes per maker.** Mark each maker target /
-  watching / known / pass, plus a free-text notes field; filter the dashboard
-  and explorer by it. The smallest slice that serves the real goal ("makers
-  *I'd* act on", not the global ranking), it operationalizes the target-list /
-  engagement-research groundwork, and it establishes the single-user state
-  layer Layer 3 requires — so it de-risks the arc's headline while being useful
-  on day one. Modest effort; single-user/local, no auth.
-- **Velocity should use published_at, not discovered_at** (also in scoring
-  refinements below). The 90-day window currently counts day-1-ingested
-  historical articles as "recent", biasing velocity + movers — a correctness
-  issue in the signal everything else rides on, and it matters more to fix as
-  organic history accrues. Small; handle the missing-published_at fallback.
+- **Personal relationship state + notes per maker. — SHIPPED (3R).** Mark each
+  maker target / watching / known / pass, plus a free-text notes field; filter
+  the dashboard and explorer by it. The smallest slice that serves the real goal
+  ("makers *I'd* act on", not the global ranking), it operationalizes the
+  target-list / engagement-research groundwork, and it establishes the
+  single-user state layer Layer 3 requires — so it de-risks the arc's headline
+  while being useful on day one. Modest effort; single-user/local, no auth.
+  Shipped orthogonal to suppression: a new `relationship_state` column + `notes`
+  (migration 0009), set from the detail page, badged + filterable on the
+  dashboard and /explore. Known limitation: the dashboard filter is a ranking
+  view, so a marked-but-unscored maker won't appear there (detail page and
+  explorer still show it) — a dedicated "everything in this state" view would
+  close that gap if it proves annoying.
+- **Velocity should use published_at, not discovered_at — DONE.** Turned out
+  the calculator already coalesces `published_at` → `discovered_at` (it landed
+  alongside the /explore window work; this section was just stale). 3Q added a
+  regression test pinning the precedence (an article published 200 days ago but
+  ingested today must not count) so it can't silently regress. See the scoring
+  refinements section below, now also marked resolved.
 
 ### Tier 2 — high value, but sequence after the groundwork / a bit more data
 - **Layer 3 — capture reactions → adaptive ranking.** The arc's headline and
@@ -153,10 +166,12 @@ manually add an alias. Same for typos and spelling variants. Not broken,
 just annoying. Could use rapidfuzz or similar for a soft-match pass
 before falling back to auto-create.
 
-### "Personal interest" state per maker
+### "Personal interest" state per maker — SHIPPED (3R)
 Mark makers as "already know" / "boring" / "keep eye on" so your top-20
 reflects your taste, not just the data. Requires user state — local
 config file or simple auth. Nice but not urgent.
+Shipped as `relationship_state` (target / watching / known / pass) + `notes`,
+single-user/local, no auth — see 3R in the chunk log.
 
 ### Automated seed entry
 Paste a Wikipedia-style paragraph about a maker, have an LLM extract
@@ -660,6 +675,49 @@ For quick reference on what shipped when:
       the row; dry-run default; blocks merging FROM a seed maker), `unalias`
       (remove a bad alias; warns on seed makers since the loader re-adds YAML
       aliases). No schema change.
+- 3O  Maker suppression (soft hide + hard delete). New is_suppressed +
+      suppressed_reason columns (migration 0008, server_default false so
+      existing rows backfill). `extraction/maker_admin.py` gains
+      suppress_maker / unsuppress_maker / list_suppressed (dry-run default,
+      idempotent, reversible) and delete_maker (hard: drops the maker +
+      mentions + watch_models + signals + scores; blocks seed makers, which
+      the loader would re-create). CLI: `suppress` / `unsuppress` /
+      `suppressed` / `delete`. A suppressed maker drops out of /discoveries,
+      score rankings (fetch_top_makers), /comparison, and /review, but the row
+      survives so the resolver re-matches (not re-creates) the name on later
+      scans — a one-off article can't resurrect it, and unsuppress restores
+      full history. Suppress for recurring names; delete only for a genuinely
+      one-off mention that's aged out of the feed. The remedy for the
+      not-really-trackable discovered names (see brand-validation findings).
+- 3P  Time-window control on /explore. A "Window" filter in the sidebar:
+      length (All-time / 3d / 7d / 14d / 30d) plus a basis toggle — Mentioned
+      (most recent mention's published_at, else discovered_at) or Discovered
+      (Maker.first_seen_at). All-time is the default, so the page behaves as
+      before until you pick a window. The window narrows the tagged universe
+      first, so facet counts and the total reflect it. The cutoff comparison
+      runs in SQL (the fetch_rank_changes approach) because SQLite returns
+      naive datetimes while a Python cutoff is tz-aware. New radios slot into
+      the existing HTMX change-trigger flow; no JS. No schema change.
+- 3Q  Suppressed makers excluded from enrichment + velocity regression test
+      (this session's "Chunk A"). The on-scan enrichment and taste-tagging
+      candidate queries (`iter_unenriched_makers`,
+      `iter_untagged_discovered_independents`) now filter `is_suppressed IS NOT
+      TRUE`, so a hidden maker stops costing Haiku calls; the exclusion is
+      reversible (unsuppressing leaves enriched_at/taste_enriched_at NULL, so
+      the maker becomes a candidate again). Also confirmed the velocity
+      published_at fix was already in code and added a regression test pinning
+      the precedence. No schema change.
+- 3R  Personal relationship state + notes (this session's "Chunk B"). New
+      `relationship_state` (target / watching / known / pass) + `notes` columns
+      on Maker (migration 0009, both nullable). ORTHOGONAL to suppression:
+      state captures engagement posture toward a *real* maker and does not
+      affect visibility. Vocabulary + a set_relationship_state helper live in
+      maker_admin.py. Set both from the detail page's "Your status" form
+      (POST /makers/{id}/state, not admin-gated); a small state badge renders
+      on the dashboard / explorer / discoveries rows (shared `_state_badge`
+      macro); filterable on the dashboard ("Your list" links) and the /explore
+      sidebar. The dashboard filter is a ranking view, so a marked-but-unscored
+      maker won't appear there — noted on the page and in code.
 
 ## Findings logged from the week-1 data review (2G)
 
@@ -775,16 +833,40 @@ marker opt-out for the one test that exercises the real client). Suite now runs
 in ~30s and makes no real external calls. `pytest --durations` is the way to
 catch any future regression.
 
+## Brand-validation findings (3O, 2026-06-02)
+
+Reviewed four obscure entries to decide keep / suppress / delete. The point
+that recurred: "showing up in the data" isn't the same as "a real, active,
+independent wristwatch maker worth tracking," and the determination is partly a
+judgment call. Suppression (3O) is now the remedy — reversible, and re-matching
+means a one-off article can't resurrect a name.
+
+- **Ferdinand Berthoud (139) — KEEP.** Real, active, GPHG-winning (Chopard-
+  backed Chronométrie). The "doesn't exist anymore" premise was wrong. Do not
+  suppress.
+- **Maison Alcée (150) — scope call.** Real and independent, but makes DIY
+  desk-clock *kits*, not wristwatches — hence the "toolkit" impression. Keep or
+  suppress depending on how strictly the tool is wristwatch-only.
+- **Victor Kullberg (158) — suppress/delete.** Defunct 19th-century maker,
+  surfacing only via auction/vintage coverage (the recent SJX piece). Clear
+  candidate.
+- **Matthew Norman (151) — suppress/delete.** Swiza-line quartz/clock brand,
+  out of scope. Clear candidate.
+
+Open theme worth a future feature: an LLM-assisted "is this an active
+independent wristwatch maker?" check at discovery (or a flag in /review) would
+cut this manual vetting — scoped to inform, not auto-suppress.
+
 ## Potential future scoring refinements (not urgent)
 
 - **Mention deduplication across editions.** A brand nominated by GPHG
   in 2023, 2024, 2025 currently counts as 3 source contributions.
   Defensible (each year is a separate jury making a separate decision)
   but worth thinking about if the inflation looks wrong over more data.
-- **`discovered_at` vs `published_at` in velocity calculations.** The
-  90-day window uses `discovered_at`, which means historical articles
-  ingested on day 1 count as "recent." Less of an issue once data has
-  been accumulating organically for a couple of months.
+- **`discovered_at` vs `published_at` in velocity calculations. — RESOLVED.**
+  `compute_velocity_90d` (and `first_seen_recency`) coalesce `published_at` →
+  `discovered_at`, so historical articles ingested on day 1 no longer count as
+  "recent." Regression test pinning the precedence added in 3Q.
 - **Per-source prestige tuning based on actual data.** After 4–6 weeks,
   could analyze which sources surface makers that *also* appear in GPHG
   and use that overlap as evidence for prestige weight. Right now

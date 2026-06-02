@@ -1,0 +1,15 @@
+{# Reusable relationship-state badge. Label is the capitalized token, which
+   matches RELATIONSHIP_STATE_LABELS, so no label dict needs threading through
+   every include. Renders nothing when state is unset. #}
+{% macro state_badge(state) %}
+{%- if state -%}
+<span class="ml-2 align-middle inline-block text-[10px] uppercase tracking-widest font-medium px-1.5 py-0.5 rounded border
+  {%- if state == 'target' %} text-amber-700 bg-amber-50 border-amber-200
+  {%- elif state == 'watching' %} text-sky-700 bg-sky-50 border-sky-200
+  {%- elif state == 'known' %} text-stone-600 bg-stone-100 border-stone-200
+  {%- elif state == 'pass' %} text-stone-400 bg-stone-50 border-stone-200 line-through decoration-stone-300
+  {%- else %} text-stone-600 bg-stone-100 border-stone-200{%- endif %}">
+  {{ state | capitalize }}
+</span>
+{%- endif -%}
+{% endmacro %}

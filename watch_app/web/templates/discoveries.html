@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import state_badge %}
 
 {% block title %}Discoveries · Watch App{% endblock %}
 
@@ -58,7 +59,7 @@
       <tr class="border-t border-stone-100 hover:bg-stone-50 transition-colors group">
         <td class="px-5 py-3 font-medium group-hover:text-stone-900">
           <a href="/makers/{{ m.id }}"
-             class="hover:underline decoration-stone-400 underline-offset-2">{{ m.canonical_name }}</a>
+             class="hover:underline decoration-stone-400 underline-offset-2">{{ m.canonical_name }}</a>{{ state_badge(m.relationship_state) }}
           {% if not m.is_independent %}
             <span class="ml-2 text-[10px] uppercase tracking-widest text-stone-400 border border-stone-200 rounded px-1.5 py-0.5">
               conglomerate{% if m.field_was_enriched("is_independent") %} <span class="text-amber-700">·auto</span>{% endif %}

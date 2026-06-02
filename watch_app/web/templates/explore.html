@@ -61,6 +61,23 @@
       <p class="mt-1.5 text-[11px] text-stone-400 leading-snug">Mentioned = recent press; Discovered = newly found. Ignored for all-time.</p>
     </div>
 
+    {# Your list — narrow to a personal relationship state. #}
+    <div class="border-t border-stone-100 pt-4">
+      <div class="text-[11px] uppercase tracking-[0.1em] text-stone-500 font-medium mb-2">Your list</div>
+      <div class="flex flex-wrap gap-1.5">
+        <label class="inline-flex items-center gap-1.5 text-sm border border-stone-200 rounded-lg px-2.5 py-1 cursor-pointer hover:bg-stone-50 has-[:checked]:bg-stone-900 has-[:checked]:text-white has-[:checked]:border-stone-900">
+          <input type="radio" name="state" value="all" {% if current_state == 'all' %}checked{% endif %} class="sr-only" />
+          All
+        </label>
+        {% for s in relationship_states %}
+        <label class="inline-flex items-center gap-1.5 text-sm border border-stone-200 rounded-lg px-2.5 py-1 cursor-pointer hover:bg-stone-50 has-[:checked]:bg-stone-900 has-[:checked]:text-white has-[:checked]:border-stone-900">
+          <input type="radio" name="state" value="{{ s }}" {% if current_state == s %}checked{% endif %} class="sr-only" />
+          {{ state_labels[s] }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
     {# Taste dimensions — every dimension is a checkbox group (OR within). #}
     {% for field in taste_fields %}
     <fieldset class="border-t border-stone-100 pt-4">

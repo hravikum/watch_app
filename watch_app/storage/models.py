@@ -59,6 +59,14 @@ class Maker(Base):
     # later scans. Reversible via `cli unsuppress`. See migration 0008.
     is_suppressed: Mapped[bool] = mapped_column(Boolean, default=False)
     suppressed_reason: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # Personal relationship state — ORTHOGONAL to suppression. Suppression means
+    # "this isn't a real/trackable maker"; relationship_state captures your
+    # engagement posture toward a real one (target / watching / known / pass).
+    # NULL = no posture set. `notes` is free-text scratch space per maker. Both
+    # are single-user/local; the vocabulary lives in extraction/maker_admin.py.
+    # See migration 0009.
+    relationship_state: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     production_volume_estimate: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )

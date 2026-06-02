@@ -47,6 +47,41 @@
   {% endif %}
 </div>
 
+{# --- Your status (personal relationship state + notes) --- #}
+<section class="mb-8">
+  <h2 class="text-xs uppercase tracking-[0.15em] font-medium text-stone-500 mb-3">Your status</h2>
+  <form method="post" action="/makers/{{ m.id }}/state"
+        class="bg-white border border-stone-200 rounded-xl p-5 space-y-4">
+    <div>
+      <div class="text-[11px] uppercase tracking-[0.1em] text-stone-500 font-medium mb-2">Relationship</div>
+      <div class="flex flex-wrap gap-1.5">
+        <label class="inline-flex items-center gap-1.5 text-sm border border-stone-200 rounded-lg px-2.5 py-1 cursor-pointer hover:bg-stone-50 has-[:checked]:bg-stone-900 has-[:checked]:text-white has-[:checked]:border-stone-900">
+          <input type="radio" name="state" value="" {% if not m.relationship_state %}checked{% endif %} class="sr-only" />
+          None
+        </label>
+        {% for s in relationship_states %}
+        <label class="inline-flex items-center gap-1.5 text-sm border border-stone-200 rounded-lg px-2.5 py-1 cursor-pointer hover:bg-stone-50 has-[:checked]:bg-stone-900 has-[:checked]:text-white has-[:checked]:border-stone-900">
+          <input type="radio" name="state" value="{{ s }}" {% if m.relationship_state == s %}checked{% endif %} class="sr-only" />
+          {{ state_labels[s] }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    <div>
+      <label for="notes" class="block text-[11px] uppercase tracking-[0.1em] text-stone-500 font-medium mb-2">Notes</label>
+      <textarea id="notes" name="notes" rows="4"
+                placeholder="Private notes — engagement research, contact path, why you're watching…"
+                class="w-full text-sm rounded-lg border border-stone-300 focus:border-stone-500 focus:ring-stone-300 px-3 py-2 resize-y">{{ m.notes or "" }}</textarea>
+    </div>
+    <div class="flex justify-end">
+      <button type="submit"
+              class="px-4 py-2 text-sm font-medium rounded-md bg-stone-900 text-white border border-stone-900 hover:bg-stone-700 transition">
+        Save
+      </button>
+    </div>
+  </form>
+</section>
+
 {# --- Profile (curated taste dimensions) --- #}
 {% if m.profile %}
 <section class="mb-8">

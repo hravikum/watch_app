@@ -17,6 +17,11 @@ from sqlalchemy.orm import joinedload
 
 from watch_app.config import get_settings
 from watch_app import taste
+from watch_app.extraction.maker_admin import (
+    RELATIONSHIP_STATES,
+    RELATIONSHIP_STATE_LABELS,
+    set_relationship_state,
+)
 from watch_app.scoring.methodology import (
     SIGNAL_DESCRIPTIONS,
     build_source_contributions,
@@ -39,14 +44,24 @@ router = APIRouter()
 # --- Helpers ---
 
 
-def _fetch_top_for_template(preset_name: str, limit: int = 20) -> list[dict]:
+def _fetch_top_for_template(
+    preset_name: str, limit: int = 20, state: str | None = None
+) -> list[dict]:
     """Wrap fetch_top_makers with the field name the template expects (`name`).
 
     fetch_top_makers returns canonical_name; template uses name. Also preserves
     maker_id for row click-throughs.
+
+    When `state` is one of RELATIONSHIP_STATES, restrict the ranked list to
+    makers in that personal state (ranked within it). This is a ranking view,
+    so makers in the state that have no score yet won't appear — set state on
+    the detail page; the dashboard surfaces the ones that are also ranked.
     """
+    fetch_limit = 100_000 if state in RELATIONSHIP_STATES else limit
     with session_scope() as session:
-        rows = fetch_top_makers(session, preset_name, limit=limit)
+        rows = fetch_top_makers(session, preset_name, limit=fetch_limit)
+    if state in RELATIONSHIP_STATES:
+        rows = [r for r in rows if r.get("relationship_state") == state][:limit]
     return [
         {
             "maker_id": r["maker_id"],
@@ -55,6 +70,7 @@ def _fetch_top_for_template(preset_name: str, limit: int = 20) -> list[dict]:
             "country": r["country"],
             "score": r["score"],
             "mention_count": r["mention_count"],
+            "relationship_state": r.get("relationship_state"),
         }
         for r in rows
     ]
@@ -173,6 +189,8 @@ def _fetch_maker_detail(maker_id: int) -> dict | None:
             "website": maker.website,
             "is_independent": maker.is_independent,
             "first_seen_at": maker.first_seen_at,
+            "relationship_state": maker.relationship_state,
+            "notes": maker.notes,
             "scores": scores_by_preset,
             "signals": signals,
             "mentions": mention_list,
@@ -205,17 +223,25 @@ def _build_profile(maker: Maker) -> list[dict]:
 
 
 @router.get("/", response_class=HTMLResponse)
-def dashboard(request: Request) -> HTMLResponse:
-    """Render the full dashboard page."""
+def dashboard(request: Request, state: str = Query(None)) -> HTMLResponse:
+    """Render the full dashboard page.
+
+    `state` (one of RELATIONSHIP_STATES) filters the ranking to makers in that
+    personal relationship state; absent/unknown shows the full top list.
+    """
     settings = get_settings()
     preset = settings.default_preset
+    current_state = state if state in RELATIONSHIP_STATES else None
     return templates.TemplateResponse(
         request=request,
         name="dashboard.html",
         context={
             "presets": list(PRESETS.keys()),
             "current_preset": preset,
-            "makers": _fetch_top_for_template(preset),
+            "makers": _fetch_top_for_template(preset, state=current_state),
+            "relationship_states": list(RELATIONSHIP_STATES),
+            "state_labels": RELATIONSHIP_STATE_LABELS,
+            "current_state": current_state,
         },
     )
 
@@ -224,19 +250,21 @@ def dashboard(request: Request) -> HTMLResponse:
 def top_fragment(
     request: Request,
     preset: str = Query(...),
+    state: str = Query(None),
 ) -> HTMLResponse:
     """HTMX endpoint: returns just the <table> fragment.
 
-    Called when the user clicks a preset toggle; the page swaps this fragment
-    into place without a full reload.
+    Called when the user clicks a preset toggle or a relationship-state filter;
+    the page swaps this fragment into place without a full reload.
     """
     if preset not in PRESETS:
         preset = get_settings().default_preset
+    current_state = state if state in RELATIONSHIP_STATES else None
     return templates.TemplateResponse(
         request=request,
         name="_makers_table.html",
         context={
-            "makers": _fetch_top_for_template(preset),
+            "makers": _fetch_top_for_template(preset, state=current_state),
             "current_preset": preset,
         },
     )
@@ -251,8 +279,38 @@ def maker_detail(request: Request, maker_id: int) -> HTMLResponse:
     return templates.TemplateResponse(
         request=request,
         name="maker_detail.html",
-        context={"m": detail, "similar": _similar_makers(maker_id)},
+        context={
+            "m": detail,
+            "similar": _similar_makers(maker_id),
+            "relationship_states": list(RELATIONSHIP_STATES),
+            "state_labels": RELATIONSHIP_STATE_LABELS,
+        },
     )
+
+
+@router.post("/makers/{maker_id}/state")
+def set_maker_state(
+    maker_id: int,
+    state: str = Form(default=""),
+    notes: str = Form(default=""),
+) -> RedirectResponse:
+    """Set a maker's personal relationship state + notes, then redirect back.
+
+    Not admin-gated — this is the core personal-tool action. `state` is one of
+    RELATIONSHIP_STATES or "" to clear it; an out-of-vocabulary value is a 400.
+    POST-redirect-GET back to the detail page.
+    """
+    chosen = state or None
+    with session_scope() as session:
+        m = session.query(Maker).filter_by(id=maker_id).first()
+        if m is None:
+            raise HTTPException(status_code=404)
+        try:
+            set_relationship_state(session, m, chosen, notes)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        session.commit()
+    return RedirectResponse(url=f"/makers/{maker_id}", status_code=303)
 
 
 _COMPARISON_SORT_KEYS = {
@@ -726,17 +784,24 @@ def _explore(
     filters: dict[str, set],
     window_days: int | None = None,
     window_by: str = "activity",
+    state: str | None = None,
 ) -> dict:
     """Filter the tagged-maker universe and rank the matches by preset score.
 
     Returns the result rows (re-ranked 1..N within the filtered set), the
     static facet counts, and the size of the tagged universe.
+
+    `state` (one of RELATIONSHIP_STATES) narrows the universe to makers in that
+    personal relationship state — applied alongside the window, before facet
+    counts, so counts and total reflect the narrowed set.
     """
     with session_scope() as session:
         tagged = [m for m in session.query(Maker).all() if _maker_has_taste(m) and not m.is_suppressed]
         window_ids = _maker_ids_in_window(session, window_days, window_by)
         if window_ids is not None:
             tagged = [m for m in tagged if m.id in window_ids]
+        if state in RELATIONSHIP_STATES:
+            tagged = [m for m in tagged if m.relationship_state == state]
         facet = _facet_counts(tagged)
         total_tagged = len(tagged)
         matched = [m for m in tagged if _maker_matches_filters(m, filters)]
@@ -759,6 +824,7 @@ def _explore(
                     "country": m.country,
                     "score": score,
                     "mention_count": mc,
+                    "relationship_state": m.relationship_state,
                 }
             )
     return {"makers": rows, "facet_counts": facet, "total_tagged": total_tagged}
@@ -777,6 +843,7 @@ def explore(
     preset: str = Query(None),
     window: str = Query("all"),
     window_by: str = Query("activity"),
+    state: str = Query("all"),
 ) -> HTMLResponse:
     """The taste explorer: filter makers by taste dimensions, rank by preset.
 
@@ -787,7 +854,11 @@ def explore(
     """
     chosen = _resolve_preset(preset)
     window_days, window_by = _parse_window(window, window_by)
-    data = _explore(chosen, filters={}, window_days=window_days, window_by=window_by)
+    current_state = state if state in RELATIONSHIP_STATES else None
+    data = _explore(
+        chosen, filters={}, window_days=window_days, window_by=window_by,
+        state=current_state,
+    )
     return templates.TemplateResponse(
         request=request,
         name="explore.html",
@@ -807,6 +878,9 @@ def explore(
             "current_window": str(window_days) if window_days else "all",
             "current_window_by": window_by,
             "window_note": _window_note(window_days, window_by),
+            "relationship_states": list(RELATIONSHIP_STATES),
+            "state_labels": RELATIONSHIP_STATE_LABELS,
+            "current_state": current_state or "all",
         },
     )
 
@@ -817,6 +891,7 @@ def explore_results(
     preset: str = Query(None),
     window: str = Query("all"),
     window_by: str = Query("activity"),
+    state: str = Query("all"),
     aesthetic_tags: list[str] = Query(default=[]),
     complication_focus: list[str] = Query(default=[]),
     maker_type: list[str] = Query(default=[]),
@@ -828,6 +903,7 @@ def explore_results(
     """HTMX fragment: the filtered, ranked results for the explorer."""
     chosen = _resolve_preset(preset)
     window_days, window_by = _parse_window(window, window_by)
+    current_state = state if state in RELATIONSHIP_STATES else None
     raw = {
         "aesthetic_tags": aesthetic_tags,
         "complication_focus": complication_focus,
@@ -838,7 +914,10 @@ def explore_results(
         "movement_origin": movement_origin,
     }
     filters = {dim: set(vals) for dim, vals in raw.items() if vals}
-    data = _explore(chosen, filters, window_days=window_days, window_by=window_by)
+    data = _explore(
+        chosen, filters, window_days=window_days, window_by=window_by,
+        state=current_state,
+    )
     return templates.TemplateResponse(
         request=request,
         name="_explore_results.html",
@@ -846,7 +925,7 @@ def explore_results(
             "makers": data["makers"],
             "result_count": len(data["makers"]),
             "total_tagged": data["total_tagged"],
-            "any_filters": bool(filters),
+            "any_filters": bool(filters) or current_state is not None,
             "window_note": _window_note(window_days, window_by),
         },
     )

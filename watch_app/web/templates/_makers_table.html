@@ -1,6 +1,7 @@
 {# Swappable fragment — returned both from the dashboard render and from the
    /makers/top endpoint when the user toggles a preset. Each row is a clickable
    link into the maker detail page. #}
+{% from "_macros.html" import state_badge %}
 
 {% if makers %}
 <div class="bg-white border border-stone-200 rounded-xl overflow-hidden shadow-sm">
@@ -26,7 +27,7 @@
             href="/makers/{{ m.maker_id }}"
             class="hover:underline decoration-stone-400 underline-offset-2"
             onclick="event.stopPropagation();"
-          >{{ m.name }}</a>
+          >{{ m.name }}</a>{{ state_badge(m.relationship_state) }}
         </td>
         <td class="px-5 py-3 text-stone-500 text-[13px]">{{ m.country or "—" }}</td>
         <td class="px-5 py-3 text-right text-stone-500 tabular">{{ m.mention_count }}</td>

@@ -355,11 +355,16 @@ def iter_unenriched_makers(
 
     Default behavior preserves the 2Q semantics so the CLI still works
     the same way.
+
+    Suppressed makers are excluded on both paths: a maker you've hidden
+    shouldn't consume LLM spend. The exclusion is reversible — unsuppressing
+    leaves enriched_at NULL, so the maker becomes a candidate again.
     """
     if only_auto_enrichable:
         yield from (
             session.query(Maker)
             .filter(Maker.enriched_at.is_(None))
+            .filter(Maker.is_suppressed.isnot(True))
             .order_by(Maker.canonical_name)
             .all()
         )
@@ -377,6 +382,7 @@ def iter_unenriched_makers(
             | (Maker.founded_year.is_(None))
             | (Maker.enriched_at.is_(None))
         )
+        .filter(Maker.is_suppressed.isnot(True))
         .order_by(Maker.canonical_name)
         .all()
     )
@@ -596,7 +602,8 @@ def iter_untagged_discovered_independents(
 
     "Auto-discovered" = canonical_name not in the seed YAML (the same
     Definition A the discoveries view uses). Ordered by canonical_name for
-    stable dry-run output.
+    stable dry-run output. Suppressed makers are excluded — a hidden maker
+    shouldn't cost taste-tagging LLM calls.
 
     `include_attempted` toggles the gate:
 
@@ -611,7 +618,10 @@ def iter_untagged_discovered_independents(
     from watch_app.scoring.discovery import _load_seed_names
 
     seed_names = _load_seed_names()
-    query = session.query(Maker).filter(Maker.is_independent.is_(True))
+    query = session.query(Maker).filter(
+        Maker.is_independent.is_(True),
+        Maker.is_suppressed.isnot(True),
+    )
     if not include_attempted:
         query = query.filter(Maker.taste_enriched_at.is_(None))
     candidates = query.order_by(Maker.canonical_name).all()

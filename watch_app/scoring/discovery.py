@@ -56,6 +56,7 @@ class DiscoveredMaker:
     enriched_fields: list[str]
     mention_count: int
     source_names: list[str]
+    relationship_state: str | None = None
 
     @property
     def missing_fields(self) -> list[str]:
@@ -163,6 +164,7 @@ def fetch_discovered_makers(session: Session) -> list[DiscoveredMaker]:
             enriched_fields=m.enriched_fields or [],
             mention_count=mention_counts.get(m.id, 0),
             source_names=sources_by_maker.get(m.id, []),
+            relationship_state=m.relationship_state,
         )
         for m in auto_discovered
     ]

@@ -40,6 +40,28 @@
   {% endif %}
 </div>
 
+{# --- Relationship-state filter --- #}
+<div class="mb-6 flex flex-wrap items-center gap-1.5">
+  <span class="text-[11px] uppercase tracking-[0.1em] text-stone-400 font-medium mr-1">Your list</span>
+  <a href="/"
+     class="text-sm border rounded-lg px-2.5 py-1 transition
+            {% if not current_state %}bg-stone-900 text-white border-stone-900{% else %}bg-white text-stone-700 border-stone-200 hover:bg-stone-50{% endif %}">
+    All
+  </a>
+  {% for s in relationship_states %}
+  <a href="/?state={{ s }}"
+     class="text-sm border rounded-lg px-2.5 py-1 transition
+            {% if current_state == s %}bg-stone-900 text-white border-stone-900{% else %}bg-white text-stone-700 border-stone-200 hover:bg-stone-50{% endif %}">
+    {{ state_labels[s] }}
+  </a>
+  {% endfor %}
+</div>
+{% if current_state %}
+<p class="mb-4 -mt-2 text-xs text-stone-400">
+  Showing only makers you've marked <strong class="text-stone-600">{{ state_labels[current_state] }}</strong>, ranked. Makers in this state with no score yet won't appear here.
+</p>
+{% endif %}
+
 <div id="makers-slot">
   {% include "_makers_table.html" %}
 </div>

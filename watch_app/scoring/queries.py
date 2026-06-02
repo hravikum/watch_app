@@ -52,7 +52,8 @@ def fetch_top_makers(
 ) -> list[dict[str, Any]]:
     """Return ranked top makers under `preset_name`.
 
-    Each dict has: rank, maker_id, canonical_name, country, score, mention_count.
+    Each dict has: rank, maker_id, canonical_name, country, score,
+    mention_count, relationship_state.
     The list is ordered by the latest-score rank (best first).
     """
     stmt, score_alias = latest_scores_query(preset_name)
@@ -88,6 +89,7 @@ def fetch_top_makers(
                 "country": maker.country,
                 "score": s.value,
                 "mention_count": mention_counts.get(maker.id, 0),
+                "relationship_state": maker.relationship_state,
             }
         )
     return result

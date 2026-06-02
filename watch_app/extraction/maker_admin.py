@@ -18,6 +18,34 @@ from watch_app.scoring.discovery import _load_seed_names
 from watch_app.storage.models import Maker, Mention, Score, Signal, WatchModel
 
 
+#: Personal relationship state vocabulary (chunk B). ORTHOGONAL to suppression:
+#: these capture engagement posture toward a *real* maker, not whether the maker
+#: belongs in the tool. Ordered for display; None means "no posture set".
+RELATIONSHIP_STATES: tuple[str, ...] = ("target", "watching", "known", "pass")
+RELATIONSHIP_STATE_LABELS: dict[str, str] = {
+    "target": "Target",
+    "watching": "Watching",
+    "known": "Known",
+    "pass": "Pass",
+}
+
+
+def set_relationship_state(
+    session: Session, maker: Maker, state: str | None, notes: str | None
+) -> None:
+    """Set a maker's personal relationship state and notes (single-user/local).
+
+    `state` must be one of RELATIONSHIP_STATES, or None to clear it. `notes` is
+    free text; an empty/whitespace string clears it. Raises ValueError on an
+    out-of-vocabulary state. Caller owns the transaction (no commit here) so it
+    composes with whatever session scope the route or CLI is using.
+    """
+    if state is not None and state not in RELATIONSHIP_STATES:
+        raise ValueError(f"unknown relationship state {state!r}")
+    maker.relationship_state = state
+    maker.notes = (notes or "").strip() or None
+
+
 @dataclass
 class MergePlan:
     from_name: str

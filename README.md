@@ -98,7 +98,11 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   dimension, AND across, with a static count beside each option so you
   can see what's available. Matches are ranked by any scoring preset, so
   you can ask for "the rising stars among classical solo-watchmakers."
-  Untagged makers are absent — nothing to filter them on.
+  Untagged makers are absent — nothing to filter them on. A **Window**
+  control narrows the universe by recency — All-time / 3 / 7 / 14 / 30
+  days, on either basis: Mentioned (most recent press) or Discovered
+  (first seen by the tool). A **Your list** control narrows to a personal
+  relationship state (see below).
 - **"Similar makers"** on each maker's detail page. Surfaces the closest
   makers by taste — weighted overlap across the seven dimensions (Jaccard
   on the multi-value ones, exact match on the rest), weighted toward
@@ -112,6 +116,28 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   onto the existing DB row on the next scan and joins the curated set.
   Dry-run by default; blocks exact name collisions and asks you to
   confirm fuzzy near-matches.
+- **Mark your own relationship to a maker.** Each detail page has a "Your
+  status" form: set a relationship state — target / watching / known /
+  pass — plus free-text notes (engagement research, contact path, why
+  you're watching). State shows as a small badge on the dashboard,
+  explorer, and discoveries rows, and you can filter the dashboard
+  ("Your list") and the explorer ("Your list" in the sidebar) by it.
+  This is single-user/local and orthogonal to suppression: it's your
+  posture toward a *real* maker, and it never changes visibility on its
+  own. Note the dashboard filter is a ranking view, so a maker you've
+  marked but that isn't scored yet won't appear there (the detail page
+  and explorer still show it).
+- **Suppress or delete a maker.** When a discovered name isn't worth
+  tracking — a defunct historical brand, something out of scope —
+  `cli suppress "<maker>"` hides it from `/discoveries`, the rankings,
+  `/comparison`, and `/review` without deleting it: the row and mentions
+  survive, so the resolver re-matches (not re-creates) the name on later
+  scans and a one-off article can't resurrect it. Fully reversible with
+  `cli unsuppress`. Suppressed makers are also skipped by on-scan
+  enrichment and taste-tagging, so they stop costing LLM calls.
+  `cli delete` is the hard path — removes the maker and everything that
+  references it — for genuinely one-off mentions you're sure about. Both
+  are dry-run by default.
 - **Catches new makers in debut articles.** When an article title
   starts with a journalism convention marker like "Introducing:",
   "Hands On:", or "First Look:" AND the rule-based extractor only
@@ -194,6 +220,11 @@ python -m watch_app.cli dupes                   # List near-duplicate makers (po
 python -m watch_app.cli merge <from> <into>     # Dry-run: fold one maker into another (mentions, aliases)
 python -m watch_app.cli merge <from> <into> --commit
 python -m watch_app.cli unalias "<maker>" "<alias>"  # Remove a bad alias (e.g. a wrong fuzzy merge); --commit to apply
+
+python -m watch_app.cli suppress "<maker>" --reason "..."   # Dry-run: hide from discoveries/rankings (reversible); --commit to apply
+python -m watch_app.cli unsuppress "<maker>"    # Restore a suppressed maker; --commit to apply
+python -m watch_app.cli suppressed              # List currently-suppressed makers
+python -m watch_app.cli delete "<maker>"        # Dry-run: hard-delete a discovered maker + all its rows; --commit to apply
 
 python -m watch_app.cli serve                   # Web UI at http://localhost:8000
 ```
@@ -333,7 +364,10 @@ watch_app/
 │   ├── dummy.py          # Test source for unit tests
 │   └── base.py           # Source / RawMention protocol
 ├── extraction/           # Rule-based entity extraction; resolver.py fuzzy-matches to Makers;
-│                         # taste_draft.py drafts taste tags via LLM into the seed YAML (Layer 1b)
+│                         # taste_draft.py drafts taste tags via LLM into the seed YAML (Layer 1b);
+│                         # enrich.py fills factual fields + auto-tags taste on scan;
+│                         # promote.py graduates a discovery to seed; maker_admin.py has
+│                         # merge/unalias/dupes + suppress/unsuppress/delete + relationship-state helper
 ├── taste.py              # Controlled vocabulary for the 7 taste dimensions + validation (single source of truth)
 ├── llm/                  # Anthropic client + content-hash response cache
 ├── scoring/              # signals.py computes the 7 signals; ranker.py composes them under presets;
@@ -342,19 +376,23 @@ watch_app/
 │                         # and fetch_rank_changes used by the web UI;
 │                         # discovery.py finds auto-discovered makers (not in seed YAML)
 ├── storage/              # SQLAlchemy models (Maker, Mention, Signal, Score, ScanRun, Source, WatchModel).
-│                         # Maker also carries the 7 taste-dimension columns (migration 0006)
+│                         # Maker also carries the 7 taste-dimension columns (migration 0006),
+│                         # suppression columns (0008), and relationship_state + notes (0009)
 ├── pipeline/             # orchestrator.py wires the layers: fetch → extract → resolve → store →
 │                         # fetch GPHG model details → score
-├── api/                  # FastAPI routers; makers.py has dashboard, detail, methodology,
-│                         # comparison, movers, and discoveries routes
+├── api/                  # FastAPI routers; makers.py has dashboard, detail (+ state form),
+│                         # methodology, comparison, movers, discoveries, explore, review (admin),
+│                         # and per-source routes
 ├── web/templates/        # Jinja2 + HTMX (dashboard.html, maker_detail.html, methodology.html,
-│                         # comparison.html, movers.html, discoveries.html, _makers_table.html)
+│                         # comparison.html, movers.html, discoveries.html, explore.html,
+│                         # review.html, source_detail.html, _makers_table.html,
+│                         # _explore_results.html, _macros.html)
 ├── data/
 │   ├── known_makers.yaml      # The ~127-maker curated seed, most independents now carrying taste tags
 │   └── youtube_channels.yaml  # 15 YouTube channels with prestige weights and tier annotations
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 455 tests; run with `make test` (~30s, no network)
+tests/                    # 483 tests; run with `make test` (~30s, no network)
 alembic/                  # Schema migrations
 ```
 
