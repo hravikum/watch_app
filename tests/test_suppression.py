@@ -184,3 +184,37 @@ def test_delete_dry_run_changes_nothing(test_engine):
         assert not delete_maker(s, str(mid), commit=False).done
     with session_scope() as s:
         assert s.query(Maker).filter_by(id=mid).first() is not None
+
+
+def test_suppressed_excluded_from_review(test_engine):
+    """A suppressed maker must not appear in the /review grid feed."""
+    from watch_app.api.routers.makers import _fetch_discovered_for_review
+
+    with session_scope() as s:
+        s.add(Maker(canonical_name=DISCOVERED, is_independent=True))
+    assert DISCOVERED in [r["canonical_name"] for r in _fetch_discovered_for_review()]
+
+    with session_scope() as s:
+        suppress_maker(s, DISCOVERED, commit=True)
+    assert DISCOVERED not in [r["canonical_name"] for r in _fetch_discovered_for_review()]
+
+
+def test_suppressed_excluded_from_comparison(session):
+    """A suppressed maker with a score must not appear on /comparison."""
+    from watch_app.scoring.queries import fetch_all_makers_comparison
+
+    now = datetime.now(timezone.utc)
+    m = Maker(canonical_name=DISCOVERED, aliases=[], is_independent=True)
+    session.add(m)
+    session.flush()
+    session.add(Score(maker_id=m.id, preset="rising_star", value=5.0, rank=1, computed_at=now))
+    session.commit()
+
+    names = [r["canonical_name"] for r in fetch_all_makers_comparison(session, "rising_star", "hidden_gem")]
+    assert DISCOVERED in names
+
+    m.is_suppressed = True
+    session.commit()
+
+    names = [r["canonical_name"] for r in fetch_all_makers_comparison(session, "rising_star", "hidden_gem")]
+    assert DISCOVERED not in names

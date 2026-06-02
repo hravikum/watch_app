@@ -465,7 +465,7 @@ def _fetch_discovered_for_review() -> list[dict]:
     tracked = taste.TASTE_FIELDS + ("country", "founded_year", "website", "is_independent")
     out: list[dict] = []
     with session_scope() as session:
-        rows = session.query(Maker).order_by(Maker.first_seen_at.desc()).all()
+        rows = session.query(Maker).filter(Maker.is_suppressed.is_(False)).order_by(Maker.first_seen_at.desc()).all()
         for m in rows:
             if m.canonical_name in seed_names:
                 continue
@@ -671,7 +671,7 @@ def _explore(preset: str, filters: dict[str, set]) -> dict:
     static facet counts, and the size of the tagged universe.
     """
     with session_scope() as session:
-        tagged = [m for m in session.query(Maker).all() if _maker_has_taste(m)]
+        tagged = [m for m in session.query(Maker).all() if _maker_has_taste(m) and not m.is_suppressed]
         facet = _facet_counts(tagged)
         total_tagged = len(tagged)
         matched = [m for m in tagged if _maker_matches_filters(m, filters)]
@@ -814,7 +814,7 @@ def _similar_makers(maker_id: int, limit: int = 6) -> list[dict]:
 
         scored: list[tuple[float, Maker]] = []
         for other in session.query(Maker).all():
-            if other.id == maker_id or not _maker_has_taste(other):
+            if other.id == maker_id or other.is_suppressed or not _maker_has_taste(other):
                 continue
             sim = taste.similarity(target_taste, _maker_taste_dict(other))
             if sim is None or sim <= 0:

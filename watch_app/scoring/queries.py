@@ -121,7 +121,7 @@ def fetch_all_makers_comparison(
 
     makers_by_id = {
         m.id: m
-        for m in session.query(Maker).filter(Maker.id.in_(all_maker_ids)).all()
+        for m in session.query(Maker).filter(Maker.id.in_(all_maker_ids), Maker.is_suppressed.is_(False)).all()
     }
     mention_counts = dict(
         session.query(Mention.maker_id, func.count(Mention.id))
