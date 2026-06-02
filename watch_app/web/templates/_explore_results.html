@@ -1,12 +1,15 @@
 {# Swapped into #explore-results on every filter/preset change. #}
 {% if makers %}
 <p class="mb-3 text-xs text-stone-500">
-  <strong class="text-stone-700">{{ result_count }}</strong> of {{ total_tagged }} tagged maker{% if total_tagged != 1 %}s{% endif %} match, ranked by the selected preset.
+  <strong class="text-stone-700">{{ result_count }}</strong> of {{ total_tagged }} tagged maker{% if total_tagged != 1 %}s{% endif %}{% if window_note %} <span class="text-stone-400">· {{ window_note }}</span>{% endif %} match, ranked by the selected preset.
 </p>
 {% include "_makers_table.html" %}
 {% else %}
 <div class="bg-white border border-stone-200 rounded-xl p-10 text-center text-stone-500">
-  {% if any_filters %}
+  {% if window_note and not any_filters %}
+  <p class="mb-2">No tagged makers in this window ({{ window_note }}).</p>
+  <p class="text-sm">Widen the window or switch to All-time.</p>
+  {% elif any_filters %}
   <p class="mb-2">No tagged makers match these filters.</p>
   <p class="text-sm">Loosen a filter — the counts beside each option show what's available.</p>
   {% else %}

@@ -664,7 +664,69 @@ def _facet_counts(tagged: list[Maker]) -> dict[str, dict[str, int]]:
     return counts
 
 
-def _explore(preset: str, filters: dict[str, set]) -> dict:
+_VALID_WINDOWS = (3, 7, 14, 30)
+_VALID_WINDOW_BY = ("activity", "discovered")
+
+
+def _parse_window(window: str, window_by: str) -> tuple[int | None, str]:
+    """Normalize the /explore window controls.
+
+    Returns (window_days, window_by): window_days is None for all-time (no
+    filter) or an int in _VALID_WINDOWS; window_by falls back to "activity".
+    """
+    by = window_by if window_by in _VALID_WINDOW_BY else "activity"
+    try:
+        days = int(window)
+    except (TypeError, ValueError):
+        return None, by
+    return (days if days in _VALID_WINDOWS else None), by
+
+
+def _window_note(window_days: int | None, window_by: str) -> str:
+    """Human caption for the active window, or "" for all-time."""
+    if not window_days:
+        return ""
+    basis = "mentioned" if window_by == "activity" else "newly discovered"
+    return f"last {window_days} days · {basis}"
+
+
+def _maker_ids_in_window(
+    session, window_days: int | None, window_by: str
+) -> set[int] | None:
+    """Maker ids inside the window, or None for all-time (no filtering).
+
+    - "discovered": Maker.first_seen_at >= cutoff
+    - "activity":   has a Mention whose effective date — published_at, else
+      discovered_at — is >= cutoff
+
+    The comparison runs in SQL (the same approach fetch_rank_changes uses) so
+    SQLite handles the stored datetimes; comparing in Python would mix
+    naive/aware values and raise.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    if not window_days:
+        return None
+    cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
+    if window_by == "discovered":
+        rows = session.query(Maker.id).filter(Maker.first_seen_at >= cutoff).all()
+    else:  # activity
+        effective = func.coalesce(Mention.published_at, Mention.discovered_at)
+        rows = (
+            session.query(Mention.maker_id)
+            .filter(effective >= cutoff)
+            .distinct()
+            .all()
+        )
+    return {r[0] for r in rows}
+
+
+def _explore(
+    preset: str,
+    filters: dict[str, set],
+    window_days: int | None = None,
+    window_by: str = "activity",
+) -> dict:
     """Filter the tagged-maker universe and rank the matches by preset score.
 
     Returns the result rows (re-ranked 1..N within the filtered set), the
@@ -672,6 +734,9 @@ def _explore(preset: str, filters: dict[str, set]) -> dict:
     """
     with session_scope() as session:
         tagged = [m for m in session.query(Maker).all() if _maker_has_taste(m) and not m.is_suppressed]
+        window_ids = _maker_ids_in_window(session, window_days, window_by)
+        if window_ids is not None:
+            tagged = [m for m in tagged if m.id in window_ids]
         facet = _facet_counts(tagged)
         total_tagged = len(tagged)
         matched = [m for m in tagged if _maker_matches_filters(m, filters)]
@@ -707,7 +772,12 @@ def _resolve_preset(preset: str | None) -> str:
 
 
 @router.get("/explore", response_class=HTMLResponse)
-def explore(request: Request, preset: str = Query(None)) -> HTMLResponse:
+def explore(
+    request: Request,
+    preset: str = Query(None),
+    window: str = Query("all"),
+    window_by: str = Query("activity"),
+) -> HTMLResponse:
     """The taste explorer: filter makers by taste dimensions, rank by preset.
 
     Operates on every maker carrying at least one taste tag (seed and
@@ -716,7 +786,8 @@ def explore(request: Request, preset: str = Query(None)) -> HTMLResponse:
     score. Untagged makers are absent (nothing to filter them on).
     """
     chosen = _resolve_preset(preset)
-    data = _explore(chosen, filters={})
+    window_days, window_by = _parse_window(window, window_by)
+    data = _explore(chosen, filters={}, window_days=window_days, window_by=window_by)
     return templates.TemplateResponse(
         request=request,
         name="explore.html",
@@ -732,6 +803,10 @@ def explore(request: Request, preset: str = Query(None)) -> HTMLResponse:
             "result_count": len(data["makers"]),
             "total_tagged": data["total_tagged"],
             "any_filters": False,
+            "valid_windows": list(_VALID_WINDOWS),
+            "current_window": str(window_days) if window_days else "all",
+            "current_window_by": window_by,
+            "window_note": _window_note(window_days, window_by),
         },
     )
 
@@ -740,6 +815,8 @@ def explore(request: Request, preset: str = Query(None)) -> HTMLResponse:
 def explore_results(
     request: Request,
     preset: str = Query(None),
+    window: str = Query("all"),
+    window_by: str = Query("activity"),
     aesthetic_tags: list[str] = Query(default=[]),
     complication_focus: list[str] = Query(default=[]),
     maker_type: list[str] = Query(default=[]),
@@ -750,6 +827,7 @@ def explore_results(
 ) -> HTMLResponse:
     """HTMX fragment: the filtered, ranked results for the explorer."""
     chosen = _resolve_preset(preset)
+    window_days, window_by = _parse_window(window, window_by)
     raw = {
         "aesthetic_tags": aesthetic_tags,
         "complication_focus": complication_focus,
@@ -760,7 +838,7 @@ def explore_results(
         "movement_origin": movement_origin,
     }
     filters = {dim: set(vals) for dim, vals in raw.items() if vals}
-    data = _explore(chosen, filters)
+    data = _explore(chosen, filters, window_days=window_days, window_by=window_by)
     return templates.TemplateResponse(
         request=request,
         name="_explore_results.html",
@@ -769,6 +847,7 @@ def explore_results(
             "result_count": len(data["makers"]),
             "total_tagged": data["total_tagged"],
             "any_filters": bool(filters),
+            "window_note": _window_note(window_days, window_by),
         },
     )
 

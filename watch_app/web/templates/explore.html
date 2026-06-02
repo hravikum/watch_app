@@ -33,6 +33,34 @@
       </div>
     </div>
 
+    {# Window — narrow the universe by recency (mentioned / discovered). #}
+    <div class="border-t border-stone-100 pt-4">
+      <div class="text-[11px] uppercase tracking-[0.1em] text-stone-500 font-medium mb-2">Window</div>
+      <div class="flex flex-wrap gap-1.5">
+        <label class="inline-flex items-center gap-1.5 text-sm border border-stone-200 rounded-lg px-2.5 py-1 cursor-pointer hover:bg-stone-50 has-[:checked]:bg-stone-900 has-[:checked]:text-white has-[:checked]:border-stone-900">
+          <input type="radio" name="window" value="all" {% if current_window == 'all' %}checked{% endif %} class="sr-only" />
+          All-time
+        </label>
+        {% for d in valid_windows %}
+        <label class="inline-flex items-center gap-1.5 text-sm border border-stone-200 rounded-lg px-2.5 py-1 cursor-pointer hover:bg-stone-50 has-[:checked]:bg-stone-900 has-[:checked]:text-white has-[:checked]:border-stone-900">
+          <input type="radio" name="window" value="{{ d }}" {% if current_window == d|string %}checked{% endif %} class="sr-only" />
+          {{ d }}d
+        </label>
+        {% endfor %}
+      </div>
+      <div class="flex flex-wrap gap-1.5 mt-2">
+        <label class="inline-flex items-center gap-1.5 text-sm border border-stone-200 rounded-lg px-2.5 py-1 cursor-pointer hover:bg-stone-50 has-[:checked]:bg-stone-900 has-[:checked]:text-white has-[:checked]:border-stone-900">
+          <input type="radio" name="window_by" value="activity" {% if current_window_by == 'activity' %}checked{% endif %} class="sr-only" />
+          Mentioned
+        </label>
+        <label class="inline-flex items-center gap-1.5 text-sm border border-stone-200 rounded-lg px-2.5 py-1 cursor-pointer hover:bg-stone-50 has-[:checked]:bg-stone-900 has-[:checked]:text-white has-[:checked]:border-stone-900">
+          <input type="radio" name="window_by" value="discovered" {% if current_window_by == 'discovered' %}checked{% endif %} class="sr-only" />
+          Discovered
+        </label>
+      </div>
+      <p class="mt-1.5 text-[11px] text-stone-400 leading-snug">Mentioned = recent press; Discovered = newly found. Ignored for all-time.</p>
+    </div>
+
     {# Taste dimensions — every dimension is a checkbox group (OR within). #}
     {% for field in taste_fields %}
     <fieldset class="border-t border-stone-100 pt-4">
