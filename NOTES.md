@@ -43,25 +43,13 @@ everything — the personal-state features below become multi-user/auth
 features, and source breadth + methodology defensibility rise.
 
 ### Tier 1 — strongest next bets
-- **Personal relationship state + notes per maker. — SHIPPED (3R).** Mark each
-  maker target / watching / known / pass, plus a free-text notes field; filter
-  the dashboard and explorer by it. The smallest slice that serves the real goal
-  ("makers *I'd* act on", not the global ranking), it operationalizes the
-  target-list / engagement-research groundwork, and it establishes the
-  single-user state layer Layer 3 requires — so it de-risks the arc's headline
-  while being useful on day one. Modest effort; single-user/local, no auth.
-  Shipped orthogonal to suppression: a new `relationship_state` column + `notes`
-  (migration 0009), set from the detail page, badged + filterable on the
-  dashboard and /explore. Known limitation: the dashboard filter is a ranking
-  view, so a marked-but-unscored maker won't appear there (detail page and
-  explorer still show it) — a dedicated "everything in this state" view would
-  close that gap if it proves annoying.
-- **Velocity should use published_at, not discovered_at — DONE.** Turned out
-  the calculator already coalesces `published_at` → `discovered_at` (it landed
-  alongside the /explore window work; this section was just stale). 3Q added a
-  regression test pinning the precedence (an article published 200 days ago but
-  ingested today must not count) so it can't silently regress. See the scoring
-  refinements section below, now also marked resolved.
+- **Personal relationship state + notes per maker — COMPLETED (3R).** Mark each
+  maker target / watching / known / pass plus free-text notes; badged and
+  filterable on the dashboard and /explore. Single-user/local, orthogonal to
+  suppression. This was the smallest slice serving the real goal ("makers *I'd*
+  act on") and it lays the user-state layer Layer 3 will build on. (The other
+  Tier 1 bet, velocity → published_at, turned out already done; see 3Q and the
+  scoring-refinements section.)
 
 ### Tier 2 — high value, but sequence after the groundwork / a bit more data
 - **Layer 3 — capture reactions → adaptive ranking.** The arc's headline and
@@ -88,14 +76,15 @@ features, and source breadth + methodology defensibility rise.
   3×-nomination inflation looks wrong with more data.
 - **Saved explorer views / a tag-coverage health view** (net-new, light).
   Bookmarkable filter combos, or a coverage-per-dimension view to steer
-  tagging. Premature — the explorer just shipped and filters re-enter fast.
+  tagging. Premature — the explorer + window shipped recently and filters
+  re-enter fast.
 
 ### Tier 4 — not now (a decision, or explicitly parked)
 - **Public deployment** — the fork in the road, not a feature; it re-tiers
   everything above. Parked for good reasons (hosting, abuse, maker-rights,
   cost). Decide deliberately before letting it drive the roadmap.
-- **Rank-change tracking + dashboard charts** — deferred until 3+ weeks of
-  data (see "Explicitly NOT doing").
+- **Dashboard charts** — deferred until 3+ weeks of data (see "Explicitly NOT
+  doing"). Rank-change tracking itself shipped as `/movers` (2L).
 - **Instagram ingestion, search/filters/pagination, default-on LLM
   extraction** — already declined; still the right call at this scale.
 
@@ -105,7 +94,10 @@ SQL in CHUNK_2A_HOTFIX_NOTES.md is obsolete.
 
 ## Near-term candidates
 
-### Reddit source (shipped in 2R — see chunk log)
+All shipped (Reddit → 2R, models-per-brand → 2J, per-source detail page → 3M).
+Kept below: only the conditional future-tier guidance still worth heeding.
+
+### Reddit source — COMPLETED (2R)
 Three subreddits (r/watchmaking, r/horology, r/Watches) ship as RSS-based
 sources using the public `top/.rss?t=week` endpoint. No auth required.
 
@@ -119,13 +111,7 @@ sources using the public `top/.rss?t=week` endpoint. No auth required.
 - Don't apply for legacy API unless we've used RSS for 2-3 weeks and
   identified specific gaps RSS can't fill.
 
-**Watch out for:**
-- Same post linked across multiple subreddits → existing URL dedupe
-  in the resolver should handle this
-- Subreddit name capitalization (r/Watches vs r/watches) matters for
-  Reddit's URL routing — verified working in 2R
-
-### Models per brand (Tier 1 built in 2J — future tiers TBD)
+### Models per brand — COMPLETED (Tier 1 in 2J; future tiers TBD)
 Built: GPHG-nominated watches surface on each maker's detail page with full
 specs (case material/diameter, movement type/caliber, frequency, power
 reserve, water resistance, complications, price, limited edition count,
@@ -149,48 +135,25 @@ verified source URL. This means:
 Don't build either of those reactively. Use Tier 1 for a few weeks first
 and see whether the gaps actually bother you.
 
-### Per-source detail page
-Drill into "show me everything Hodinkee surfaced this week" from the
-methodology page. Source contributions table already has summary stats;
-clicking a source row could open a list of its recent mentions.
-
-- Low effort, ~half a chunk
-- Useful when you want to evaluate source quality qualitatively, not
-  just by aggregate stats
-
 ## Sitting in the backlog (worth doing eventually)
 
-### Fuzzy matching in the resolver
-"Bovet 1822" vs "Bovet" — right now these are distinct until you
-manually add an alias. Same for typos and spelling variants. Not broken,
-just annoying. Could use rapidfuzz or similar for a soft-match pass
-before falling back to auto-create.
-
-### "Personal interest" state per maker — SHIPPED (3R)
-Mark makers as "already know" / "boring" / "keep eye on" so your top-20
-reflects your taste, not just the data. Requires user state — local
-config file or simple auth. Nice but not urgent.
-Shipped as `relationship_state` (target / watching / known / pass) + `notes`,
-single-user/local, no auth — see 3R in the chunk log.
+(Removed as done: resolver fuzzy matching shipped in 3N; "personal interest"
+state in 3R; the XRBY / "Xrby La Montre D'Art" orphan is now a 30-second
+`cli merge` — see the quick-cleanup note under the tiering.)
 
 ### Automated seed entry
 Paste a Wikipedia-style paragraph about a maker, have an LLM extract
 canonical name, country, founded year, aliases, is_independent, and
 append to the YAML. Quality-of-life for adding new seeds fast.
-Non-trivial LLM integration.
-
-### Cleanup of the XRBY / "Xrby La Montre D'Art" duplicate
-Hotfix 2A left an orphaned DB row from before the title-casing fix
-shipped. SQL to merge is in CHUNK_2A_HOTFIX_NOTES.md. Harmless but
-untidy.
+Non-trivial LLM integration. (Also tracked in Tier 3.)
 
 ## The bigger arc: discovery → engagement
 
 Captured 2026-05-11. The current tool surfaces makers. The longer arc
 is to help users *figure out which makers they'd be interested in*
 and eventually to act on that — contact, relationship, becoming part
-of a maker's story. Reddit and the other near-term items above
-should ship first; this arc is the next major direction after those.
+of a maker's story. The near-term items above have now shipped, so this
+arc is the active direction (Tier 2 in the tiering).
 
 ### The reframe
 
