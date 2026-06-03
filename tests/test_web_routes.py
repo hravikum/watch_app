@@ -112,8 +112,10 @@ def test_maker_detail_page_renders(client):
     # Score panels — should show both presets
     assert "Rising Star" in r.text
     assert "Hidden Gem" in r.text
-    # Signal breakdown
-    assert "mention_count" in r.text
+    # Signal breakdown — now a per-maker contribution table (labels, not raw keys)
+    assert "Signal Breakdown" in r.text
+    assert "Mention count" in r.text
+    assert "Contribution" in r.text
     # Mention list
     assert "Hands-on with Test Indie" in r.text
     assert "TestPub" in r.text

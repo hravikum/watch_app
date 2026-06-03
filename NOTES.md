@@ -39,6 +39,16 @@ Velocity was already correct in code. Into Tier 2: the digest arc is complete
 weekly launchd scheduler (3U, `schedule-digest`). That leaves Layer 3
 (reactions → adaptive ranking) and engagement-data-per-maker as the frontier.
 
+Update (2026-06-03): Layer 3's *capture* half shipped — taste reaction
+(like/dislike) per maker (3V), the input the adaptive re-ranking will read,
+orthogonal to relationship_state. Paired with the per-maker scoring breakdown
+(3W): #2 from the session tiering turned out half-built (the /methodology
+worked example existed but only for the global #1), so this generalized it onto
+every maker's detail page. The frontier is now Layer 3b (adaptive ranking —
+unblocked: reactions are captured and the taste-similarity engine already
+exists), engagement-data-per-maker, and the `/triage` flow (the workflow half
+of reaction capture, deferred this session).
+
 Lens: tiered for the **personal-tool** posture (current default; public
 deployment stays parked — see "Explicitly NOT doing"). Going public re-tiers
 everything — the personal-state features below become multi-user/auth
@@ -54,10 +64,18 @@ features, and source breadth + methodology defensibility rise.
   scoring-refinements section.)
 
 ### Tier 2 — high value, but sequence after the groundwork / a bit more data
-- **Layer 3 — capture reactions → adaptive ranking.** The arc's headline and
-  the real payoff, but premature until Layer 2 is *in use*, and it wants the
-  user-state layer from Tier 1. Build interest-state first, live with the
-  explorer a few weeks, then this.
+- **Layer 3 — capture reactions → adaptive ranking. CAPTURE DONE (3V).** The
+  arc's headline. The capture half — like/dislike taste reaction per maker —
+  shipped as 3V (column + timestamp, orthogonal to relationship_state). The
+  remaining *adaptive ranking* half (3b) is now unblocked: reactions are being
+  captured and the `_similar_makers` taste-similarity engine already exists to
+  build the personalized re-rank on. Still best to live with the reactions for
+  a few weeks so there's signal to adapt to before building 3b.
+- **Per-maker scoring breakdown — COMPLETED (3W).** Not in the original tiering
+  (discovered half-built mid-session): the /methodology worked example
+  (raw → z → weight → contribution → composite) now renders for every maker on
+  their own detail page, under each preset, with a regression test pinning each
+  maker's shown total to the ranker's stored Score within 1e-9.
 - **Engagement data per maker** (access / sales model / contact path / how to
   commission or buy). The "act on it" end of the arc. Do the manual engagement
   research on a few makers FIRST (in the Tier 1 notes field) to learn which
@@ -733,6 +751,38 @@ For quick reference on what shipped when:
       straight into ~/Library/LaunchAgents and skip the copy/reload dance was
       offered as a follow-up, not yet built.) This completes the digest arc:
       compute/surfaces (3S) → email (3T) → schedule (3U).
+- 3V  Taste reaction per maker — Layer 3's capture half. New `taste_reaction`
+      (like / dislike / NULL) + `taste_reaction_at` columns on Maker (migration
+      0010, both nullable). ORTHOGONAL to BOTH suppression and
+      relationship_state: this is a like/dislike *taste* signal — the input the
+      adaptive re-ranking (3b) will read — not an engagement posture and not a
+      visibility control. Vocabulary (TASTE_REACTIONS) + a `set_taste_reaction`
+      helper live in maker_admin.py beside the relationship-state ones; the
+      timestamp restamps ONLY when the value actually changes, so a no-op
+      re-save preserves the original react time (the "when did I first react"
+      the data clock needs). Captured from a "Taste" control folded into the
+      existing detail-page "Your status" form: POST /makers/{id}/state now sets
+      state + notes + reaction in one round-trip (reaction is an optional Form
+      field, so the prior state-only behavior is unchanged). 11 tests in
+      tests/test_taste_reaction.py. Column was chosen over a reactions table for
+      consistency with the existing per-maker state idiom; column→table stays a
+      lossless backfill if 3b ever needs per-watch or per-dimension reactions.
+      The `/triage` workflow (walk untriaged makers, react in one pass) is the
+      deferred other half of this chunk.
+- 3W  Per-maker scoring breakdown on the detail page. `build_worked_example`
+      (the global #1, used by /methodology) was refactored to share an
+      `_assemble_worked_example` core with a new
+      `build_worked_example_for_maker(session, preset, maker_id)`. The detail
+      page's old raw-only "Signal Breakdown" table is replaced by the full
+      raw → z-score → weight → contribution → composite table for THAT maker
+      under each preset, with its rank — so you can see why a given maker sits
+      where it does, not just the global winner. Final score is computed the
+      same way the ranker does (z-weighted sum → eligibility cap → independent
+      multiplier); a new regression test asserts the shown total matches the
+      stored Score within 1e-9 for every maker under every preset (the
+      detail-page analogue of test_worked_example_final_score_matches_ranker).
+      No schema change. (One web-route test that pinned the old raw signal-key
+      display was updated to the new label + contribution display.)
 
 ## Findings logged from the week-1 data review (2G)
 

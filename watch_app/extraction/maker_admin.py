@@ -8,6 +8,7 @@ dry-run by default at the CLI.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from itertools import combinations
 
 from rapidfuzz import fuzz
@@ -44,6 +45,36 @@ def set_relationship_state(
         raise ValueError(f"unknown relationship state {state!r}")
     maker.relationship_state = state
     maker.notes = (notes or "").strip() or None
+
+
+#: Personal taste-reaction vocabulary (Layer 3a). ORTHOGONAL to BOTH suppression
+#: and relationship_state: a like/dislike *taste* signal — the input the adaptive
+#: re-ranking (Layer 3b) will read — not an engagement posture and not a
+#: visibility control. None means "no reaction".
+TASTE_REACTIONS: tuple[str, ...] = ("like", "dislike")
+TASTE_REACTION_LABELS: dict[str, str] = {"like": "Like", "dislike": "Dislike"}
+
+
+def set_taste_reaction(
+    session: Session, maker: Maker, reaction: str | None
+) -> None:
+    """Set (or clear) a maker's personal taste reaction (single-user/local).
+
+    `reaction` must be one of TASTE_REACTIONS, or None to clear it. The
+    `taste_reaction_at` timestamp is stamped with the current time when the
+    reaction is set and cleared to None when it's cleared — but only when the
+    value actually CHANGES, so re-saving the same reaction preserves the
+    original time (the "when did I first react" the data clock cares about).
+    Raises ValueError on an out-of-vocabulary value. Caller owns the
+    transaction (no commit here) so it composes with the route/CLI's session.
+    """
+    if reaction is not None and reaction not in TASTE_REACTIONS:
+        raise ValueError(f"unknown taste reaction {reaction!r}")
+    if reaction != maker.taste_reaction:
+        maker.taste_reaction = reaction
+        maker.taste_reaction_at = (
+            datetime.now(timezone.utc) if reaction else None
+        )
 
 
 @dataclass

@@ -67,6 +67,19 @@ class Maker(Base):
     # See migration 0009.
     relationship_state: Mapped[str | None] = mapped_column(String(20), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Personal taste reaction — ORTHOGONAL to both suppression and
+    # relationship_state. relationship_state is engagement posture; this is a
+    # like/dislike *taste* signal, the input Layer 3b's adaptive ranking will
+    # read (boost makers sharing taste tags with your likes; penalize your
+    # dislikes). `like` / `dislike` / NULL = no reaction. `taste_reaction_at`
+    # records when the reaction was set (NULL when unset, restamped only when
+    # the value actually changes) so a future digest / Layer 3b can window by
+    # it. Single-user/local; vocabulary lives in extraction/maker_admin.py.
+    # See migration 0010.
+    taste_reaction: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    taste_reaction_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )
     production_volume_estimate: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )

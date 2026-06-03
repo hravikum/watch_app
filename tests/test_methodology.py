@@ -19,6 +19,7 @@ from watch_app.scoring.methodology import (
     SourceContribution,
     build_source_contributions,
     build_worked_example,
+    build_worked_example_for_maker,
 )
 from watch_app.scoring.presets import PRESETS
 from watch_app.scoring.ranker import rank_all_makers
@@ -485,3 +486,83 @@ def test_methodology_page_handles_zero_mention_sources(client):
     r = client.get("/methodology")
     assert r.status_code == 200
     assert "QuietSource" in r.text
+
+
+# ---------- Per-maker worked example (build_worked_example_for_maker) ----------
+
+
+def test_per_maker_example_matches_ranker_for_every_maker(test_engine):
+    """The per-maker breakdown's final_score must equal the Score the ranker
+    stored, for EVERY maker under EVERY preset — not just the global #1. This
+    is the detail-page analogue of test_worked_example_final_score_matches_ranker
+    and is what guarantees the per-maker page can't lie."""
+    from watch_app.storage.models import Score
+
+    mids = _seed_diverse_population()
+
+    for preset_name in PRESETS:
+        for maker_id in mids.values():
+            with session_scope() as session:
+                example = build_worked_example_for_maker(
+                    session, preset_name, maker_id
+                )
+                assert example is not None, (
+                    f"no example for maker {maker_id} under {preset_name}"
+                )
+                score_row = (
+                    session.query(Score)
+                    .filter(
+                        Score.maker_id == maker_id,
+                        Score.preset == preset_name,
+                    )
+                    .order_by(Score.computed_at.desc())
+                    .first()
+                )
+                assert score_row is not None
+                assert abs(example.final_score - score_row.value) < 1e-9, (
+                    f"preset={preset_name} maker_id={maker_id}: "
+                    f"example={example.final_score} != stored={score_row.value}"
+                )
+
+
+def test_per_maker_example_agrees_with_top_example(test_engine):
+    """For the #1 maker, build_worked_example_for_maker must reproduce exactly
+    what build_worked_example produces (same maker, same rows, same totals)."""
+    _seed_diverse_population()
+    for preset_name in PRESETS:
+        with session_scope() as session:
+            top = build_worked_example(session, preset_name)
+            same = build_worked_example_for_maker(
+                session, preset_name, top.maker_id
+            )
+            assert same is not None
+            assert same.maker_id == top.maker_id
+            assert abs(same.final_score - top.final_score) < 1e-9
+            assert abs(same.weighted_sum - top.weighted_sum) < 1e-9
+            assert [r.contribution for r in same.rows] == [
+                r.contribution for r in top.rows
+            ]
+
+
+def test_per_maker_example_none_without_signals(test_engine):
+    """A maker with no signals (never scored) yields None, so the detail page
+    cleanly omits the breakdown."""
+    with session_scope() as session:
+        m = Maker(canonical_name="Never Scored", is_independent=True)
+        session.add(m)
+        session.flush()
+        mid = m.id
+    with session_scope() as session:
+        assert build_worked_example_for_maker(session, "rising_star", mid) is None
+
+
+def test_per_maker_breakdown_renders_on_detail_page(client):
+    """The detail page shows the per-maker contribution table (z-score +
+    Contribution columns), not just raw values."""
+    mids = _seed_diverse_population()
+    r = client.get(f"/makers/{mids['Popular Indie']}")
+    assert r.status_code == 200
+    assert "Signal Breakdown" in r.text
+    assert "Contribution" in r.text
+    assert "z-score" in r.text
+    assert "Weighted sum" in r.text

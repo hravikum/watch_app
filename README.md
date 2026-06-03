@@ -137,7 +137,11 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   posture toward a *real* maker, and it never changes visibility on its
   own. Note the dashboard filter is a ranking view, so a maker you've
   marked but that isn't scored yet won't appear there (the detail page
-  and explorer still show it).
+  and explorer still show it). The same "Your status" form also takes a
+  **taste reaction** — like / dislike on the maker's *work* — kept separate
+  from the relationship state (posture toward the maker) and from suppression
+  (whether it's in the tool at all). It records when you reacted and is the
+  signal a future personalized re-ranking will read.
 - **Suppress or delete a maker.** When a discovered name isn't worth
   tracking — a defunct historical brand, something out of scope —
   `cli suppress "<maker>"` hides it from `/discoveries`, the rankings,
@@ -416,7 +420,11 @@ to within 1e-9 — so the page cannot silently lie if the ranker gets refactored
 
 The same page is linked as "How is this scored? →" next to every maker's
 signal breakdown on their detail page, so you can always find your way
-back to the explanation.
+back to the explanation. That detail-page breakdown is itself a full worked
+example *for that maker* under each preset (raw → z-score → weight →
+contribution → composite, with their rank), not just the raw signal values —
+a per-maker regression test pins each shown total to the ranker's stored score
+within 1e-9, same as the methodology page.
 
 ## How sources work
 

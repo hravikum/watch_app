@@ -68,6 +68,22 @@
       </div>
     </div>
     <div>
+      <div class="text-[11px] uppercase tracking-[0.1em] text-stone-500 font-medium mb-2">Taste</div>
+      <div class="flex flex-wrap gap-1.5">
+        <label class="inline-flex items-center gap-1.5 text-sm border border-stone-200 rounded-lg px-2.5 py-1 cursor-pointer hover:bg-stone-50 has-[:checked]:bg-stone-900 has-[:checked]:text-white has-[:checked]:border-stone-900">
+          <input type="radio" name="reaction" value="" {% if not m.taste_reaction %}checked{% endif %} class="sr-only" />
+          None
+        </label>
+        {% for r in taste_reactions %}
+        <label class="inline-flex items-center gap-1.5 text-sm border border-stone-200 rounded-lg px-2.5 py-1 cursor-pointer hover:bg-stone-50 has-[:checked]:bg-stone-900 has-[:checked]:text-white has-[:checked]:border-stone-900">
+          <input type="radio" name="reaction" value="{{ r }}" {% if m.taste_reaction == r %}checked{% endif %} class="sr-only" />
+          {{ reaction_labels[r] }}
+        </label>
+        {% endfor %}
+      </div>
+      <p class="mt-1.5 text-[11px] text-stone-400">Your like/dislike on this maker's work — feeds personalized ranking later. Separate from your relationship above.</p>
+    </div>
+    <div>
       <label for="notes" class="block text-[11px] uppercase tracking-[0.1em] text-stone-500 font-medium mb-2">Notes</label>
       <textarea id="notes" name="notes" rows="4"
                 placeholder="Private notes — engagement research, contact path, why you're watching…"
@@ -256,8 +272,9 @@
   </div>
 </section>
 
-{# --- Signals breakdown --- #}
-{% if m.signals %}
+{# --- Signal breakdown (per-maker: why this maker ranks where it does) --- #}
+{% set shown_breakdowns = breakdowns.values() | select | list %}
+{% if shown_breakdowns %}
 <section class="mb-8">
   <div class="flex items-baseline justify-between mb-3">
     <h2 class="text-xs uppercase tracking-[0.15em] font-medium text-stone-500">Signal Breakdown</h2>
@@ -266,31 +283,89 @@
       How is this scored? →
     </a>
   </div>
-  <div class="bg-white border border-stone-200 rounded-xl overflow-hidden">
-    <table class="w-full text-sm">
-      <thead class="bg-stone-50 text-stone-500 uppercase text-[11px] tracking-[0.1em] font-medium">
-        <tr>
-          <th class="px-5 py-3 text-left">Signal</th>
-          <th class="px-5 py-3 text-right">Value</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for signal_type, value in m.signals.items() | sort %}
-        <tr class="border-t border-stone-100">
-          <td class="px-5 py-3 text-stone-700">
-            <span class="font-mono text-[13px]">{{ signal_type }}</span>
-          </td>
-          <td class="px-5 py-3 text-right font-mono tabular text-[13px] text-stone-900">
-            {{ "%.3f"|format(value) }}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  <p class="mt-2 text-xs text-stone-400">
-    Raw un-normalized values. See the <a href="/methodology" class="text-stone-500 hover:text-stone-700 underline underline-offset-2">methodology page</a> for definitions and how these compose into the ranking.
+  <p class="text-sm text-stone-600 mb-4 max-w-2xl leading-relaxed">
+    Why this maker sits where it does under each preset: the raw signal value,
+    its z-score across all makers, the preset weight, and the resulting
+    contribution to the composite. The total matches the stored score exactly.
   </p>
+
+  <div class="space-y-8">
+    {% for preset_name, example in breakdowns.items() %}
+    {% if example %}
+    <div class="bg-white border border-stone-200 rounded-xl overflow-hidden">
+      <div class="p-5 border-b border-stone-100 bg-stone-50">
+        <div class="flex items-baseline justify-between flex-wrap gap-2">
+          <div class="text-[11px] uppercase tracking-widest text-stone-500 font-medium">
+            Under {{ preset_name.replace('_', ' ').title() }}
+          </div>
+          {% set sd = m.scores.get(preset_name) %}
+          {% if sd %}
+          <div class="text-right">
+            <span class="text-[11px] uppercase tracking-widest text-stone-400 font-medium">Rank</span>
+            <span class="ml-1 text-lg font-semibold tabular">#{{ sd.rank }}</span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <table class="w-full text-sm">
+        <thead class="bg-white text-stone-500 uppercase text-[11px] tracking-[0.1em]">
+          <tr>
+            <th class="px-5 py-2 text-left">Signal</th>
+            <th class="px-5 py-2 text-right">Raw</th>
+            <th class="px-5 py-2 text-right">z-score</th>
+            <th class="px-5 py-2 text-right">Weight</th>
+            <th class="px-5 py-2 text-right">Contribution</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in example.rows %}
+          <tr class="border-t border-stone-100 {% if row.weight == 0 %}text-stone-400{% endif %}">
+            <td class="px-5 py-2">
+              <span class="{% if row.weight == 0 %}text-stone-400{% else %}text-stone-700{% endif %}">{{ row.signal_label }}</span>
+            </td>
+            <td class="px-5 py-2 text-right font-mono tabular">{{ "%.2f"|format(row.raw_value) }}</td>
+            <td class="px-5 py-2 text-right font-mono tabular">
+              {% if row.z_value is none %}<span class="text-stone-400">—</span>{% else %}{{ "%+.2f"|format(row.z_value) }}{% endif %}
+            </td>
+            <td class="px-5 py-2 text-right font-mono tabular {% if row.weight == 0 %}text-stone-300{% endif %}">{{ "%.2f"|format(row.weight) }}</td>
+            <td class="px-5 py-2 text-right font-mono tabular {% if row.weight != 0 %}font-medium text-stone-900{% endif %}">
+              {% if row.weight == 0 %}<span class="text-stone-300">0.00</span>{% else %}{{ "%+.3f"|format(row.contribution) }}{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          <tr class="border-t-2 border-stone-200 bg-stone-50">
+            <td class="px-5 py-3 font-medium">Weighted sum</td>
+            <td colspan="3"></td>
+            <td class="px-5 py-3 text-right font-mono tabular font-semibold">{{ "%+.3f"|format(example.weighted_sum) }}</td>
+          </tr>
+          {% if example.independent_multiplier_applied %}
+          <tr class="border-t border-stone-100 bg-stone-50">
+            <td class="px-5 py-3">
+              <span class="text-stone-600">× independent_flag</span>
+              <span class="ml-1 text-xs text-stone-400">(multiplier gate)</span>
+            </td>
+            <td colspan="3"></td>
+            <td class="px-5 py-3 text-right font-mono tabular">{{ "%.1f"|format(example.independent_flag_value) }}</td>
+          </tr>
+          {% endif %}
+          <tr class="border-t border-stone-200 bg-stone-100">
+            <td class="px-5 py-3 font-semibold">Final score</td>
+            <td colspan="3"></td>
+            <td class="px-5 py-3 text-right font-mono tabular font-semibold text-lg">{{ "%+.3f"|format(example.final_score) }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      {% if example.filtered_by_cap %}
+      <div class="px-5 py-3 bg-amber-50 border-t border-amber-200 text-xs text-amber-800">
+        Filtered by the <code>max_mentions_for_eligibility</code> cap ({{ example.cap_value }}) — zero score under this preset.
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
 </section>
 {% endif %}
 

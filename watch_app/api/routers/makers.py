@@ -20,13 +20,17 @@ from watch_app import taste
 from watch_app.extraction.maker_admin import (
     RELATIONSHIP_STATES,
     RELATIONSHIP_STATE_LABELS,
+    TASTE_REACTIONS,
+    TASTE_REACTION_LABELS,
     set_relationship_state,
+    set_taste_reaction,
 )
 from watch_app.scoring.methodology import (
     SIGNAL_DESCRIPTIONS,
     build_source_contributions,
     build_source_detail,
     build_worked_example,
+    build_worked_example_for_maker,
 )
 from watch_app.scoring.presets import PRESETS
 from watch_app.scoring.queries import fetch_top_makers, fetch_all_makers_comparison, fetch_rank_changes, latest_scores_query
@@ -191,6 +195,8 @@ def _fetch_maker_detail(maker_id: int) -> dict | None:
             "first_seen_at": maker.first_seen_at,
             "relationship_state": maker.relationship_state,
             "notes": maker.notes,
+            "taste_reaction": maker.taste_reaction,
+            "taste_reaction_at": maker.taste_reaction_at,
             "scores": scores_by_preset,
             "signals": signals,
             "mentions": mention_list,
@@ -276,14 +282,27 @@ def maker_detail(request: Request, maker_id: int) -> HTMLResponse:
     detail = _fetch_maker_detail(maker_id)
     if detail is None:
         raise HTTPException(status_code=404, detail=f"Maker {maker_id} not found")
+    # Per-maker scoring breakdown under each preset: raw → z → weight →
+    # contribution → composite, for THIS maker (not just the global #1 shown on
+    # /methodology). None for a preset means the maker has no signals yet.
+    with session_scope() as session:
+        breakdowns = {
+            preset_name: build_worked_example_for_maker(
+                session, preset_name, maker_id
+            )
+            for preset_name in PRESETS
+        }
     return templates.TemplateResponse(
         request=request,
         name="maker_detail.html",
         context={
             "m": detail,
             "similar": _similar_makers(maker_id),
+            "breakdowns": breakdowns,
             "relationship_states": list(RELATIONSHIP_STATES),
             "state_labels": RELATIONSHIP_STATE_LABELS,
+            "taste_reactions": list(TASTE_REACTIONS),
+            "reaction_labels": TASTE_REACTION_LABELS,
         },
     )
 
@@ -293,20 +312,25 @@ def set_maker_state(
     maker_id: int,
     state: str = Form(default=""),
     notes: str = Form(default=""),
+    reaction: str = Form(default=""),
 ) -> RedirectResponse:
-    """Set a maker's personal relationship state + notes, then redirect back.
+    """Set a maker's personal relationship state, notes, and taste reaction.
 
     Not admin-gated — this is the core personal-tool action. `state` is one of
-    RELATIONSHIP_STATES or "" to clear it; an out-of-vocabulary value is a 400.
-    POST-redirect-GET back to the detail page.
+    RELATIONSHIP_STATES or "" to clear it; `reaction` is one of TASTE_REACTIONS
+    or "" to clear it. State and reaction are orthogonal (engagement posture vs
+    taste signal) but share this one "Your status" form. An out-of-vocabulary
+    value for either is a 400. POST-redirect-GET back to the detail page.
     """
     chosen = state or None
+    chosen_reaction = reaction or None
     with session_scope() as session:
         m = session.query(Maker).filter_by(id=maker_id).first()
         if m is None:
             raise HTTPException(status_code=404)
         try:
             set_relationship_state(session, m, chosen, notes)
+            set_taste_reaction(session, m, chosen_reaction)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
         session.commit()

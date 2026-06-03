@@ -256,8 +256,27 @@ def build_worked_example(
     if maker is None:  # Paranoia — signals exist but maker was deleted.
         return None
 
-    raw_sigs = signals_by_maker[top_id]
-    norm_sigs = normalized[top_id]
+    return _assemble_worked_example(
+        preset, maker, signals_by_maker[top_id], normalized[top_id]
+    )
+
+
+def _assemble_worked_example(
+    preset: Preset,
+    maker: Maker,
+    raw_sigs: dict[str, float],
+    norm_sigs: dict[str, float],
+) -> WorkedExample:
+    """Build the per-signal breakdown + final score for one maker.
+
+    Shared by build_worked_example (the global #1) and
+    build_worked_example_for_maker (any maker). The final score is computed the
+    same way the ranker does — z-weighted sum, the eligibility cap, then the
+    independent multiplier — so the breakdown shown can't drift from the stored
+    Score (a regression test pins both callers to within 1e-9).
+    """
+    cap = preset.max_mentions_for_eligibility
+    filtered = cap is not None and raw_sigs.get("mention_count", 0.0) > cap
 
     rows: list[WorkedExampleRow] = []
     for name in SIGNAL_DESCRIPTIONS:
@@ -280,24 +299,58 @@ def build_worked_example(
             )
         )
 
-    weighted_sum = sum(r.contribution for r in rows if r.signal_name != "independent_flag")
-    # Add the flag's own weighted contribution to weighted_sum only if the
-    # preset actually weights it (rare; normally used via the multiplier).
-    weighted_sum += sum(
-        r.contribution for r in rows if r.signal_name == "independent_flag"
-    )
+    weighted_sum = sum(r.contribution for r in rows)
+
+    if filtered:
+        final_score = 0.0
+    else:
+        final_score = sum(
+            v * preset.weights.get(name, 0.0) for name, v in norm_sigs.items()
+        )
+        if preset.independent_multiplier:
+            final_score *= norm_sigs.get("independent_flag", 1.0)
 
     return WorkedExample(
         maker_id=maker.id,
         maker_name=maker.canonical_name,
-        preset_name=preset_name,
+        preset_name=preset.name,
         rows=rows,
         weighted_sum=weighted_sum,
         independent_multiplier_applied=preset.independent_multiplier,
         independent_flag_value=raw_sigs.get("independent_flag", 1.0),
-        final_score=top_total,
-        filtered_by_cap=top_filtered,
+        final_score=final_score,
+        filtered_by_cap=filtered,
         cap_value=cap,
+    )
+
+
+def build_worked_example_for_maker(
+    session: Session,
+    preset_name: str,
+    maker_id: int,
+) -> WorkedExample | None:
+    """Build the worked example for a SPECIFIC maker under the given preset.
+
+    Same machinery as build_worked_example, but for an arbitrary maker rather
+    than the global #1 — this is what the maker detail page uses to explain why
+    *this* maker sits where it does. Population-wide z-normalization is
+    recomputed (it needs every maker), so the result matches the ranker exactly.
+
+    Returns None if the maker has no signals yet (or doesn't exist).
+    """
+    preset = PRESETS[preset_name]
+
+    signals_by_maker = _latest_signals_by_maker(session)
+    if maker_id not in signals_by_maker:
+        return None
+
+    maker = session.get(Maker, maker_id)
+    if maker is None:
+        return None
+
+    normalized = _normalize(signals_by_maker)
+    return _assemble_worked_example(
+        preset, maker, signals_by_maker[maker_id], normalized[maker_id]
     )
 
 
