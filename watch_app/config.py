@@ -50,6 +50,20 @@ class Settings(BaseSettings):
     # on a public deployment; set WATCH_APP_ADMIN=1 locally to enable it.
     admin_mode: bool = Field(default=False, alias="WATCH_APP_ADMIN")
 
+    # --- Digest email (SMTP) ---
+    # All optional: the `send-digest` command refuses to actually send (and says
+    # which are missing) unless host + user + password + a recipient are set.
+    # Set these in your .env locally; they're never committed.
+    smtp_host: str | None = Field(default=None, alias="WATCH_APP_SMTP_HOST")
+    smtp_port: int = Field(default=465, alias="WATCH_APP_SMTP_PORT")
+    smtp_user: str | None = Field(default=None, alias="WATCH_APP_SMTP_USER")
+    smtp_password: str | None = Field(default=None, alias="WATCH_APP_SMTP_PASSWORD")
+    # SSL (port 465) by default; set false to use STARTTLS (typically port 587).
+    smtp_use_ssl: bool = Field(default=True, alias="WATCH_APP_SMTP_SSL")
+    # From defaults to smtp_user; To defaults to digest_email_to or smtp_user.
+    digest_email_from: str | None = Field(default=None, alias="WATCH_APP_DIGEST_FROM")
+    digest_email_to: str | None = Field(default=None, alias="WATCH_APP_DIGEST_TO")
+
     # --- Paths (derived, not env-configurable) ---
     @property
     def data_dir(self) -> Path:

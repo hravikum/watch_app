@@ -254,6 +254,62 @@ def _print_mover_block(title: str, rows: list, entrants: bool = False) -> None:
             )
 
 
+@app.command("send-digest")
+def send_digest_cmd(
+    preset: str = typer.Option(
+        None, "--preset", help=f"One of: {', '.join(PRESETS.keys())}. Defaults to configured."
+    ),
+    days: int = typer.Option(7, "--days", help="Window length in days (1-30)."),
+    to: str = typer.Option(None, "--to", help="Recipient override (else WATCH_APP_DIGEST_TO)."),
+    cap: int = typer.Option(5, "--cap", help="Max rows per section in the email body."),
+    send: bool = typer.Option(
+        False, "--send", help="Actually send. Default is a dry run that writes preview files."
+    ),
+    out: str = typer.Option(
+        None, "--out", help="Directory for dry-run preview files (default: data dir)."
+    ),
+) -> None:
+    """Email the digest: summarized HTML body + full digest as an HTML attachment.
+
+    Dry-run by default — writes the HTML body and attachment to disk so you can
+    preview them, and sends nothing. Pass --send to deliver over SMTP; that
+    needs WATCH_APP_SMTP_HOST / _USER / _PASSWORD and a recipient set in your
+    environment.
+    """
+    from watch_app.scoring.digest import compute_weekly_digest
+    from watch_app.notify.email import send_digest
+
+    preset_name = preset or get_settings().default_preset
+    if preset_name not in PRESETS:
+        console.print(
+            f"[red]Unknown preset {preset_name!r}.[/red] Known: {', '.join(PRESETS.keys())}"
+        )
+        raise typer.Exit(1)
+
+    with session_scope() as session:
+        d = compute_weekly_digest(session, window_days=days, preset=preset_name)
+        result = send_digest(d, to=to, dry_run=not send, out_dir=out, cap=cap)
+
+    if result.sent:
+        console.print(f"[green]Sent[/green] '{result.subject}' to {result.recipient}")
+        return
+
+    if result.missing_config:
+        console.print(
+            "[red]Not sent — missing config:[/red] " + ", ".join(result.missing_config)
+        )
+        console.print("[dim]Set these in your .env, then re-run with --send.[/dim]")
+        raise typer.Exit(1)
+
+    console.print(f"[yellow]Dry run[/yellow] — nothing sent. Subject: {result.subject}")
+    console.print(f"  body preview:  {result.body_path}")
+    console.print(f"  attachment:    {result.attachment_path}")
+    console.print(
+        f"  would go to:   {result.recipient or '[not set — set WATCH_APP_DIGEST_TO or --to]'}"
+    )
+    console.print("[dim]Open the body preview in a browser; re-run with --send to deliver.[/dim]")
+
+
 @app.command()
 def maker(name: str = typer.Argument(..., help="Canonical name or alias.")) -> None:
     """Show everything we know about one maker."""
