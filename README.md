@@ -254,6 +254,34 @@ unavailable for Google Workspace (work/school) accounts unless an admin allows
 them; use a personal `@gmail.com` account in that case. The credentials live
 only in your `.env` and are never committed.
 
+### Scheduling it weekly
+
+Once a manual `send-digest --send` works, schedule it with `schedule-digest`,
+which mirrors the daily-scan `schedule` command but on a weekly cadence:
+
+```bash
+python -m watch_app.cli schedule-digest          # prints a launchd plist + steps
+```
+
+It defaults to **Monday 08:00** (just after the 7am scan, so the data is fresh
+and the 7-day window lines up); override with `--day mon|tue|…`, `--hour`
+(0–23), `--minute`. Save the printed plist to
+`~/Library/LaunchAgents/com.user.watchapp.digest.plist` and load it:
+
+```bash
+mkdir -p ~/Library/LaunchAgents
+COLUMNS=400 python -m watch_app.cli schedule-digest > /tmp/_wa.txt
+sed -n '/BEGIN PLIST/,/END PLIST/p' /tmp/_wa.txt | sed '1d;$d' \
+  > ~/Library/LaunchAgents/com.user.watchapp.digest.plist
+launchctl load ~/Library/LaunchAgents/com.user.watchapp.digest.plist
+```
+
+It runs under its own label (`com.user.watchapp.digest`), independent of the
+scan agent, and logs to `data/digest.log`. **To change the time later:**
+regenerate the plist with new flags (or hand-edit the `Weekday`/`Hour`/`Minute`
+integers), then `launchctl unload` and `launchctl load` it again — the reload
+is what applies the change.
+
 ## CLI reference
 
 ```bash
@@ -275,6 +303,7 @@ python -m watch_app.cli digest --days 14 --preset hidden_gem
 python -m watch_app.cli digest --markdown > this-week.md   # Portable markdown export
 python -m watch_app.cli send-digest --out /tmp  # Email the digest — dry run (writes preview, sends nothing)
 python -m watch_app.cli send-digest --send      # Email it for real (needs SMTP env vars; see Email digest)
+python -m watch_app.cli schedule-digest         # Print launchd setup to email the digest weekly
 
 python -m watch_app.cli enrich                  # Dry-run: propose website/country/independence for unenriched makers
 python -m watch_app.cli enrich --commit         # Write proposals to DB
@@ -466,7 +495,7 @@ watch_app/
 │   └── youtube_channels.yaml  # 15 YouTube channels with prestige weights and tier annotations
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 503 tests; run with `make test` (~30s, no network)
+tests/                    # 507 tests; run with `make test` (~30s, no network)
 alembic/                  # Schema migrations
 ```
 

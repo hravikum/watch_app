@@ -34,10 +34,10 @@ matching + merge/unalias/dupes → 3N; discovery→seed *graduation* via promote
 Update (2026-06-02): both Tier 1 bets are now done — maker suppression + the
 /explore window shipped first (3O, 3P), then the suppressed-enrichment gate +
 velocity regression test (3Q), and Personal relationship state + notes (3R).
-Velocity was already correct in code. Into Tier 2: the weekly digest shipped
-(3S, CLI + /digest) and its email delivery shipped (3T, `send-digest`); a
-scheduler to run it weekly is next. Layer 3 (reactions → adaptive ranking)
-and engagement-data-per-maker remain.
+Velocity was already correct in code. Into Tier 2: the digest arc is complete
+— weekly digest (3S, CLI + /digest), email delivery (3T, `send-digest`), and a
+weekly launchd scheduler (3U, `schedule-digest`). That leaves Layer 3
+(reactions → adaptive ranking) and engagement-data-per-maker as the frontier.
 
 Lens: tiered for the **personal-tool** posture (current default; public
 deployment stays parked — see "Explicitly NOT doing"). Going public re-tiers
@@ -67,7 +67,8 @@ features, and source breadth + methodology defensibility rise.
   as a `digest` CLI command (with `--markdown` export) *and* a `/digest` page,
   both over a shared `compute_weekly_digest`. Reuses stored data (no schema
   change) and the watching section is the Tier 1 "watching" pairing. Email
-  delivery shipped on top (3T, `send-digest`); a scheduler for it is next.
+  delivery (3T, `send-digest`) and a weekly launchd scheduler (3U,
+  `schedule-digest`) ship on top — the digest arc is complete.
 
 ### Tier 3 — worthwhile, but lower leverage now or gated on time
 - **Data-driven prestige-weight tuning.** /methodology + the per-source page
@@ -715,7 +716,23 @@ For quick reference on what shipped when:
       exactly which vars are absent and sends nothing. SSL (465) default,
       STARTTLS (587) via flag. Send path isolated for test monkeypatching; no
       real mail in the suite. No schema change, no new dependencies. README has
-      an "Email digest" setup section (Gmail app-password steps). Scheduler TBD.
+      an "Email digest" setup section (Gmail app-password steps). Scheduler: 3U.
+- 3U  Weekly digest scheduler. New `schedule-digest` CLI command, mirroring the
+      existing `schedule` (daily scan) command: prints a per-user macOS
+      LaunchAgent plist + the launchctl load/verify/disable steps, but on a
+      WEEKLY `StartCalendarInterval` (Weekday + Hour + Minute) running
+      `send-digest --send`, under its own label `com.user.watchapp.digest`
+      (independent of the scan agent) logging to `data/digest.log`. Defaults to
+      Monday 08:00 (just after the 7am scan, so data is fresh and the 7-day
+      window lines up); `--day mon..sun`, `--hour`, `--minute` override, all
+      validated. Output reminds you to confirm a manual `--send` works first,
+      since the job runs the same command and reads SMTP creds from .env. To
+      change the time later: regenerate the plist with new flags (or hand-edit
+      the integers), then `launchctl unload && load` — the reload is what
+      applies it. No schema change. (A `--write` flag to drop the plist
+      straight into ~/Library/LaunchAgents and skip the copy/reload dance was
+      offered as a follow-up, not yet built.) This completes the digest arc:
+      compute/surfaces (3S) → email (3T) → schedule (3U).
 
 ## Findings logged from the week-1 data review (2G)
 
