@@ -35,8 +35,9 @@ Update (2026-06-02): both Tier 1 bets are now done — maker suppression + the
 /explore window shipped first (3O, 3P), then the suppressed-enrichment gate +
 velocity regression test (3Q), and Personal relationship state + notes (3R).
 Velocity was already correct in code. Into Tier 2: the weekly digest shipped
-(3S, CLI + /digest), with a scheduled email task in progress. Layer 3
-(reactions → adaptive ranking) and engagement-data-per-maker remain.
+(3S, CLI + /digest) and its email delivery shipped (3T, `send-digest`); a
+scheduler to run it weekly is next. Layer 3 (reactions → adaptive ranking)
+and engagement-data-per-maker remain.
 
 Lens: tiered for the **personal-tool** posture (current default; public
 deployment stays parked — see "Explicitly NOT doing"). Going public re-tiers
@@ -65,8 +66,8 @@ features, and source breadth + methodology defensibility rise.
   history — new discoveries, movers, and activity on watched/target makers —
   as a `digest` CLI command (with `--markdown` export) *and* a `/digest` page,
   both over a shared `compute_weekly_digest`. Reuses stored data (no schema
-  change) and the watching section is the Tier 1 "watching" pairing. Next on
-  this: an email task that sends it on a schedule (in progress).
+  change) and the watching section is the Tier 1 "watching" pairing. Email
+  delivery shipped on top (3T, `send-digest`); a scheduler for it is next.
 
 ### Tier 3 — worthwhile, but lower leverage now or gated on time
 - **Data-driven prestige-weight tuning.** /methodology + the per-source page
@@ -701,6 +702,20 @@ For quick reference on what shipped when:
       window comparisons run in SQL — SQLite returns naive datetimes, so
       "newly discovered" is derived from the SQL-filtered id set, not a Python
       compare. No schema change.
+- 3T  Digest email delivery. New `notify/` package: `notify/email.py` renders a
+      summarized, inline-styled HTML body (leads with "on your list", caps
+      discoveries/movers at `--cap`, default 5, with a "+N more" pointer) and a
+      full self-contained styled HTML attachment, assembles a multipart message
+      (markdown text fallback + HTML alternative + HTML attachment), and sends
+      over stdlib smtplib. `send-digest` CLI command: dry-run by default (writes
+      body + attachment to `--out`/data dir, sends nothing), `--send` to deliver;
+      `--days`/`--preset`/`--to`/`--cap`. SMTP creds + recipient come from new
+      Settings fields (WATCH_APP_SMTP_HOST/PORT/USER/PASSWORD/SSL, _DIGEST_FROM/
+      _TO) — env only, never hardcoded; a real send with missing config reports
+      exactly which vars are absent and sends nothing. SSL (465) default,
+      STARTTLS (587) via flag. Send path isolated for test monkeypatching; no
+      real mail in the suite. No schema change, no new dependencies. README has
+      an "Email digest" setup section (Gmail app-password steps). Scheduler TBD.
 
 ## Findings logged from the week-1 data review (2G)
 

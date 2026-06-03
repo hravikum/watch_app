@@ -67,6 +67,10 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   with quiet makers omitted so it reads as an alert. `cli digest --markdown`
   emits a portable markdown export you can pipe to a file or email. No new
   data — it composes the discovery and rank-change queries you already have.
+- **Emails the digest** via `cli send-digest`. A summarized HTML body with the
+  full digest attached as a styled HTML file, over stdlib SMTP. Dry-run by
+  default (writes a preview, sends nothing); `--send` delivers. See
+  [Email digest](#email-digest) for setup.
 - **Links to maker websites** on every detail page where one exists. 117
   of 125 seed makers have a verified website URL — the remaining 8 (e.g.
   Philippe Dufour) genuinely don't have public web presence.
@@ -196,6 +200,60 @@ Check run history any time:
 python -m watch_app.cli history
 ```
 
+## Email digest
+
+`send-digest` emails you the weekly "what changed" recap: a summarized,
+nicely-formatted HTML body (leads with your watching/target makers, then a
+capped New discoveries + Movers summary) with the **full** digest attached as
+a self-contained styled HTML file you can open in any browser.
+
+It's **dry-run by default** — it writes the body and attachment to disk and
+sends nothing, so you can preview before (and without) wiring up mail:
+
+```bash
+python -m watch_app.cli send-digest --out /tmp        # preview only
+open /tmp/digest-email-*.html                          # view the body
+```
+
+Other options: `--days N` (window, default 7), `--preset rising_star|hidden_gem`,
+`--to someone@example.com` (recipient override), `--cap N` (max rows per
+section in the body, default 5), and `--send` to actually deliver.
+
+### Sending for real (SMTP)
+
+Sending uses stdlib SMTP — no extra dependencies. Add these to your `.env`
+(only the first four are required; the rest have working defaults):
+
+```bash
+WATCH_APP_SMTP_HOST=smtp.gmail.com
+WATCH_APP_SMTP_USER=you@gmail.com         # the account you send from / log in as
+WATCH_APP_SMTP_PASSWORD=abcdefghijklmnop  # a Gmail App Password, NOT your login password (strip spaces)
+WATCH_APP_DIGEST_TO=you@gmail.com         # where the digest lands
+
+# Optional (defaults shown):
+# WATCH_APP_SMTP_PORT=465                 # 465 = SSL; use 587 with the next line for STARTTLS
+# WATCH_APP_SMTP_SSL=true                 # set false for STARTTLS on 587
+# WATCH_APP_DIGEST_FROM=you@gmail.com     # defaults to WATCH_APP_SMTP_USER
+```
+
+Then:
+```bash
+python -m watch_app.cli send-digest --send
+```
+
+If the credentials are missing, the command names exactly which env vars to set
+and sends nothing.
+
+**Gmail app password:** Google requires an App Password (a 16-character code)
+rather than your normal password for SMTP, and it needs 2-Step Verification
+enabled first. Turn on 2-Step Verification under
+`myaccount.google.com/security`, then create the password at
+`myaccount.google.com/apppasswords` (name it something like `watch-app`), and
+paste it — spaces removed — into `WATCH_APP_SMTP_PASSWORD`. App passwords are
+unavailable for Google Workspace (work/school) accounts unless an admin allows
+them; use a personal `@gmail.com` account in that case. The credentials live
+only in your `.env` and are never committed.
+
 ## CLI reference
 
 ```bash
@@ -215,6 +273,8 @@ python -m watch_app.cli schedule                # Print launchd setup
 python -m watch_app.cli digest                  # "What changed" recap (last 7 days, default preset)
 python -m watch_app.cli digest --days 14 --preset hidden_gem
 python -m watch_app.cli digest --markdown > this-week.md   # Portable markdown export
+python -m watch_app.cli send-digest --out /tmp  # Email the digest — dry run (writes preview, sends nothing)
+python -m watch_app.cli send-digest --send      # Email it for real (needs SMTP env vars; see Email digest)
 
 python -m watch_app.cli enrich                  # Dry-run: propose website/country/independence for unenriched makers
 python -m watch_app.cli enrich --commit         # Write proposals to DB
@@ -392,6 +452,8 @@ watch_app/
 │                         # suppression columns (0008), and relationship_state + notes (0009)
 ├── pipeline/             # orchestrator.py wires the layers: fetch → extract → resolve → store →
 │                         # fetch GPHG model details → score
+├── notify/               # email.py renders the digest email (summary HTML + full HTML attachment)
+│                         # and sends it over stdlib SMTP (dry-run by default)
 ├── api/                  # FastAPI routers; makers.py has dashboard, detail (+ state form),
 │                         # methodology, comparison, movers, digest, discoveries, explore,
 │                         # review (admin), and per-source routes
@@ -404,7 +466,7 @@ watch_app/
 │   └── youtube_channels.yaml  # 15 YouTube channels with prestige weights and tier annotations
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 495 tests; run with `make test` (~30s, no network)
+tests/                    # 503 tests; run with `make test` (~30s, no network)
 alembic/                  # Schema migrations
 ```
 
