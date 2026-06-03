@@ -874,6 +874,137 @@ def schedule() -> None:
     )
 
 
+@app.command("schedule-digest")
+def schedule_digest(
+    day: str = typer.Option("mon", "--day", help="Weekday: mon/tue/wed/thu/fri/sat/sun."),
+    hour: int = typer.Option(8, "--hour", help="Hour (0-23), local time."),
+    minute: int = typer.Option(0, "--minute", help="Minute (0-59)."),
+) -> None:
+    """Print instructions for scheduling a WEEKLY digest email via launchd.
+
+    Mirrors `schedule` but runs `send-digest --send` once a week. Defaults to
+    Monday 08:00 — just after the daily 7am scan, so the data is fresh and the
+    7-day digest window lines up. Needs the SMTP env vars set (see the README's
+    "Email digest" section); without them the run logs which vars are missing
+    and sends nothing.
+    """
+    from pathlib import Path
+
+    # launchd Weekday: Sunday is 0 (7 also works); Monday..Saturday are 1..6.
+    weekdays = {"sun": 0, "mon": 1, "tue": 2, "wed": 3, "thu": 4, "fri": 5, "sat": 6}
+    key = day.strip().lower()[:3]
+    if key not in weekdays:
+        console.print(
+            f"[red]Unknown day {day!r}.[/red] Use one of: {', '.join(weekdays)}."
+        )
+        raise typer.Exit(1)
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        console.print("[red]hour must be 0-23 and minute 0-59.[/red]")
+        raise typer.Exit(1)
+    weekday = weekdays[key]
+    day_full = {
+        "sun": "Sunday", "mon": "Monday", "tue": "Tuesday", "wed": "Wednesday",
+        "thu": "Thursday", "fri": "Friday", "sat": "Saturday",
+    }[key]
+
+    project_root = Path(__file__).resolve().parent.parent
+    venv_python = project_root / "venv" / "bin" / "python"
+    launchagents_dir = Path.home() / "Library" / "LaunchAgents"
+    plist_path = launchagents_dir / "com.user.watchapp.digest.plist"
+
+    plist_contents = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.user.watchapp.digest</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>{venv_python}</string>
+        <string>-m</string>
+        <string>watch_app.cli</string>
+        <string>send-digest</string>
+        <string>--send</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>{project_root}</string>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>{weekday}</integer>
+        <key>Hour</key>
+        <integer>{hour}</integer>
+        <key>Minute</key>
+        <integer>{minute}</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>{project_root}/data/digest.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>{project_root}/data/digest.err.log</string>
+
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>
+"""
+
+    console.print("[bold cyan]Setting up the weekly digest email via launchd[/bold cyan]\n")
+    console.print(
+        f"This will email the digest every [bold]{day_full}[/bold] at "
+        f"{hour:02d}:{minute:02d} (local time).\n"
+        "launchd catches up if your Mac was asleep at that time.\n"
+    )
+
+    if not venv_python.exists():
+        console.print(
+            f"[red]Warning:[/red] expected venv python at {venv_python} "
+            f"but it doesn't exist. Create the venv first:\n"
+            f"  cd {project_root} && python3 -m venv venv && "
+            f"./venv/bin/pip install -r requirements.txt\n"
+        )
+
+    console.print(
+        "[yellow]Before enabling:[/yellow] confirm a real send works once with\n"
+        "    [cyan]python -m watch_app.cli send-digest --send[/cyan]\n"
+        "so you know your SMTP env vars (.env) are correct — the scheduled job "
+        "runs the same command.\n"
+    )
+
+    console.print(
+        f"[bold]Step 1.[/bold] Save the plist below to:\n"
+        f"    [green]{plist_path}[/green]\n"
+    )
+    console.print("--- BEGIN PLIST ---")
+    console.print(plist_contents)
+    console.print("--- END PLIST ---\n")
+
+    console.print(
+        f"[bold]Step 2.[/bold] Load it into launchd:\n"
+        f"    [cyan]launchctl unload {plist_path} 2>/dev/null || true[/cyan]\n"
+        f"    [cyan]launchctl load {plist_path}[/cyan]\n"
+    )
+    console.print(
+        f"[bold]Step 3.[/bold] Verify it's loaded:\n"
+        f"    [cyan]launchctl list | grep watchapp[/cyan]\n"
+        f"(should show 'com.user.watchapp.digest')\n"
+    )
+    console.print(
+        f"[bold]Step 4.[/bold] Test it runs now (optional):\n"
+        f"    [cyan]launchctl start com.user.watchapp.digest[/cyan]\n"
+        f"    then check [cyan]{project_root}/data/digest.log[/cyan] (and your inbox)\n"
+    )
+    console.print(
+        f"[bold]To disable later:[/bold]\n"
+        f"    [cyan]launchctl unload {plist_path}[/cyan]\n"
+    )
+
+
 @app.command()
 def promote(
     maker: str = typer.Argument(

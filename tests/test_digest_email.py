@@ -148,6 +148,7 @@ def test_live_send_uses_smtp(test_engine, monkeypatch):
     monkeypatch.setenv("WATCH_APP_SMTP_USER", "me@example.com")
     monkeypatch.setenv("WATCH_APP_SMTP_PASSWORD", "secret")
     monkeypatch.setenv("WATCH_APP_DIGEST_TO", "inbox@example.com")
+    monkeypatch.setenv("WATCH_APP_SMTP_SSL", "true")  # pin the SSL path regardless of local .env
 
     d = _digest()
     res = send_digest(d, dry_run=False, settings=Settings())
@@ -165,9 +166,16 @@ def test_live_send_uses_smtp(test_engine, monkeypatch):
 def test_live_send_missing_config_reports_and_skips(test_engine, monkeypatch):
     _FakeSMTP.instances.clear()
     monkeypatch.setattr(email_mod.smtplib, "SMTP_SSL", _FakeSMTP)
-    # No SMTP env set → Settings() has all None.
+    # Force the SMTP config empty on the instance so the test doesn't depend on
+    # the absence of a local .env (which Settings() would otherwise read).
+    settings = Settings()
+    settings.smtp_host = None
+    settings.smtp_user = None
+    settings.smtp_password = None
+    settings.digest_email_from = None
+    settings.digest_email_to = None
     d = _digest()
-    res = send_digest(d, dry_run=False, settings=Settings())
+    res = send_digest(d, dry_run=False, settings=settings)
     assert res.sent is False
     assert res.missing_config  # lists the missing vars
     assert "WATCH_APP_SMTP_HOST" in res.missing_config
