@@ -142,6 +142,16 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   from the relationship state (posture toward the maker) and from suppression
   (whether it's in the tool at all). It records when you reacted and is the
   signal a future personalized re-ranking will read.
+- **Triage your reactions in one pass** at `/triage`. A queue of every
+  maker you haven't reacted to yet (suppressed makers excluded), scored
+  ones first in rank order under your default preset, then the unranked
+  long tail newest-first. Each card shows just enough to judge — country,
+  type, aesthetic tags, rank/score/mentions — with **Like** / **Dislike**
+  buttons; reacting drops the maker from the queue and ticks the remaining
+  count down without a full reload. Skipping is just leaving a card alone —
+  it returns next time. To change or clear a reaction, use the maker's
+  detail page. This is the fast way to build up the like/dislike signal the
+  personalized re-ranking will read.
 - **Suppress or delete a maker.** When a discovered name isn't worth
   tracking — a defunct historical brand, something out of scope —
   `cli suppress "<maker>"` hides it from `/discoveries`, the rankings,
@@ -503,7 +513,7 @@ watch_app/
 │   └── youtube_channels.yaml  # 15 YouTube channels with prestige weights and tier annotations
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 507 tests; run with `make test` (~30s, no network)
+tests/                    # 534 tests; run with `make test` (~30s, no network)
 alembic/                  # Schema migrations
 ```
 

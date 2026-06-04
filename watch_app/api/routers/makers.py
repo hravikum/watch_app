@@ -337,6 +337,116 @@ def set_maker_state(
     return RedirectResponse(url=f"/makers/{maker_id}", status_code=303)
 
 
+# --- Triage (Layer 3a workflow, chunk 3X) ---
+
+
+def _fetch_triage_queue() -> list[dict]:
+    """The triage queue: every untriaged maker (``taste_reaction`` unset),
+    suppressed makers excluded.
+
+    Scored makers come first in rank order under the default preset, then the
+    unscored ones newest-first — so the highest-signal calls sit on top while
+    the long tail of unranked makers stays reachable. Each row carries just
+    enough to make a taste call without leaving the page (rank/score, type,
+    aesthetic tags). Reacting (POST /triage/{id}) drops a maker from this set.
+    """
+    preset = get_settings().default_preset
+    with session_scope() as session:
+        ranking = fetch_top_makers(session, preset, limit=100_000)
+        rank_by_id = {r["maker_id"]: r for r in ranking}
+        makers = (
+            session.query(Maker)
+            .filter(Maker.taste_reaction.is_(None), Maker.is_suppressed.is_(False))
+            .order_by(Maker.first_seen_at.desc())
+            .all()
+        )
+        scored: list[dict] = []
+        unscored: list[dict] = []
+        for m in makers:
+            r = rank_by_id.get(m.id)
+            row = {
+                "maker_id": m.id,
+                "name": m.canonical_name,
+                "country": m.country,
+                "rank": r["rank"] if r else None,
+                "score": r["score"] if r else None,
+                "mention_count": r["mention_count"] if r else 0,
+                "relationship_state": m.relationship_state,
+                "maker_type": (
+                    taste.display_label(m.maker_type) if m.maker_type else None
+                ),
+                "aesthetic": [
+                    taste.display_label(t) for t in (m.aesthetic_tags or [])
+                ],
+            }
+            (scored if r is not None else unscored).append(row)
+    scored.sort(key=lambda x: x["rank"])
+    # unscored is already newest-first from the query's first_seen_at order.
+    return scored + unscored
+
+
+@router.get("/triage", response_class=HTMLResponse)
+def triage(request: Request) -> HTMLResponse:
+    """Triage queue: react like/dislike to makers you haven't yet, in one pass.
+
+    The workflow half of reaction capture — 3V shipped the per-maker control;
+    this is the queue that surfaces what's left. Not admin-gated: reacting is a
+    personal-tool action, same as the detail-page status form. Skipping is just
+    leaving a card alone; it returns next time.
+    """
+    queue = _fetch_triage_queue()
+    return templates.TemplateResponse(
+        request=request,
+        name="triage.html",
+        context={
+            "makers": queue,
+            "count": len(queue),
+            "reaction_labels": TASTE_REACTION_LABELS,
+        },
+    )
+
+
+@router.post("/triage/{maker_id}", response_class=HTMLResponse)
+def triage_react(
+    request: Request,
+    maker_id: int,
+    reaction: str = Form(...),
+) -> HTMLResponse:
+    """Set a maker's taste reaction from the queue; return an HTMX fragment that
+    swaps the card out and updates the remaining count.
+
+    `reaction` must be one of TASTE_REACTIONS — the queue only offers
+    like/dislike, with no "clear" (that's what the detail page is for), so an
+    empty or out-of-vocabulary value is a 400 and a missing maker is a 404.
+    This is deliberately separate from POST /makers/{id}/state, which
+    303-redirects (right for the detail form, wrong for an inline swap).
+    """
+    if reaction not in TASTE_REACTIONS:
+        raise HTTPException(status_code=400, detail=f"unknown reaction {reaction!r}")
+    with session_scope() as session:
+        m = session.query(Maker).filter_by(id=maker_id).first()
+        if m is None:
+            raise HTTPException(status_code=404)
+        name = m.canonical_name
+        set_taste_reaction(session, m, reaction)
+        session.commit()
+        remaining = (
+            session.query(Maker)
+            .filter(Maker.taste_reaction.is_(None), Maker.is_suppressed.is_(False))
+            .count()
+        )
+    return templates.TemplateResponse(
+        request=request,
+        name="_triage_reacted.html",
+        context={
+            "maker_id": maker_id,
+            "name": name,
+            "reaction_label": TASTE_REACTION_LABELS[reaction],
+            "remaining": remaining,
+        },
+    )
+
+
 _COMPARISON_SORT_KEYS = {
     "rank_a": ("rank_a", False),  # ascending
     "rank_b": ("rank_b", False),

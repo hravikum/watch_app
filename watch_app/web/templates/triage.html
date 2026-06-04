@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% from "_macros.html" import state_badge %}
+
+{% block title %}Triage · Watch App{% endblock %}
+
+{% block content %}
+<header class="mb-8">
+  <h1 class="text-2xl font-semibold tracking-tight text-stone-900">Triage</h1>
+  <p class="mt-2 text-sm text-stone-600 max-w-2xl leading-relaxed">
+    Makers you haven't reacted to yet. Like or dislike each one — it drops off
+    the queue and feeds your personalized ranking later. Skip anything you're
+    unsure about; it'll be here next time.
+    <span class="text-stone-500"><strong id="triage-count">{{ count }}</strong> to go.</span>
+  </p>
+  <p class="mt-3 text-xs text-stone-500 max-w-2xl leading-relaxed">
+    Ranked by your default preset first; unranked makers follow, newest&nbsp;first.
+    To change or clear a reaction, use the maker's detail page.
+  </p>
+</header>
+
+{% if count == 0 %}
+<div class="bg-white border border-stone-200 rounded-xl p-8 text-center text-stone-500">
+  <p class="text-sm">Nothing to triage — you've reacted to every maker.</p>
+  <p class="text-xs mt-2">New discoveries will show up here as scans run.</p>
+</div>
+{% else %}
+
+<div class="space-y-3">
+  {% for m in makers %}
+  <div id="triage-card-{{ m.maker_id }}"
+       class="bg-white border border-stone-200 rounded-xl p-5 flex items-start justify-between gap-4">
+    <div class="min-w-0">
+      <h2 class="text-base font-semibold text-stone-900">
+        <a href="/makers/{{ m.maker_id }}"
+           class="hover:underline decoration-stone-400 underline-offset-2">{{ m.name }}</a>{{ state_badge(m.relationship_state) }}
+      </h2>
+      <div class="mt-1 text-xs text-stone-500 flex flex-wrap items-center gap-x-3 gap-y-1">
+        {% if m.country %}<span>{{ m.country }}</span>{% endif %}
+        {% if m.maker_type %}<span>{{ m.maker_type }}</span>{% endif %}
+        {% if m.rank %}
+          <span class="tabular">#{{ m.rank }} · {{ "%.2f"|format(m.score) }}</span>
+        {% else %}
+          <span class="text-stone-400">unranked</span>
+        {% endif %}
+        {% if m.mention_count %}
+          <span class="tabular">{{ m.mention_count }} mention{% if m.mention_count != 1 %}s{% endif %}</span>
+        {% endif %}
+      </div>
+      {% if m.aesthetic %}
+      <div class="mt-2 flex flex-wrap gap-1">
+        {% for t in m.aesthetic %}
+        <span class="text-[11px] text-stone-600 bg-stone-100 border border-stone-200 rounded px-1.5 py-0.5">{{ t }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    <div class="flex items-center gap-2 shrink-0">
+      <button type="button"
+              hx-post="/triage/{{ m.maker_id }}" hx-vals='{"reaction": "dislike"}'
+              hx-target="#triage-card-{{ m.maker_id }}" hx-swap="outerHTML"
+              class="px-3 py-1.5 text-sm font-medium rounded-md border border-stone-200 text-stone-600 hover:bg-stone-50 hover:border-stone-300 transition">
+        Dislike
+      </button>
+      <button type="button"
+              hx-post="/triage/{{ m.maker_id }}" hx-vals='{"reaction": "like"}'
+              hx-target="#triage-card-{{ m.maker_id }}" hx-swap="outerHTML"
+              class="px-3 py-1.5 text-sm font-medium rounded-md bg-stone-900 text-white border border-stone-900 hover:bg-stone-700 transition">
+        Like
+      </button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

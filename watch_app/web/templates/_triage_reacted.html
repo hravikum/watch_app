@@ -1,0 +1,11 @@
+{# Returned by POST /triage/{id}: replaces the reacted card with a slim, muted
+   confirmation row (a trail of what you did this pass) and OOB-updates the
+   remaining count in the header. #}
+<div class="px-5 py-3 text-sm text-stone-400 border border-stone-100 rounded-xl bg-stone-50/60 flex items-center gap-2">
+  <span aria-hidden="true">✓</span>
+  <a href="/makers/{{ maker_id }}"
+     class="hover:underline decoration-stone-300 underline-offset-2">{{ name }}</a>
+  <span class="text-stone-300">·</span>
+  <span>{{ reaction_label }}</span>
+</div>
+<strong id="triage-count" hx-swap-oob="true">{{ remaining }}</strong>

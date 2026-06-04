@@ -49,6 +49,12 @@ unblocked: reactions are captured and the taste-similarity engine already
 exists), engagement-data-per-maker, and the `/triage` flow (the workflow half
 of reaction capture, deferred this session).
 
+Update (2026-06-04): the `/triage` flow shipped (3X) — the workflow half of
+reaction capture is now done, so the whole of Layer 3a (capture) is complete.
+Frontier is down to two: Layer 3b (adaptive ranking — still best to let
+reactions accumulate a few weeks first; triage is what fills that clock) and
+engagement-data-per-maker (do the manual research in the notes field first).
+
 Lens: tiered for the **personal-tool** posture (current default; public
 deployment stays parked — see "Explicitly NOT doing"). Going public re-tiers
 everything — the personal-state features below become multi-user/auth
@@ -783,6 +789,23 @@ For quick reference on what shipped when:
       detail-page analogue of test_worked_example_final_score_matches_ranker).
       No schema change. (One web-route test that pinned the old raw signal-key
       display was updated to the new label + contribution display.)
+- 3X  Triage flow — Layer 3a's workflow half (the deferred other half of 3V).
+      A `/triage` queue of every untriaged maker (`taste_reaction` IS NULL),
+      suppressed excluded; scored makers first in rank order under the default
+      preset, then unscored newest-first (so high-signal calls sit on top while
+      the unranked long tail stays reachable). Each card shows just enough to
+      judge — name, country, maker_type, aesthetic tags, rank/score/mentions —
+      with Like / Dislike buttons. Reacting POSTs to a NEW
+      `POST /triage/{id}` (reuses `set_taste_reaction`) that returns an HTMX
+      fragment swapping the card out + OOB-updating the header count; skipping
+      is just leaving a card alone. Deliberately a separate route from
+      `POST /makers/{id}/state` (that one 303-redirects, right for the detail
+      form but wrong for an inline swap) and the queue offers no "clear" (use
+      the detail page) so an empty reaction is a 400. NOT admin-gated —
+      reacting is a personal-tool action. New nav item "Triage". Two new
+      templates (`triage.html`, `_triage_reacted.html`); 12 tests in
+      tests/test_triage.py. No schema change. This completes Layer 3a; with
+      capture *and* the queue done, the data clock for 3b is now running.
 
 ## Findings logged from the week-1 data review (2G)
 
