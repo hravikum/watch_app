@@ -15,4 +15,4 @@ class HodinkeeSource(RSSSource):
     name = "Hodinkee"
     category = "media"
     feed_url = "https://www.hodinkee.com/articles/rss.xml"
-    prestige_weight = 0.7
+    prestige_weight = 0.95  # 4A: most first-surfaced (37) + top-tier yield; a peer of SJX/Monochrome

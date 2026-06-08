@@ -70,14 +70,14 @@ class RedditWatchmakingSource(RSSSource):
     name = "r/watchmaking"
     category = "media"
     feed_url = _top_week_feed("watchmaking")
-    prestige_weight = 0.6
+    prestige_weight = 0.45  # 4A: 0 first-surfaced over 6wk; leveled toward r/Watches
 
 
 class RedditHorologySource(RSSSource):
     name = "r/horology"
     category = "media"
     feed_url = _top_week_feed("horology")
-    prestige_weight = 0.6
+    prestige_weight = 0.45  # 4A: 0 first-surfaced over 6wk; leveled toward r/Watches
 
 
 class RedditWatchesSource(RSSSource):

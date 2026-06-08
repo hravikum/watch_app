@@ -55,6 +55,21 @@ Frontier is down to two: Layer 3b (adaptive ranking — still best to let
 reactions accumulate a few weeks first; triage is what fills that clock) and
 engagement-data-per-maker (do the manual research in the notes field first).
 
+Update (2026-06-08): ~6 weeks of organic data now in hand (4/26–6/7), which
+unblocks the *data-gated* family — calibration and trend charts — while Layer
+3b stays parked (it's gated on *reaction* data, a separate clock that only
+started 6/3 with 3V; reactions are still <20). Acting on that: the
+source-quality calibration diagnostic shipped (3Y) — the Tier-3
+prestige-weight item's measurement half. It's diagnostic-only by design (data
+before fix): it surfaces per-source signal quality so the actual weight
+changes are a deliberate follow-up, not a blind edit bundled with the
+measurement. Next data-gated bet still open: dashboard/trend charts (Tier 4's
+data gate is now satisfied). (3Z, same session: first-surfaced read all-zero on
+real data — 3Y wrongly excluded seed makers from a seed-dominated DB — so it now
+counts all makers and excludes only awards sources from the first race. Useful
+finding surfaced along the way: the scheduled scans are barely auto-discovering
+new makers, so the universe is almost all seed — worth revisiting separately.)
+
 Lens: tiered for the **personal-tool** posture (current default; public
 deployment stays parked — see "Explicitly NOT doing"). Going public re-tiers
 everything — the personal-state features below become multi-user/auth
@@ -95,9 +110,16 @@ features, and source breadth + methodology defensibility rise.
   `schedule-digest`) ship on top — the digest arc is complete.
 
 ### Tier 3 — worthwhile, but lower leverage now or gated on time
-- **Data-driven prestige-weight tuning.** /methodology + the per-source page
-  (3M) make this analyzable, but it needs ~4-6 weeks of organic data to mean
-  anything. Analyze once the data's there; not a build-now.
+- **Data-driven prestige-weight tuning. DONE (diagnostic 3Y/3Z, tuning 4A).**
+  /methodology + the per-source page (3M) made this analyzable; the
+  `source-quality` CLI (3Y/3Z) turned the 6 weeks into a per-source
+  signal-quality readout, and 4A acted on it — Hodinkee up, a cluster of
+  low-discovery YouTube/community sources down (see the log for the full set
+  and the held sources). Re-run the diagnostic after a few more weeks to see
+  whether the new weights hold up; treat it as a periodic recalibration rather
+  than one-and-done. Open follow-ups it surfaced: scheduled scans run
+  rule-based (no `--use-llm`), so almost no new makers are being discovered —
+  the bigger lever; and four silent sources need a feed-health check.
 - **Automated seed entry** (paste a paragraph → LLM extracts fields → append
   YAML). QoL, but promote already graduates discovered makers and the seed is
   fairly complete — low marginal value until adding many brand-new seeds.
@@ -806,6 +828,65 @@ For quick reference on what shipped when:
       templates (`triage.html`, `_triage_reacted.html`); 12 tests in
       tests/test_triage.py. No schema change. This completes Layer 3a; with
       capture *and* the queue done, the data clock for 3b is now running.
+- 3Y  Source-quality calibration diagnostic — the measurement half of the
+      Tier-3 prestige-weight item, unblocked by 6 weeks of data (4/26–6/7).
+      New `scoring/calibration.py` with `compute_source_quality(session,
+      window_days=None)` returning, per source: total_mentions, distinct_makers,
+      first_surfaced (discovered/non-seed makers it was first of any source to
+      mention — same earliest-by-discovered_at + MIN(source_id) tie-break as
+      build_source_contributions, so firsts sum to the discovered-maker count),
+      first_ratio (= first_surfaced / total_mentions, the per-mention discovery
+      yield — numerator is discovered-firsts, denominator is whole volume on
+      purpose, since prestige_weight is a per-mention multiplier), and the
+      current prestige_weight beside the evidence. Suppressed makers excluded
+      from every count (seed-name match reuses discovery._load_seed_names).
+      Surfaced as a `source-quality` CLI command (`--days N`, default all-time)
+      rendering a Rich table + a caveats footer. DIAGNOSTIC ONLY — writes
+      nothing, recommends no weights; the actual tuning is a deliberate
+      follow-up (data before fix). No schema change, no scoring change. 7 tests
+      in tests/test_calibration.py.
+- 3Z  Calibration first-surfaced fix — same-session correction to 3Y. On real
+      data every source read first=0: 3Y restricted first-surfaced to
+      discovered (non-seed) makers, but the DB is seed-dominated (rule-based
+      scans rarely mint new makers), so the column zeroed out. Root cause was
+      conflating "the seed *entity* was known from day one" with "no source can
+      be credited for surfacing it" — a source can still be the first to
+      *mention* a curated maker over the scan window, which IS the calibration
+      signal. Fix: first_surfaced now counts ALL non-suppressed makers (seed +
+      discovered) and credits the earliest source by discovered_at — but
+      AWARDS-category sources (GPHG) are excluded from the race, because the
+      editions are bulk-ingested historically and would win first for nearly
+      every maker they nominated by timing artifact (in the live data GPHG was
+      ~54% of all firsts with 0 recent activity). Awards rows still show
+      volume/breadth/weight, with "—" for first. Dropped the now-unused
+      _load_seed_names import. tests/test_calibration.py rewritten for the new
+      semantics (9 tests), incl. test_seed_makers_count_as_first_surfaced — the
+      regression that pins this exact blind spot — and awards-exclusion +
+      awards-only-maker cases. Still diagnostic-only; no schema/scoring change.
+- 4A  Prestige-weight recalibration — the deliberate weight change the 3Y/3Z
+      diagnostic was built to inform (the analysis half is done; this is the
+      act-on-it half). Read the source-quality table over the 6 weeks: three
+      sources form a clear top tier (SJX, Monochrome, Hodinkee, all ~18-19%
+      first/mention) but Hodinkee was weighted 0.70 despite the MOST firsts (37)
+      and broadest coverage; meanwhile several YouTube/community sources carried
+      weights their discovery didn't earn (Bark and Jack at 0.90 with 0 firsts
+      the worst). Changes: Hodinkee 0.70→0.95 (up); down — Bark and Jack
+      0.90→0.45, Escapement & Watch 0.70→0.35 (28 mentions / 2 makers),
+      Swiss Watch Gang 0.80→0.55, Watchfinder & Co. 0.50→0.35 (81 mentions /
+      0 firsts), Teddy Baldassarre 0.60→0.45, r/horology + r/watchmaking
+      0.60→0.45. Held: SJX 1.0 (anchor), Monochrome 0.90, Fratello 0.70,
+      WatchBox 0.40, r/Watches 0.40, WatchCrunch 0.30, and deliberately Quill &
+      Pad / Watches TV at 0.80 despite eye-catching yields (low-N noise). Edits
+      are source class attrs (hodinkee.py, reddit.py) + youtube_channels.yaml;
+      _upsert_source_row rewrites prestige_weight every scan, so the next scan
+      propagates the weights AND rescores — no migration, no manual DB edit, no
+      new command. No test changes (synthetic-source tests; the YAML range
+      invariant max<=0.9 still holds). Caveats logged for the follow-up: First
+      is keyed on discovered_at (scan-order can win same-day ties — Hodinkee's
+      lead looks robust since its yield sits in line with peers, not above);
+      awards weights (1.2) untouched (out of the first race by design); four
+      silent sources (Worn & Wound, Urban Gentry, Time Teller, WatchAdvisor-404)
+      are a feed-health item, not a weight one.
 
 ## Findings logged from the week-1 data review (2G)
 

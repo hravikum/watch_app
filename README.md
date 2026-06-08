@@ -319,6 +319,9 @@ python -m watch_app.cli send-digest --out /tmp  # Email the digest — dry run (
 python -m watch_app.cli send-digest --send      # Email it for real (needs SMTP env vars; see Email digest)
 python -m watch_app.cli schedule-digest         # Print launchd setup to email the digest weekly
 
+python -m watch_app.cli source-quality          # Per-source signal-quality readout (calibrating prestige weights)
+python -m watch_app.cli source-quality --days 14   # Restrict to the last 14 days (default: all-time)
+
 python -m watch_app.cli enrich                  # Dry-run: propose website/country/independence for unenriched makers
 python -m watch_app.cli enrich --commit         # Write proposals to DB
 
@@ -513,7 +516,7 @@ watch_app/
 │   └── youtube_channels.yaml  # 15 YouTube channels with prestige weights and tier annotations
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 534 tests; run with `make test` (~30s, no network)
+tests/                    # 543 tests; run with `make test` (~30s, no network)
 alembic/                  # Schema migrations
 ```
 
@@ -538,7 +541,7 @@ alembic/                  # Schema migrations
 ## Development
 
 ```bash
-make test         # Full suite (~30s); expects 455 passing
+make test         # Full suite (~30s); expects 543 passing
 pytest -v tests/test_ranker.py  # Run one file
 pytest -v -k hidden_gem         # Run tests matching a name
 ```

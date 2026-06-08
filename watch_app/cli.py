@@ -254,6 +254,67 @@ def _print_mover_block(title: str, rows: list, entrants: bool = False) -> None:
             )
 
 
+@app.command("source-quality")
+def source_quality(
+    days: int = typer.Option(
+        None,
+        "--days",
+        help="Restrict to mentions in the last N days. Default: all-time.",
+    ),
+) -> None:
+    """Per-source signal-quality readout for calibrating prestige weights.
+
+    Diagnostic only — changes nothing. Shows, per source, volume, breadth, how
+    many discovered (non-seed) makers it surfaced first, the discovery yield
+    per mention, and the current prestige weight, so over- and under-weighted
+    sources sit side by side. Use it to decide weight changes; it makes none.
+    """
+    from watch_app.scoring.calibration import compute_source_quality
+
+    with session_scope() as session:
+        rows = compute_source_quality(session, window_days=days)
+
+    if not rows:
+        console.print("[yellow]No sources yet. Run `make scan` first.[/yellow]")
+        return
+
+    window_label = f"last {days} days" if days else "all-time"
+    table = Table(title=f"Source quality — {window_label}")
+    table.add_column("Source")
+    table.add_column("Cat", style="dim")
+    table.add_column("Weight", justify="right")
+    table.add_column("Mentions", justify="right")
+    table.add_column("Makers", justify="right")
+    table.add_column("First", justify="right")
+    table.add_column("First/mention", justify="right")
+
+    for r in rows:
+        is_awards = r.category == "awards"
+        first_cell = "—" if is_awards else str(r.first_surfaced)
+        if is_awards or not r.total_mentions:
+            ratio_cell = "—"
+        else:
+            ratio_cell = f"{r.first_ratio:.1%}"
+        table.add_row(
+            r.source_name,
+            r.category,
+            f"{r.prestige_weight:.2f}",
+            str(r.total_mentions),
+            str(r.distinct_makers),
+            first_cell,
+            ratio_cell,
+        )
+
+    console.print(table)
+    console.print(
+        "[dim]First = makers this source covered before any other "
+        "editorial/community source; First/mention = discovery yield per "
+        "mention. Awards sources (GPHG) are excluded from the first race "
+        "(shown —). Suppressed makers excluded. Sources added mid-history had "
+        "less time to be first.[/dim]"
+    )
+
+
 @app.command("send-digest")
 def send_digest_cmd(
     preset: str = typer.Option(
