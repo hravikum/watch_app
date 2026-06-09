@@ -22,192 +22,91 @@ Before building anything new, spend 30 minutes just looking:
 
 Only after that review should you pick what to build next.
 
-## Next-feature tiering (captured 2026-05-31, after 3N)
+## Roadmap
 
-A consolidated, ranked view of what to build next, tiered by how good a bet
-each is *right now*. This supersedes the older "Near-term candidates" /
-"Sitting in the backlog" prose below for tracking purposes — several items
-there have since shipped: per-source detail page → 3M; resolver affix/fuzzy
-matching + merge/unalias/dupes → 3N; discovery→seed *graduation* via promote
-→ 3L (paste-a-paragraph seed entry is still open, see Tier 3).
+Forward-looking only — open items, tiered by leverage *right now*. Completed
+work lives in the chunk delivery log below; this section is kept to what's *not
+yet built*. Tiered for the personal-tool posture (public deployment stays
+parked — see "Explicitly NOT doing"); going public re-tiers everything
+(personal-state features become multi-user/auth, source breadth + methodology
+defensibility rise).
 
-Update (2026-06-02): both Tier 1 bets are now done — maker suppression + the
-/explore window shipped first (3O, 3P), then the suppressed-enrichment gate +
-velocity regression test (3Q), and Personal relationship state + notes (3R).
-Velocity was already correct in code. Into Tier 2: the digest arc is complete
-— weekly digest (3S, CLI + /digest), email delivery (3T, `send-digest`), and a
-weekly launchd scheduler (3U, `schedule-digest`). That leaves Layer 3
-(reactions → adaptive ranking) and engagement-data-per-maker as the frontier.
-
-Update (2026-06-03): Layer 3's *capture* half shipped — taste reaction
-(like/dislike) per maker (3V), the input the adaptive re-ranking will read,
-orthogonal to relationship_state. Paired with the per-maker scoring breakdown
-(3W): #2 from the session tiering turned out half-built (the /methodology
-worked example existed but only for the global #1), so this generalized it onto
-every maker's detail page. The frontier is now Layer 3b (adaptive ranking —
-unblocked: reactions are captured and the taste-similarity engine already
-exists), engagement-data-per-maker, and the `/triage` flow (the workflow half
-of reaction capture, deferred this session).
-
-Update (2026-06-04): the `/triage` flow shipped (3X) — the workflow half of
-reaction capture is now done, so the whole of Layer 3a (capture) is complete.
-Frontier is down to two: Layer 3b (adaptive ranking — still best to let
-reactions accumulate a few weeks first; triage is what fills that clock) and
-engagement-data-per-maker (do the manual research in the notes field first).
-
-Update (2026-06-08): ~6 weeks of organic data now in hand (4/26–6/7), which
-unblocks the *data-gated* family — calibration and trend charts — while Layer
-3b stays parked (it's gated on *reaction* data, a separate clock that only
-started 6/3 with 3V; reactions are still <20). Acting on that: the
-source-quality calibration diagnostic shipped (3Y) — the Tier-3
-prestige-weight item's measurement half. It's diagnostic-only by design (data
-before fix): it surfaces per-source signal quality so the actual weight
-changes are a deliberate follow-up, not a blind edit bundled with the
-measurement. Next data-gated bet still open: dashboard/trend charts (Tier 4's
-data gate is now satisfied). (3Z, same session: first-surfaced read all-zero on
-real data — 3Y wrongly excluded seed makers from a seed-dominated DB — so it now
-counts all makers and excludes only awards sources from the first race. Useful
-finding surfaced along the way: the scheduled scans are barely auto-discovering
-new makers, so the universe is almost all seed — worth revisiting separately.)
-
-Lens: tiered for the **personal-tool** posture (current default; public
-deployment stays parked — see "Explicitly NOT doing"). Going public re-tiers
-everything — the personal-state features below become multi-user/auth
-features, and source breadth + methodology defensibility rise.
+Status (2026-06-08): the discovery→engagement arc is nearly complete — Layers
+1a/1b (taste schema + bulk tagging, 3A/3B), Layer 2 (the /explore filter +
+similarity, 3O/3P), and Layer 3a (reaction capture 3V + triage 3X) all shipped.
+Source-weight calibration is done end to end (diagnostic 3Y/3Z, tuning 4A), and
+a weekly LLM discovery scan is now schedulable (4B). What's left is below.
 
 ### Tier 1 — strongest next bets
-- **Personal relationship state + notes per maker — COMPLETED (3R).** Mark each
-  maker target / watching / known / pass plus free-text notes; badged and
-  filterable on the dashboard and /explore. Single-user/local, orthogonal to
-  suppression. This was the smallest slice serving the real goal ("makers *I'd*
-  act on") and it lays the user-state layer Layer 3 will build on. (The other
-  Tier 1 bet, velocity → published_at, turned out already done; see 3Q and the
-  scoring-refinements section.)
+- **Layer 3b — adaptive ranking.** The arc's headline and the one piece left to
+  finish it. Re-rank by each user's taste reactions, building on the captured
+  like/dislike signal (3V) and the existing `_similar_makers` engine. Gated on
+  reaction volume — still <20, but the weekly discovery scan (4B) + triage will
+  fill that clock faster now. Build once there's signal to adapt to.
+- **Dashboard / trend charts.** Newly unblocked — the 3-weeks-of-data gate is
+  met (6 weeks in hand). Mention volume over time, per-maker momentum, rank
+  trajectories. `/movers` (2L) gives the rank-change *numbers*; this is the
+  time-series *visual* layer. Self-contained, no schema change.
 
-### Tier 2 — high value, but sequence after the groundwork / a bit more data
-- **Layer 3 — capture reactions → adaptive ranking. CAPTURE DONE (3V).** The
-  arc's headline. The capture half — like/dislike taste reaction per maker —
-  shipped as 3V (column + timestamp, orthogonal to relationship_state). The
-  remaining *adaptive ranking* half (3b) is now unblocked: reactions are being
-  captured and the `_similar_makers` taste-similarity engine already exists to
-  build the personalized re-rank on. Still best to live with the reactions for
-  a few weeks so there's signal to adapt to before building 3b.
-- **Per-maker scoring breakdown — COMPLETED (3W).** Not in the original tiering
-  (discovered half-built mid-session): the /methodology worked example
-  (raw → z → weight → contribution → composite) now renders for every maker on
-  their own detail page, under each preset, with a regression test pinning each
-  maker's shown total to the ranker's stored Score within 1e-9.
+### Tier 2 — high value, sequence after a bit more data or groundwork
 - **Engagement data per maker** (access / sales model / contact path / how to
-  commission or buy). The "act on it" end of the arc. Do the manual engagement
-  research on a few makers FIRST (in the Tier 1 notes field) to learn which
-  fields matter before committing schema, then schematize.
-- **Weekly "what changed" digest — COMPLETED (3S).** A summary from scan
-  history — new discoveries, movers, and activity on watched/target makers —
-  as a `digest` CLI command (with `--markdown` export) *and* a `/digest` page,
-  both over a shared `compute_weekly_digest`. Reuses stored data (no schema
-  change) and the watching section is the Tier 1 "watching" pairing. Email
-  delivery (3T, `send-digest`) and a weekly launchd scheduler (3U,
-  `schedule-digest`) ship on top — the digest arc is complete.
+  commission or buy). The "act on it" end of the arc. Do the manual research on
+  a few makers FIRST (in the relationship-notes field, 3R) to learn which fields
+  matter before committing schema, then schematize.
+- **Daily-LLM cheap-discovery upgrade.** A skip-already-ingested-URL guard
+  before the LLM extract call, so a *daily* `scan --use-llm` would be cheap AND
+  complete (pay only for genuinely new articles). Only worth it if the weekly
+  discovery cadence (4B) proves too coarse — otherwise weekly is the cheaper
+  default.
+- **Periodic source-weight recalibration.** Not a one-off: re-run
+  `source-quality` every few weeks and check whether the 4A weights still hold
+  as data accumulates. Treat the diagnostic as a standing practice.
 
-### Tier 3 — worthwhile, but lower leverage now or gated on time
-- **Data-driven prestige-weight tuning. DONE (diagnostic 3Y/3Z, tuning 4A).**
-  /methodology + the per-source page (3M) made this analyzable; the
-  `source-quality` CLI (3Y/3Z) turned the 6 weeks into a per-source
-  signal-quality readout, and 4A acted on it — Hodinkee up, a cluster of
-  low-discovery YouTube/community sources down (see the log for the full set
-  and the held sources). Re-run the diagnostic after a few more weeks to see
-  whether the new weights hold up; treat it as a periodic recalibration rather
-  than one-and-done. Open follow-ups it surfaced: scheduled scans run
-  rule-based, so discovery was off — ADDRESSED in 4B by adding a weekly
-  `scan --use-llm` discovery job (daily stays rule-based); the deferred upgrade
-  is a skip-seen-URL guard so a *daily* LLM scan could be cheap (see 4B log).
-  Still open: four silent sources need a feed-health check, and the new
-  discovery stream needs triage discipline once it starts flowing.
+### Tier 3 — worthwhile, lower leverage or small
+- **Feed-health check.** Four configured sources produced zero mentions over six
+  weeks (Worn & Wound, Urban Gentry, The Time Teller, WatchAdvisor — the last a
+  known 404 from 2N). Flag dead/stale feeds — possibly a `source-quality` column
+  or a digest line rather than a new surface.
+- **`--write` flag for the schedule commands.** QoL: have `schedule` /
+  `schedule-digest` / `schedule-discovery` save the plist directly instead of
+  printing it to pipe through `sed`.
 - **Automated seed entry** (paste a paragraph → LLM extracts fields → append
-  YAML). QoL, but promote already graduates discovered makers and the seed is
+  YAML). QoL, but `promote` already graduates discovered makers and the seed is
   fairly complete — low marginal value until adding many brand-new seeds.
 - **GPHG multi-edition mention dedup.** Defensible either way; only if the
   3×-nomination inflation looks wrong with more data.
-- **Saved explorer views / a tag-coverage health view** (net-new, light).
-  Bookmarkable filter combos, or a coverage-per-dimension view to steer
-  tagging. Premature — the explorer + window shipped recently and filters
-  re-enter fast.
+- **Saved explorer views / tag-coverage health view** (net-new, light).
+  Bookmarkable filter combos, or a coverage-per-dimension view to steer tagging.
+  Premature — filters re-enter fast.
 
-### Tier 4 — not now (a decision, or explicitly parked)
-- **Public deployment** — the fork in the road, not a feature; it re-tiers
-  everything above. Parked for good reasons (hosting, abuse, maker-rights,
-  cost). Decide deliberately before letting it drive the roadmap.
-- **Dashboard charts** — deferred until 3+ weeks of data (see "Explicitly NOT
-  doing"). Rank-change tracking itself shipped as `/movers` (2L).
-- **Instagram ingestion, search/filters/pagination, default-on LLM
-  extraction** — already declined; still the right call at this scale.
+### Considering (genuinely new, not yet committed)
+- **LLM cost/usage logging per discovery run.** Now that weekly discovery (4B)
+  spends Haiku credits, a tokens-/cost-per-run line keeps spend visible.
+- **"This week's new discoveries" review surface**, distinct from `/triage` —
+  though it may overlap the digest's new-discoveries section enough to skip.
 
-Quick cleanup, not a feature: the XRBY / "Xrby La Montre D'Art" duplicate is
-now a 30-second `cli merge <orphan-id> <real-id> --commit` (3N) — the special
-SQL in CHUNK_2A_HOTFIX_NOTES.md is obsolete.
+### Conditional upgrades (don't build reactively)
+- **Reddit legacy API** (vs the current `top/.rss?t=week`): richer per-post data
+  (upvotes, comments), needs an application + days-to-weeks wait. Only if 2-3
+  weeks of RSS shows specific coverage gaps it can't fill.
+- **Broader model coverage** beyond GPHG nominees: LLM-extract model refs from
+  RSS (noisier, would muddy the clean GPHG-only data) or per-brand scrapers
+  (high maintenance, only for the most-tracked 10-20 makers). Use the current
+  GPHG-only tier first and see whether gaps actually bother you.
 
-## Near-term candidates
-
-All shipped (Reddit → 2R, models-per-brand → 2J, per-source detail page → 3M).
-Kept below: only the conditional future-tier guidance still worth heeding.
-
-### Reddit source — COMPLETED (2R)
-Three subreddits (r/watchmaking, r/horology, r/Watches) ship as RSS-based
-sources using the public `top/.rss?t=week` endpoint. No auth required.
-
-**Possible upgrade if RSS limits become a problem:**
-- Reddit's free legacy API (requires application + permission, days-to-weeks
-  wait) would let us fetch more posts per subreddit and access richer
-  per-post data (upvote counts, comment threads, top comments).
-- RSS gets ~25 top posts per week per subreddit, which is plenty for
-  daily scans of high-signal communities. Only upgrade if data shows
-  we're missing meaningful coverage.
-- Don't apply for legacy API unless we've used RSS for 2-3 weeks and
-  identified specific gaps RSS can't fill.
-
-### Models per brand — COMPLETED (Tier 1 in 2J; future tiers TBD)
-Built: GPHG-nominated watches surface on each maker's detail page with full
-specs (case material/diameter, movement type/caliber, frequency, power
-reserve, water resistance, complications, price, limited edition count,
-image). Sourced from `gphg.org/en/watches/<slug>` detail pages, parsed by
-`watch_app/sources/awards/gphg_detail.py`.
-
-Scoped intentionally to GPHG nominees so every WatchModel row has a
-verified source URL. This means:
-- F.P. Journe, Voutilainen, De Bethune, Simon Brette etc. all get good
-  coverage (they're GPHG-nominated regularly)
-- Brands that never enter GPHG (or haven't yet) show no models — that's
-  a known limitation, not a bug
-
-**Possible future tiers if Tier 1 isn't enough:**
-- LLM-extract model references from RSS articles (broader coverage,
-  noisier data — would muddy the clean GPHG-only data, so worth doing
-  only if Tier 1 demonstrably leaves gaps for makers we care about)
-- Per-brand website scrapers (high maintenance, only justifiable for
-  the most-tracked 10-20 makers)
-
-Don't build either of those reactively. Use Tier 1 for a few weeks first
-and see whether the gaps actually bother you.
-
-## Sitting in the backlog (worth doing eventually)
-
-(Removed as done: resolver fuzzy matching shipped in 3N; "personal interest"
-state in 3R; the XRBY / "Xrby La Montre D'Art" orphan is now a 30-second
-`cli merge` — see the quick-cleanup note under the tiering.)
-
-### Automated seed entry
-Paste a Wikipedia-style paragraph about a maker, have an LLM extract
-canonical name, country, founded year, aliases, is_independent, and
-append to the YAML. Quality-of-life for adding new seeds fast.
-Non-trivial LLM integration. (Also tracked in Tier 3.)
+### Parked (a decision, not a feature)
+- **Public deployment** — the fork in the road; it re-tiers everything above.
+  Parked for good reasons (hosting, abuse, maker-rights, cost). Decide
+  deliberately before letting it drive the roadmap. (Also in "Open questions".)
 
 ## The bigger arc: discovery → engagement
 
 Captured 2026-05-11. The current tool surfaces makers. The longer arc
 is to help users *figure out which makers they'd be interested in*
 and eventually to act on that — contact, relationship, becoming part
-of a maker's story. The near-term items above have now shipped, so this
-arc is the active direction (Tier 2 in the tiering).
+of a maker's story. Most of this arc has now shipped (see
+Sequencing below); only Layer 3b — adaptive ranking — remains.
+It is the headline Tier 1 item in the Roadmap.
 
 ### The reframe
 
@@ -290,9 +189,12 @@ to work with. Layer 1 itself splits into:
   (abstaining when unsure), and writes drafts into the seed YAML for
   human review. Piloted on 10, then run across the rest. Every draft
   reviewed before commit. Conglomerates skipped.
-- **2 — Multi-filter explorer: NEXT.** UI that lets users navigate by
-  these dimensions. Includes similarity ("makers like X"). The data it
-  needs now exists, so this is the next major piece of work.
+- **2 — Multi-filter explorer: SHIPPED (3O/3P).** The /explore UI lets you
+  navigate by these dimensions, with similarity ("makers like X") built on
+  `_similar_makers`.
+- **3 — Reactions: CAPTURE SHIPPED (3V/3X).** Like/dislike per maker plus the
+  `/triage` queue. Only the adaptive re-ranking (Layer 3b) is left — the arc's
+  last piece. See the Roadmap.
 
 Layers 1a/1b came in faster than the 4-6 week estimate because the
 LLM-assisted draft + review workflow turned ~420 tag decisions into a
@@ -355,24 +257,20 @@ Before any Layer 1 code:
 Instagram's API has been hostile to developers for years. Scraping is
 fragile, ToS-violating, and brittle. Not worth it for a local tool.
 
-### Charts on the dashboard
-Still premature. Revisit when there are 3+ weeks of scan data and
-rank-change tracking is in place.
-
 ### Search, filters, pagination
 Top-20 fits on screen. Don't add these until the dataset makes
 browsing painful — which it isn't.
 
-### Public deployment
-Haven't decided if this is a personal tool or something to share.
-Deploying locks in "something to share" with real operational baggage
-(hosting, rate limits, abuse, cost). Keep local until the identity is
-clear.
+### Daily default-on LLM extraction
+No longer a blanket "no" to LLM scanning — a *weekly* LLM discovery scan now
+runs (4B), and a cheap daily variant is a Tier-2 Roadmap candidate (the
+skip-seen-URL guard). What's parked is specifically making *every daily* scan
+LLM-backed: it re-pays Haiku for the whole feed window each run for marginal
+value. The daily job stays rule-based.
 
-### Default-on LLM extraction
-The rule-based extractor works. LLM is available via `--use-llm` when
-needed. Making it default costs money for marginal value at current
-scale.
+(Charts on the dashboard moved OUT of this section — the data gate is met, it's
+now a Tier-1 Roadmap candidate. Public deployment lives in the Roadmap's
+"Parked" bucket and "Open questions".)
 
 ## Open questions to sit with
 
@@ -398,13 +296,10 @@ hidden_gem might converge or diverge interestingly over time with more
 data. If the same names keep topping both, maybe there's only one
 meaningful preset. If they stay distinct, the split is doing work.
 
-**Are the prestige weights calibrated right?** SJX at 1.0, Monochrome
-at 0.9, Hodinkee at 0.7 — these are guesses from Phase 1. YouTube
-channels added in 2N use guessed weights too (0.3-0.9 across three
-tiers). After a few weeks of data, the source contributions table on
-`/methodology` can validate or challenge these — channels with high
-volume but low first-surfaced counts are noise candidates; the inverse
-are quiet but high-signal sources worth raising.
+**Are the prestige weights calibrated right?** RESOLVED (4A). The
+`source-quality` diagnostic (3Y/3Z) validated the Phase-1 guesses against six
+weeks of data, and 4A acted on it (Hodinkee up; low-discovery channels down).
+Now a periodic recalibration *practice* (Roadmap, Tier 2), not an open question.
 
 ## Chunk delivery log
 
@@ -911,6 +806,20 @@ For quick reference on what shipped when:
       before the LLM extract call so a DAILY --use-llm scan would be cheap AND
       complete (only pays for genuinely new articles). Do it if the weekly
       cadence proves too coarse — otherwise weekly is the cheaper default.
+- 4C  NOTES.md roadmap consolidation (docs only — no code, no tests). Collapsed
+      the five dated Update notes + the COMPLETED Tier 1-4 items + the all-shipped
+      "Near-term candidates" / "Sitting in the backlog" sections into one lean
+      `## Roadmap` (open items only; completed work stays in this log). Re-tiered
+      by current leverage: Layer 3b and dashboard/trend charts as Tier 1; added
+      this session's threads (daily-LLM skip-seen guard, feed-health check,
+      periodic recalibration, `--write` flag) and a "Considering" bucket (LLM
+      cost logging, weekly-discovery review surface). Fixed stale statuses: arc
+      "Layer 2: NEXT" → SHIPPED (3O/3P) with only 3b remaining; "Explicitly NOT
+      doing" reframed (dropped charts → now a candidate; default-on-LLM narrowed
+      to the daily job since weekly discovery ships in 4B; public deployment
+      deduped to one home); "Open questions" prestige-weights marked RESOLVED
+      (4A). Deduped charts / public deployment / automated-seed-entry, each
+      previously listed 2-3×.
 
 ## Findings logged from the week-1 data review (2G)
 
