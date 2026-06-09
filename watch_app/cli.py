@@ -1066,6 +1066,150 @@ def schedule_digest(
     )
 
 
+@app.command("schedule-discovery")
+def schedule_discovery(
+    day: str = typer.Option("mon", "--day", help="Weekday: mon/tue/wed/thu/fri/sat/sun."),
+    hour: int = typer.Option(6, "--hour", help="Hour (0-23), local time."),
+    minute: int = typer.Option(0, "--minute", help="Minute (0-59)."),
+) -> None:
+    """Print instructions for scheduling a WEEKLY LLM discovery scan via launchd.
+
+    Complements — does not replace — the daily rule-based `schedule` scan. Runs
+    `scan --use-llm` once a week so the LLM extractor can surface brand-new
+    makers; the daily rule-based scan only matches makers already known from the
+    seed. Defaults to Monday 06:00, just before the 7am daily scan and 8am
+    digest, so freshly discovered makers flow into that morning's scoring and
+    digest.
+
+    Two things to know: this spends Haiku credits each run (bounded by the
+    articles in each source's feed window), and it will mint new, sometimes
+    noisy makers that need triaging (`/triage`, suppress/merge). That's the
+    intended workflow — discover weekly, curate the results.
+    """
+    from pathlib import Path
+
+    # launchd Weekday: Sunday is 0 (7 also works); Monday..Saturday are 1..6.
+    weekdays = {"sun": 0, "mon": 1, "tue": 2, "wed": 3, "thu": 4, "fri": 5, "sat": 6}
+    key = day.strip().lower()[:3]
+    if key not in weekdays:
+        console.print(
+            f"[red]Unknown day {day!r}.[/red] Use one of: {', '.join(weekdays)}."
+        )
+        raise typer.Exit(1)
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        console.print("[red]hour must be 0-23 and minute 0-59.[/red]")
+        raise typer.Exit(1)
+    weekday = weekdays[key]
+    day_full = {
+        "sun": "Sunday", "mon": "Monday", "tue": "Tuesday", "wed": "Wednesday",
+        "thu": "Thursday", "fri": "Friday", "sat": "Saturday",
+    }[key]
+
+    project_root = Path(__file__).resolve().parent.parent
+    venv_python = project_root / "venv" / "bin" / "python"
+    launchagents_dir = Path.home() / "Library" / "LaunchAgents"
+    plist_path = launchagents_dir / "com.user.watchapp.discovery.plist"
+
+    plist_contents = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.user.watchapp.discovery</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>{venv_python}</string>
+        <string>-m</string>
+        <string>watch_app.cli</string>
+        <string>scan</string>
+        <string>--use-llm</string>
+        <string>--trigger</string>
+        <string>discovery</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>{project_root}</string>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>{weekday}</integer>
+        <key>Hour</key>
+        <integer>{hour}</integer>
+        <key>Minute</key>
+        <integer>{minute}</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>{project_root}/data/discovery.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>{project_root}/data/discovery.err.log</string>
+
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>
+"""
+
+    console.print(
+        "[bold cyan]Setting up the weekly LLM discovery scan via launchd[/bold cyan]\n"
+    )
+    console.print(
+        f"This will run [cyan]scan --use-llm[/cyan] every [bold]{day_full}[/bold] at "
+        f"{hour:02d}:{minute:02d} (local time), alongside — not instead of — your "
+        f"daily rule-based scan.\n"
+        "launchd catches up if your Mac was asleep at that time.\n"
+    )
+
+    if not venv_python.exists():
+        console.print(
+            f"[red]Warning:[/red] expected venv python at {venv_python} "
+            f"but it doesn't exist. Create the venv first:\n"
+            f"  cd {project_root} && python3 -m venv venv && "
+            f"./venv/bin/pip install -r requirements.txt\n"
+        )
+
+    console.print(
+        "[yellow]Before enabling:[/yellow] confirm an LLM scan works once with\n"
+        "    [cyan]python -m watch_app.cli scan --use-llm --trigger manual[/cyan]\n"
+        "so you know your Anthropic API key (.env) is set — the scheduled job runs "
+        "the same command. It spends Haiku credits and will surface new makers to "
+        "triage.\n"
+    )
+
+    console.print(
+        f"[bold]Step 1.[/bold] Save the plist below to:\n"
+        f"    [green]{plist_path}[/green]\n"
+    )
+    console.print("--- BEGIN PLIST ---")
+    console.print(plist_contents)
+    console.print("--- END PLIST ---\n")
+
+    console.print(
+        f"[bold]Step 2.[/bold] Load it into launchd:\n"
+        f"    [cyan]launchctl unload {plist_path} 2>/dev/null || true[/cyan]\n"
+        f"    [cyan]launchctl load {plist_path}[/cyan]\n"
+    )
+    console.print(
+        f"[bold]Step 3.[/bold] Verify it's loaded:\n"
+        f"    [cyan]launchctl list | grep watchapp[/cyan]\n"
+        f"(should show 'com.user.watchapp.discovery')\n"
+    )
+    console.print(
+        f"[bold]Step 4.[/bold] Test it runs now (optional):\n"
+        f"    [cyan]launchctl start com.user.watchapp.discovery[/cyan]\n"
+        f"    then check [cyan]{project_root}/data/discovery.log[/cyan] and "
+        f"[cyan]watch-app history[/cyan] (look for trigger=discovery)\n"
+    )
+    console.print(
+        f"[bold]To disable later:[/bold]\n"
+        f"    [cyan]launchctl unload {plist_path}[/cyan]\n"
+    )
+
+
 @app.command()
 def promote(
     maker: str = typer.Argument(

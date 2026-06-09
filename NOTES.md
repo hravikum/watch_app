@@ -118,8 +118,11 @@ features, and source breadth + methodology defensibility rise.
   and the held sources). Re-run the diagnostic after a few more weeks to see
   whether the new weights hold up; treat it as a periodic recalibration rather
   than one-and-done. Open follow-ups it surfaced: scheduled scans run
-  rule-based (no `--use-llm`), so almost no new makers are being discovered —
-  the bigger lever; and four silent sources need a feed-health check.
+  rule-based, so discovery was off — ADDRESSED in 4B by adding a weekly
+  `scan --use-llm` discovery job (daily stays rule-based); the deferred upgrade
+  is a skip-seen-URL guard so a *daily* LLM scan could be cheap (see 4B log).
+  Still open: four silent sources need a feed-health check, and the new
+  discovery stream needs triage discipline once it starts flowing.
 - **Automated seed entry** (paste a paragraph → LLM extracts fields → append
   YAML). QoL, but promote already graduates discovered makers and the seed is
   fairly complete — low marginal value until adding many brand-new seeds.
@@ -887,6 +890,27 @@ For quick reference on what shipped when:
       awards weights (1.2) untouched (out of the first race by design); four
       silent sources (Worn & Wound, Urban Gentry, Time Teller, WatchAdvisor-404)
       are a feed-health item, not a weight one.
+- 4B  Weekly LLM discovery scan scheduler. Confirmed the open thread: the
+      launchd scan job runs rule-based (grep'd data/scan.log — every run
+      use_llm=False), so the daily scan only re-ranks the seed and never mints
+      new makers. Rather than flip the daily job to --use-llm (which re-pays
+      Haiku for the whole feed window every day, since _ingest_mention has no
+      skip-already-seen guard before the LLM call), added a SEPARATE weekly
+      discovery job. New `schedule-discovery` CLI command mirrors
+      `schedule-digest`: prints a launchd plist running `scan --use-llm
+      --trigger discovery` weekly (default Mon 06:00, just before the 7am daily
+      scan + 8am digest so new makers flow through that morning), with its own
+      com.user.watchapp.discovery label and data/discovery.log. Daily
+      rule-based scan unchanged — discovery complements, doesn't replace it.
+      Cost is bounded to ~one feed-window of Haiku/week; the tradeoff is a
+      stream of new noisy makers to triage (the curation layer exists for
+      exactly this). 5 tests in tests/test_schedule_discovery.py. No schema
+      change. README scheduling section + quick-ref updated.
+
+      Deferred upgrade (was "option 3"): add a skip-already-ingested-URL guard
+      before the LLM extract call so a DAILY --use-llm scan would be cheap AND
+      complete (only pays for genuinely new articles). Do it if the weekly
+      cadence proves too coarse — otherwise weekly is the cheaper default.
 
 ## Findings logged from the week-1 data review (2G)
 

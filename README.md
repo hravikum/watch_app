@@ -209,6 +209,20 @@ To disable later:
 launchctl unload ~/Library/LaunchAgents/com.user.watchapp.scan.plist
 ```
 
+The daily scan is rule-based (free): it only matches makers already in the
+seed. To also surface *new* makers, schedule a weekly LLM discovery scan
+alongside it:
+
+```bash
+python -m watch_app.cli schedule-discovery     # weekly `scan --use-llm`, Mon 06:00 by default
+```
+
+This runs `scan --use-llm` once a week (tagged `trigger=discovery` in the
+history), just before the Monday scan/digest so new makers flow through. It
+spends Haiku credits per run and will surface noisy makers to triage — that's
+the intended discover-then-curate loop. It complements, and does not replace,
+the daily scan.
+
 Check run history any time:
 ```bash
 python -m watch_app.cli history
@@ -310,7 +324,8 @@ python -m watch_app.cli top --limit 50
 
 python -m watch_app.cli maker "Simon Brette"    # Details + full mention list
 python -m watch_app.cli history --limit 30      # Recent scan runs
-python -m watch_app.cli schedule                # Print launchd setup
+python -m watch_app.cli schedule                # Print launchd setup (daily rule-based scan)
+python -m watch_app.cli schedule-discovery      # Print launchd setup (weekly `scan --use-llm` discovery)
 
 python -m watch_app.cli digest                  # "What changed" recap (last 7 days, default preset)
 python -m watch_app.cli digest --days 14 --preset hidden_gem
@@ -516,7 +531,7 @@ watch_app/
 │   └── youtube_channels.yaml  # 15 YouTube channels with prestige weights and tier annotations
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 543 tests; run with `make test` (~30s, no network)
+tests/                    # 548 tests; run with `make test` (~30s, no network)
 alembic/                  # Schema migrations
 ```
 
@@ -541,7 +556,7 @@ alembic/                  # Schema migrations
 ## Development
 
 ```bash
-make test         # Full suite (~30s); expects 543 passing
+make test         # Full suite (~30s); expects 548 passing
 pytest -v tests/test_ranker.py  # Run one file
 pytest -v -k hidden_gem         # Run tests matching a name
 ```
