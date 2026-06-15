@@ -1,0 +1,15 @@
+{# Merge-target typeahead results (HTMX fragment for the maker detail page).
+   Each row links to the merge confirm panel for this source → that target. #}
+{% if results %}
+<div class="border border-stone-200 rounded-lg divide-y divide-stone-100 overflow-hidden">
+  {% for r in results %}
+  <a href="/makers/{{ maker_id }}?confirm=merge&into={{ r.maker_id }}"
+     class="flex items-baseline justify-between gap-3 px-3 py-2 text-sm hover:bg-stone-50 transition">
+    <span class="text-stone-800">{{ r.name }}</span>
+    {% if r.country %}<span class="text-[11px] text-stone-400 flex-shrink-0">{{ r.country }}</span>{% endif %}
+  </a>
+  {% endfor %}
+</div>
+{% elif q %}
+<p class="text-sm text-stone-400">No makers match “{{ q }}”.</p>
+{% endif %}

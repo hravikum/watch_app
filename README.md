@@ -162,7 +162,16 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   enrichment and taste-tagging, so they stop costing LLM calls.
   `cli delete` is the hard path — removes the maker and everything that
   references it — for genuinely one-off mentions you're sure about. Both
-  are dry-run by default.
+  are dry-run by default. With `WATCH_APP_ADMIN` on, both are also on each
+  maker's detail page: a reversible Suppress / Unsuppress toggle (with an
+  optional reason), and a Delete that opens a confirm panel showing the exact
+  dry-run impact — how many mentions, watch models, signals, and scores would
+  go — before it commits. A seed maker shows the blocker there instead of a
+  confirm, same as the CLI. Merge is on the detail page too, for the related
+  case where a maker isn't actually new — a duplicate or name variant: it
+  offers near-duplicate suggestions plus a name-search typeahead to pick the
+  target, then a confirm panel showing what moves (mentions, watch models,
+  aliases) before folding this row into it.
 - **Catches new makers in debut articles.** When an article title
   starts with a journalism convention marker like "Introducing:",
   "Hands On:", or "First Look:" AND the rule-based extractor only

@@ -11,6 +11,82 @@
   Back to dashboard
 </a>
 
+{# --- Delete confirmation (admin; rendered when ?confirm=delete) --- #}
+{% if delete_preview %}
+<div class="mb-6 rounded-xl border border-red-300 bg-red-50 p-5">
+  {% if delete_preview.blockers %}
+    <h2 class="text-sm font-semibold text-red-800">Can't delete this maker</h2>
+    <p class="mt-1 text-sm text-red-700">{{ delete_preview.blockers | join(' ') }}</p>
+    <div class="mt-3">
+      <a href="/makers/{{ m.id }}"
+         class="text-sm text-stone-600 hover:text-stone-900 underline underline-offset-2">Cancel</a>
+    </div>
+  {% else %}
+    <h2 class="text-sm font-semibold text-red-800">Permanently delete {{ m.canonical_name }}?</h2>
+    <p class="mt-1 text-sm text-red-700 max-w-2xl leading-relaxed">
+      This removes the maker and everything that references it, and can't be undone.
+      Suppress instead if the name might recur in feeds — the row survives so a stray
+      article can't resurrect it.
+    </p>
+    <ul class="mt-3 text-sm text-red-700 space-y-0.5">
+      <li>{{ delete_preview.mentions_deleted }} mention{{ '' if delete_preview.mentions_deleted == 1 else 's' }}</li>
+      <li>{{ delete_preview.watch_models_deleted }} watch model{{ '' if delete_preview.watch_models_deleted == 1 else 's' }}</li>
+      <li>{{ delete_preview.signals_deleted }} signal{{ '' if delete_preview.signals_deleted == 1 else 's' }}</li>
+      <li>{{ delete_preview.scores_deleted }} score{{ '' if delete_preview.scores_deleted == 1 else 's' }}</li>
+    </ul>
+    <div class="mt-4 flex items-center gap-3">
+      <form method="post" action="/makers/{{ m.id }}/delete">
+        <button type="submit"
+                class="px-4 py-2 text-sm font-medium rounded-md bg-red-600 text-white border border-red-600 hover:bg-red-700 transition">
+          Confirm delete
+        </button>
+      </form>
+      <a href="/makers/{{ m.id }}"
+         class="text-sm text-stone-600 hover:text-stone-900 underline underline-offset-2">Cancel</a>
+    </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{# --- Merge confirmation (admin; rendered when ?confirm=merge&into=…) --- #}
+{% if merge_preview %}
+<div class="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-5">
+  {% if merge_preview.blockers %}
+    <h2 class="text-sm font-semibold text-amber-900">Can't merge this maker</h2>
+    <p class="mt-1 text-sm text-amber-800">{{ merge_preview.blockers | join(' ') }}</p>
+    <div class="mt-3">
+      <a href="/makers/{{ m.id }}"
+         class="text-sm text-stone-600 hover:text-stone-900 underline underline-offset-2">Cancel</a>
+    </div>
+  {% else %}
+    <h2 class="text-sm font-semibold text-amber-900">
+      Merge {{ merge_preview.from_name }} into {{ merge_preview.into_name }}?
+    </h2>
+    <p class="mt-1 text-sm text-amber-800 max-w-2xl leading-relaxed">
+      {{ merge_preview.from_name }}'s history moves to {{ merge_preview.into_name }},
+      its names fold in as aliases, and this row is removed. Can't be undone.
+    </p>
+    <ul class="mt-3 text-sm text-amber-800 space-y-0.5">
+      <li>{{ merge_preview.mentions_reassigned }} mention{{ '' if merge_preview.mentions_reassigned == 1 else 's' }} reassigned{% if merge_preview.mentions_deduped %}, {{ merge_preview.mentions_deduped }} duplicate{{ '' if merge_preview.mentions_deduped == 1 else 's' }} dropped{% endif %}</li>
+      <li>{{ merge_preview.watch_models_reassigned }} watch model{{ '' if merge_preview.watch_models_reassigned == 1 else 's' }} reassigned</li>
+      <li>{{ merge_preview.signals_deleted }} signal{{ '' if merge_preview.signals_deleted == 1 else 's' }} and {{ merge_preview.scores_deleted }} score row{{ '' if merge_preview.scores_deleted == 1 else 's' }} dropped (recomputed next scan)</li>
+      {% if merge_preview.aliases_added %}<li>Folded in as aliases: {{ merge_preview.aliases_added | join(', ') }}</li>{% endif %}
+    </ul>
+    <div class="mt-4 flex items-center gap-3">
+      <form method="post" action="/makers/{{ m.id }}/merge">
+        <input type="hidden" name="into" value="{{ merge_into }}" />
+        <button type="submit"
+                class="px-4 py-2 text-sm font-medium rounded-md bg-amber-600 text-white border border-amber-600 hover:bg-amber-700 transition">
+          Confirm merge
+        </button>
+      </form>
+      <a href="/makers/{{ m.id }}"
+         class="text-sm text-stone-600 hover:text-stone-900 underline underline-offset-2">Cancel</a>
+    </div>
+  {% endif %}
+</div>
+{% endif %}
+
 {# --- Header --- #}
 <div class="mb-8">
   <div class="flex items-baseline justify-between flex-wrap gap-2">
@@ -20,6 +96,11 @@
     {% if not m.is_independent %}
       <span class="text-[11px] uppercase tracking-widest font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded">
         Conglomerate
+      </span>
+    {% endif %}
+    {% if m.is_suppressed %}
+      <span class="text-[11px] uppercase tracking-widest font-medium text-stone-600 bg-stone-100 border border-stone-300 px-2 py-1 rounded">
+        Suppressed
       </span>
     {% endif %}
   </div>
@@ -410,5 +491,87 @@
   </div>
   {% endif %}
 </section>
+
+{# --- Manage maker (admin-only: suppress / delete) --- #}
+{% if admin_mode %}
+<section class="mt-10 pt-8 border-t border-stone-200">
+  <h2 class="text-xs uppercase tracking-[0.15em] font-medium text-stone-500 mb-3">Manage</h2>
+  <div class="bg-white border border-stone-200 rounded-xl p-5 space-y-5">
+    {# Suppress / unsuppress — reversible visibility toggle #}
+    <div>
+      {% if m.is_suppressed %}
+        <p class="text-sm text-stone-700">
+          Hidden from discoveries, rankings, comparison, and review.
+          {% if m.suppressed_reason %}<span class="text-stone-500">Reason: {{ m.suppressed_reason }}</span>{% endif %}
+        </p>
+        <form method="post" action="/makers/{{ m.id }}/unsuppress" class="mt-3">
+          <button type="submit"
+                  class="px-4 py-2 text-sm font-medium rounded-md bg-stone-900 text-white border border-stone-900 hover:bg-stone-700 transition">
+            Unsuppress
+          </button>
+        </form>
+      {% else %}
+        <p class="text-sm text-stone-700 max-w-2xl leading-relaxed">
+          Suppress to hide this maker from discoveries and rankings without deleting it.
+          Reversible, and the row survives so a stray article can't resurrect the name.
+        </p>
+        <form method="post" action="/makers/{{ m.id }}/suppress"
+              class="mt-3 flex flex-wrap items-center gap-2">
+          <input type="text" name="reason" placeholder="Reason (optional)"
+                 class="text-sm rounded-lg border border-stone-300 focus:border-stone-500 focus:ring-stone-300 px-3 py-2 w-64 max-w-full" />
+          <button type="submit"
+                  class="px-4 py-2 text-sm font-medium rounded-md bg-white text-stone-700 border border-stone-300 hover:border-stone-500 transition">
+            Suppress
+          </button>
+        </form>
+      {% endif %}
+    </div>
+
+    {# Delete — hard path, routed through the confirm panel #}
+    <div class="pt-4 border-t border-stone-100">
+      <p class="text-sm text-stone-700 max-w-2xl leading-relaxed">
+        Delete to remove this maker and everything referencing it. Use only for a
+        genuinely one-off mention — suppress is the safer default.
+      </p>
+      <a href="/makers/{{ m.id }}?confirm=delete"
+         class="mt-3 inline-block px-4 py-2 text-sm font-medium rounded-md bg-white text-red-700 border border-red-300 hover:border-red-500 transition">
+        Delete…
+      </a>
+    </div>
+
+    {# Merge — fold this maker into another (suggestions + typeahead) #}
+    <div class="pt-4 border-t border-stone-100">
+      <p class="text-sm text-stone-700 max-w-2xl leading-relaxed">
+        Merge into another maker when this isn't actually a new brand — a duplicate
+        or a name variant of one you already track. Its mentions move to the target,
+        its names fold in as aliases, and this row is removed.
+      </p>
+      {% if merge_suggestions %}
+      <div class="mt-3">
+        <div class="text-[11px] uppercase tracking-[0.1em] text-stone-500 font-medium mb-1.5">Likely duplicates</div>
+        <div class="flex flex-wrap gap-1.5">
+          {% for s in merge_suggestions %}
+          <a href="/makers/{{ m.id }}?confirm=merge&into={{ s.maker_id }}"
+             class="inline-flex items-center gap-1.5 text-sm border border-stone-300 rounded-lg px-2.5 py-1 hover:border-stone-500 hover:bg-stone-50 transition">
+            {{ s.name }}<span class="text-[11px] text-stone-400">{{ s.score }}%</span>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      <div class="mt-3">
+        <label for="merge-q" class="block text-[11px] uppercase tracking-[0.1em] text-stone-500 font-medium mb-1.5">Search makers</label>
+        <input id="merge-q" type="text" name="q" placeholder="Type a maker name…"
+               autocomplete="off"
+               hx-get="/makers/{{ m.id }}/merge/search"
+               hx-trigger="keyup changed delay:250ms"
+               hx-target="#merge-results"
+               class="text-sm rounded-lg border border-stone-300 focus:border-stone-500 focus:ring-stone-300 px-3 py-2 w-72 max-w-full" />
+        <div id="merge-results" class="mt-2"></div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
 
 {% endblock %}

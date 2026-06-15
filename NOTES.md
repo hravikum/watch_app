@@ -820,6 +820,46 @@ For quick reference on what shipped when:
       deduped to one home); "Open questions" prestige-weights marked RESOLVED
       (4A). Deduped charts / public deployment / automated-seed-entry, each
       previously listed 2-3×.
+- 4D  Suppress / delete a maker from the UI — the curation half of "stop
+      tracking this." Surfaces the maker_admin operations (CLI since 3O) on the
+      detail page, admin-gated like /review and promote (the personal-posture
+      state/reaction form stays ungated). New POST routes suppress / unsuppress
+      (reversible, 303 back to the page) and delete (303 to /discoveries, since
+      the row is gone). The GET detail route takes ?confirm=delete to render an
+      in-page confirm panel populated by a delete *dry-run* — the exact
+      mention / watch-model / signal / score counts that would be removed —
+      before anything commits; a seed maker shows the blocker (no confirm
+      button) and the POST is a 409. _fetch_maker_detail now carries
+      is_suppressed / suppressed_reason; a "Suppressed" header badge and an
+      admin-only "Manage" section render the controls. No schema change
+      (is_suppressed columns exist since 0008) and no new maker_admin logic —
+      pure UI over the tested operations, so the dry-run/commit + seed guard are
+      inherited, not reimplemented. New tests/test_maker_admin_ui.py (gating,
+      control rendering, suppress/unsuppress toggle, confirm-panel counts,
+      commit + redirect, seed-blocked). Suite 548 → 560. Merge from the UI (the
+      near-duplicate + typeahead target picker) is the next chunk.
+- 4E  Merge a maker from the UI — the remedy for "this isn't a new brand" (a
+      duplicate or name variant of one already tracked), completing the
+      maker-maintenance surface started in 4D. Surfaces merge_makers (CLI since
+      3N) on the detail page, admin-gated. Two ways to pick the target: a
+      "Likely duplicates" row built from find_near_duplicates filtered to this
+      maker (the common near-name case, no typing), and an HTMX typeahead
+      fallback over all makers — new GET /makers/{id}/merge/search returns a
+      _merge_results.html fragment (case-insensitive substring over
+      canonical_name + aliases, ≥2 chars, self excluded, seed makers included
+      since they're valid *targets*). Both lead to the same in-page confirm
+      panel (GET ?confirm=merge&into=…, a merge dry-run) showing what moves —
+      mentions reassigned/deduped, watch models, dropped signal/score rows,
+      aliases folded — before POST /makers/{id}/merge commits and 303-redirects
+      to the surviving maker. Blockers (seed source, self-merge, missing target)
+      surface as 409 and as the panel's blocked state. No schema change and no
+      new maker_admin logic — pure UI over the tested operation, dry-run/commit
+      and the seed-source guard inherited. find_near_duplicates is O(N²) over
+      makers and runs per admin detail-page load; fine at the current DB size,
+      revisit with a cap/threshold if it ever drags. test_maker_admin_ui.py
+      extended (search gating + matching + self-exclusion + short-query, confirm
+      panel, commit + alias-fold + mention-move + survivor redirect, self- and
+      seed-blocked, suggestions render). Suite 560 → 571.
 
 ## Findings logged from the week-1 data review (2G)
 

@@ -22,8 +22,13 @@ from watch_app.extraction.maker_admin import (
     RELATIONSHIP_STATE_LABELS,
     TASTE_REACTIONS,
     TASTE_REACTION_LABELS,
+    delete_maker,
+    find_near_duplicates,
+    merge_makers,
     set_relationship_state,
     set_taste_reaction,
+    suppress_maker,
+    unsuppress_maker,
 )
 from watch_app.scoring.methodology import (
     SIGNAL_DESCRIPTIONS,
@@ -192,6 +197,8 @@ def _fetch_maker_detail(maker_id: int) -> dict | None:
             "founded_year": maker.founded_year,
             "website": maker.website,
             "is_independent": maker.is_independent,
+            "is_suppressed": bool(maker.is_suppressed),
+            "suppressed_reason": maker.suppressed_reason,
             "first_seen_at": maker.first_seen_at,
             "relationship_state": maker.relationship_state,
             "notes": maker.notes,
@@ -277,11 +284,38 @@ def top_fragment(
 
 
 @router.get("/makers/{maker_id}", response_class=HTMLResponse)
-def maker_detail(request: Request, maker_id: int) -> HTMLResponse:
-    """Render the per-maker detail page."""
+def maker_detail(
+    request: Request,
+    maker_id: int,
+    confirm: str = Query(None),
+    into: str = Query(None),
+) -> HTMLResponse:
+    """Render the per-maker detail page.
+
+    `confirm=delete` (admin only) renders an in-page delete confirmation panel
+    populated by a delete dry-run — the exact counts that would be removed —
+    before anything is committed. A seed maker shows the blocker instead of a
+    confirm button.
+
+    `confirm=merge&into=<ref>` (admin only) does the same for a merge: a dry-run
+    of folding this maker into the target, shown before committing. Admin views
+    also get near-duplicate merge suggestions for this maker.
+    """
     detail = _fetch_maker_detail(maker_id)
     if detail is None:
         raise HTTPException(status_code=404, detail=f"Maker {maker_id} not found")
+    admin = get_settings().admin_mode
+    delete_preview = None
+    merge_preview = None
+    merge_suggestions: list[dict] = []
+    if admin and confirm == "delete":
+        with session_scope() as session:
+            delete_preview = delete_maker(session, str(maker_id), commit=False)
+    if admin and confirm == "merge" and into:
+        with session_scope() as session:
+            merge_preview = merge_makers(session, str(maker_id), into, commit=False)
+    if admin:
+        merge_suggestions = _merge_suggestions(maker_id)
     # Per-maker scoring breakdown under each preset: raw → z → weight →
     # contribution → composite, for THIS maker (not just the global #1 shown on
     # /methodology). None for a preset means the maker has no signals yet.
@@ -303,6 +337,11 @@ def maker_detail(request: Request, maker_id: int) -> HTMLResponse:
             "state_labels": RELATIONSHIP_STATE_LABELS,
             "taste_reactions": list(TASTE_REACTIONS),
             "reaction_labels": TASTE_REACTION_LABELS,
+            "admin_mode": admin,
+            "delete_preview": delete_preview,
+            "merge_preview": merge_preview,
+            "merge_into": into,
+            "merge_suggestions": merge_suggestions,
         },
     )
 
@@ -335,6 +374,157 @@ def set_maker_state(
             raise HTTPException(status_code=400, detail=str(exc))
         session.commit()
     return RedirectResponse(url=f"/makers/{maker_id}", status_code=303)
+
+
+# --- Maker maintenance: suppress / delete (admin-only, chunk 4D) ---
+#
+# Surfaces the maker_admin operations (CLI since 3O) in the UI. Admin-gated like
+# /review and promote — these are curation/maintenance, distinct from the
+# personal-posture actions (state/reaction) that POST /state handles and that
+# stay ungated. Suppress is reversible (303 back to the page); delete is the
+# hard path, so it goes through the in-page confirm panel (GET ?confirm=delete,
+# a dry-run) before this POST commits, then redirects to /discoveries since the
+# row is gone. The dry-run/commit semantics and the seed guard live in
+# maker_admin; the routes just translate blockers into HTTP status codes.
+
+
+@router.post("/makers/{maker_id}/suppress")
+def suppress_maker_route(
+    maker_id: int, reason: str = Form(default="")
+) -> RedirectResponse:
+    """Hide a maker from discoveries/rankings without deleting it. Reversible."""
+    _require_admin()
+    with session_scope() as session:
+        res = suppress_maker(
+            session, str(maker_id), reason=reason.strip() or None, commit=True
+        )
+        if res.blockers:
+            raise HTTPException(status_code=404, detail=" ".join(res.blockers))
+    return RedirectResponse(url=f"/makers/{maker_id}", status_code=303)
+
+
+@router.post("/makers/{maker_id}/unsuppress")
+def unsuppress_maker_route(maker_id: int) -> RedirectResponse:
+    """Reverse a suppression — the maker returns to discoveries/rankings."""
+    _require_admin()
+    with session_scope() as session:
+        res = unsuppress_maker(session, str(maker_id), commit=True)
+        if res.blockers:
+            raise HTTPException(status_code=404, detail=" ".join(res.blockers))
+    return RedirectResponse(url=f"/makers/{maker_id}", status_code=303)
+
+
+@router.post("/makers/{maker_id}/delete")
+def delete_maker_route(maker_id: int) -> RedirectResponse:
+    """Hard-delete a maker and everything referencing it. The in-page confirm
+    panel (GET ?confirm=delete) shows the dry-run impact first. Seed makers are
+    blocked — the loader would re-create them — and surface as 409.
+    """
+    _require_admin()
+    with session_scope() as session:
+        plan = delete_maker(session, str(maker_id), commit=True)
+        if plan.blockers:
+            raise HTTPException(status_code=409, detail=" ".join(plan.blockers))
+    return RedirectResponse(url="/discoveries", status_code=303)
+
+
+# --- Merge into another maker (admin-only, chunk 4E) ---
+#
+# The remedy for "this isn't a new brand" — a duplicate or name variant of one
+# already tracked. merge_makers (CLI since 3N) reassigns mentions/watch-models
+# to the target, folds names in as aliases, drops derived rows, and deletes the
+# source. The UI offers two ways to pick the target: near-duplicate suggestions
+# (find_near_duplicates filtered to this maker — the common near-name case) and
+# a typeahead fallback over all makers. Both lead to the same confirm panel
+# (GET ?confirm=merge&into=…, a dry-run) before this POST commits. Seed makers
+# are blocked as the *source* only; any maker (seed included) is a valid target.
+
+
+def _merge_suggestions(maker_id: int, limit: int = 5) -> list[dict]:
+    """Near-duplicate makers for this one — likely merge targets, with score.
+
+    Thin filter over find_near_duplicates (all fuzzy name pairs DB-wide) down to
+    pairs involving this maker, returning the other side. The "isn't a new
+    brand" case is usually a near-name match, so this surfaces the target
+    without typing. Admin-only at the call site (O(N²) over makers).
+    """
+    out: list[dict] = []
+    with session_scope() as session:
+        for p in find_near_duplicates(session):
+            if p.a_id == maker_id:
+                other_id, other_name = p.b_id, p.b_name
+            elif p.b_id == maker_id:
+                other_id, other_name = p.a_id, p.a_name
+            else:
+                continue
+            out.append(
+                {"maker_id": other_id, "name": other_name, "score": round(p.score)}
+            )
+            if len(out) >= limit:
+                break
+    return out
+
+
+@router.get("/makers/{maker_id}/merge/search", response_class=HTMLResponse)
+def merge_search(
+    request: Request, maker_id: int, q: str = Query("")
+) -> HTMLResponse:
+    """HTMX typeahead: makers whose name or alias matches `q`, as merge targets.
+
+    The fallback for when the near-duplicate suggestions don't cover the case.
+    Case-insensitive substring over canonical_name + aliases, excluding this
+    maker itself; seed makers are included since they're valid targets (merge
+    only blocks a seed as the *source*). Needs ≥2 chars; name-ordered, capped.
+    """
+    _require_admin()
+    needle = q.strip().lower()
+    results: list[dict] = []
+    if len(needle) >= 2:
+        with session_scope() as session:
+            for m in (
+                session.query(Maker).order_by(Maker.canonical_name).all()
+            ):
+                if m.id == maker_id:
+                    continue
+                hay = [m.canonical_name.lower()]
+                hay += [(a or "").lower() for a in (m.aliases or [])]
+                if any(needle in h for h in hay):
+                    results.append(
+                        {
+                            "maker_id": m.id,
+                            "name": m.canonical_name,
+                            "country": m.country,
+                        }
+                    )
+                    if len(results) >= 10:
+                        break
+    return templates.TemplateResponse(
+        request=request,
+        name="_merge_results.html",
+        context={"results": results, "maker_id": maker_id, "q": q.strip()},
+    )
+
+
+@router.post("/makers/{maker_id}/merge")
+def merge_maker_route(maker_id: int, into: str = Form(...)) -> RedirectResponse:
+    """Merge this maker into the target (`into`, an id or name); redirect to the
+    survivor. The in-page confirm panel (GET ?confirm=merge&into=…) shows the
+    dry-run impact first. Blockers (seed source, self-merge, missing target)
+    surface as 409.
+    """
+    _require_admin()
+    with session_scope() as session:
+        plan = merge_makers(session, str(maker_id), into, commit=True)
+        if plan.blockers:
+            raise HTTPException(status_code=409, detail=" ".join(plan.blockers))
+        survivor = (
+            session.query(Maker)
+            .filter_by(canonical_name=plan.into_name)
+            .first()
+        )
+        survivor_id = survivor.id if survivor else None
+    target = f"/makers/{survivor_id}" if survivor_id else "/"
+    return RedirectResponse(url=target, status_code=303)
 
 
 # --- Triage (Layer 3a workflow, chunk 3X) ---
