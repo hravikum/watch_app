@@ -31,11 +31,13 @@ parked — see "Explicitly NOT doing"); going public re-tiers everything
 (personal-state features become multi-user/auth, source breadth + methodology
 defensibility rise).
 
-Status (2026-06-08): the discovery→engagement arc is nearly complete — Layers
+Status (2026-06-15): the discovery→engagement arc is nearly complete — Layers
 1a/1b (taste schema + bulk tagging, 3A/3B), Layer 2 (the /explore filter +
 similarity, 3O/3P), and Layer 3a (reaction capture 3V + triage 3X) all shipped.
 Source-weight calibration is done end to end (diagnostic 3Y/3Z, tuning 4A), and
-a weekly LLM discovery scan is now schedulable (4B). What's left is below.
+a weekly LLM discovery scan is now schedulable (4B). The maker-maintenance UI
+(suppress/delete 4D, merge 4E) and the trends page (mention volume + rank
+trajectories, 4F) have since shipped too. What's left is below.
 
 ### Tier 1 — strongest next bets
 - **Layer 3b — adaptive ranking.** The arc's headline and the one piece left to
@@ -43,10 +45,6 @@ a weekly LLM discovery scan is now schedulable (4B). What's left is below.
   like/dislike signal (3V) and the existing `_similar_makers` engine. Gated on
   reaction volume — still <20, but the weekly discovery scan (4B) + triage will
   fill that clock faster now. Build once there's signal to adapt to.
-- **Dashboard / trend charts.** Newly unblocked — the 3-weeks-of-data gate is
-  met (6 weeks in hand). Mention volume over time, per-maker momentum, rank
-  trajectories. `/movers` (2L) gives the rank-change *numbers*; this is the
-  time-series *visual* layer. Self-contained, no schema change.
 
 ### Tier 2 — high value, sequence after a bit more data or groundwork
 - **Engagement data per maker** (access / sales model / contact path / how to
@@ -70,6 +68,10 @@ a weekly LLM discovery scan is now schedulable (4B). What's left is below.
 - **`--write` flag for the schedule commands.** QoL: have `schedule` /
   `schedule-digest` / `schedule-discovery` save the plist directly instead of
   printing it to pipe through `sed`.
+- **Per-maker momentum chart.** The third trend view, deferred out of 4F (which
+  shipped overall mention volume + top-10 rank trajectories). A mentions-over-
+  time sparkline on the maker detail page, scoped to one maker. Small, additive,
+  no schema change — same SVG-geometry approach as the /trends charts.
 - **Automated seed entry** (paste a paragraph → LLM extracts fields → append
   YAML). QoL, but `promote` already graduates discovered makers and the seed is
   fairly complete — low marginal value until adding many brand-new seeds.
@@ -860,6 +862,29 @@ For quick reference on what shipped when:
       extended (search gating + matching + self-exclusion + short-query, confirm
       panel, commit + alias-fold + mention-move + survivor redirect, self- and
       seed-blocked, suggestions render). Suite 560 → 571.
+- 4F  Trends page (`/trends`) — the time-series visual layer NOTES had parked
+      as Tier 1 until the data gate cleared (now 7 weeks, 4/26–6/14). Two
+      hand-rolled server-side SVG charts, no JS and no new dependency:
+      (1) mention volume over time and (2) rank trajectories for the current
+      top 10 under the selected preset. Two new data functions in
+      scoring/queries.py: `fetch_mention_volume` (daily buckets, gap-filled) and
+      `fetch_rank_trajectories` (current top-N + their full stored Score
+      history). Trajectories are a plain history read — `rank` is already stored
+      per (maker, preset, computed_at), the same column /movers compares — so no
+      re-scoring and no schema change. Geometry is computed in two pure router
+      helpers (`_build_volume_chart`, `_build_trajectory_chart`) unit-tested
+      directly for the divide-by-zero edges (single day, single snapshot,
+      all-zero). Route mirrors /movers (preset-aware via `_resolve_preset`,
+      graceful empty states); new `trends.html`; "Trends" nav link after Movers.
+      Decision worth recording: volume counts NON-awards mentions by
+      `discovered_at`, NOT `COALESCE(published_at, discovered_at)` as first
+      scoped — GPHG awards write Mention rows with publication dates back to
+      2023, which would have stretched the axis across years and buried the
+      organic 5–25/day signal. discovered_at + awards-exclusion matches the
+      source-quality diagnostic's basis and keeps the series bounded to the
+      project's own lifetime; the chart labels the exclusion. Per-maker momentum
+      (the third candidate view) deferred to a Tier 3 follow-up. 21 tests in
+      tests/test_trends.py. Suite 571 → 592.
 
 ## Findings logged from the week-1 data review (2G)
 

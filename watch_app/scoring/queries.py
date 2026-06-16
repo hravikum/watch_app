@@ -10,7 +10,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, aliased
 
-from watch_app.storage.models import Maker, Mention, Score
+from watch_app.storage.models import Maker, Mention, Score, Source
 
 
 def latest_scores_query(preset_name: str):
@@ -289,3 +289,111 @@ def fetch_rank_changes(
         "fallers": fallers,
         "new_entrants": new_entrants,
     }
+
+
+def fetch_mention_volume(session: Session) -> list[dict[str, Any]]:
+    """Daily counts of editorial/community mentions, by ingest date, gap-filled.
+
+    Buckets every non-awards Mention by date(discovered_at) — the date the
+    mention entered the database, i.e. scan/ingestion activity over time.
+
+    Two deliberate choices keep the series honest:
+
+    - Awards-category sources (GPHG) are excluded. Their mentions are a one-time
+      historical bulk load, not coverage that accrues over time.
+    - discovered_at (not published_at) is the basis. Awards' publication dates
+      stretch back years, and the occasional old editorial article would too;
+      discovered_at keeps the series bounded to the project's own lifetime,
+      which is what "is mention volume growing?" actually asks. This mirrors the
+      first-surfaced basis the source-quality diagnostic uses.
+
+    Returns [{"date": date, "count": int}, ...] oldest→newest, with zero-count
+    days filled in so a quiet day reads as a dip rather than a gap. Empty list
+    when there are no non-awards mentions.
+    """
+    from datetime import date as _date, timedelta
+
+    awards_source_ids = [
+        sid
+        for (sid,) in session.query(Source.id)
+        .filter(Source.category == "awards")
+        .all()
+    ]
+
+    day = func.date(Mention.discovered_at)
+    q = session.query(day.label("d"), func.count(Mention.id))
+    if awards_source_ids:
+        q = q.filter(Mention.source_id.notin_(awards_source_ids))
+    rows = q.group_by("d").all()
+
+    counts = {d: c for d, c in rows if d is not None}
+    if not counts:
+        return []
+
+    start = _date.fromisoformat(min(counts))
+    end = _date.fromisoformat(max(counts))
+    out: list[dict[str, Any]] = []
+    cur = start
+    while cur <= end:
+        out.append({"date": cur, "count": counts.get(cur.isoformat(), 0)})
+        cur += timedelta(days=1)
+    return out
+
+
+def fetch_rank_trajectories(
+    session: Session,
+    preset_name: str,
+    top_n: int = 10,
+) -> dict[str, Any]:
+    """Rank-over-time for the makers currently in the top `top_n` under preset.
+
+    Picks the current top-N (latest score, suppressed excluded, best rank
+    first), then pulls every historical Score row for those makers under this
+    preset, ordered by computed_at. Rows with a NULL rank are skipped. A maker's
+    trajectory may have gaps (it dropped off the scoreboard and came back) —
+    those are left as gaps rather than interpolated.
+
+    Returns::
+
+        {
+          "makers": [
+            {"maker_id": int, "canonical_name": str, "current_rank": int,
+             "points": [{"computed_at": datetime, "rank": int}, ...]},
+            ...  # current_rank ascending
+          ],
+          "max_rank": int,  # worst (largest) rank across all plotted points;
+                            # the y-axis floor. At least 1.
+        }
+
+    Empty {"makers": [], "max_rank": 0} when nothing is scored.
+    """
+    top = fetch_top_makers(session, preset_name, limit=top_n)
+    if not top:
+        return {"makers": [], "max_rank": 0}
+
+    maker_ids = [t["maker_id"] for t in top]
+    score_rows = (
+        session.query(Score.maker_id, Score.computed_at, Score.rank)
+        .filter(Score.preset == preset_name, Score.maker_id.in_(maker_ids))
+        .filter(Score.rank.isnot(None))
+        .order_by(Score.computed_at.asc())
+        .all()
+    )
+
+    points_by_maker: dict[int, list[dict[str, Any]]] = {mid: [] for mid in maker_ids}
+    max_rank = 0
+    for mid, computed_at, rank in score_rows:
+        points_by_maker[mid].append({"computed_at": computed_at, "rank": rank})
+        if rank > max_rank:
+            max_rank = rank
+
+    makers_out = [
+        {
+            "maker_id": t["maker_id"],
+            "canonical_name": t["canonical_name"],
+            "current_rank": t["rank"],
+            "points": points_by_maker[t["maker_id"]],
+        }
+        for t in top
+    ]
+    return {"makers": makers_out, "max_rank": max(max_rank, 1)}

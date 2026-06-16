@@ -38,7 +38,7 @@ from watch_app.scoring.methodology import (
     build_worked_example_for_maker,
 )
 from watch_app.scoring.presets import PRESETS
-from watch_app.scoring.queries import fetch_top_makers, fetch_all_makers_comparison, fetch_rank_changes, latest_scores_query
+from watch_app.scoring.queries import fetch_top_makers, fetch_all_makers_comparison, fetch_rank_changes, fetch_mention_volume, fetch_rank_trajectories, latest_scores_query
 from watch_app.storage.db import session_scope
 from watch_app.storage.models import Maker, Mention, Signal
 
@@ -779,6 +779,173 @@ def digest(
             "days": days,
             "valid_days": _VALID_DAYS,
             "digest": d,
+        },
+    )
+
+
+# --- Trends: server-side SVG chart geometry -------------------------------
+#
+# These turn the trend data series into ready-to-render SVG coordinates so the
+# template stays declarative (just draws polylines/paths). Kept here with the
+# other view helpers; pure functions, unit-tested directly. No client JS.
+
+_CHART_W = 720
+
+#: Distinguishable but warm-leaning line colors for trajectory makers.
+_TRAJECTORY_COLORS = [
+    "#d97706", "#0d9488", "#e11d48", "#4f46e5", "#65a30d",
+    "#c2410c", "#0e7490", "#a21caf", "#64748b", "#1d4ed8",
+]
+
+
+def _date_label(d) -> str:
+    """Portable 'Mon D' label (avoids platform-specific %-d)."""
+    return f"{d:%b} {d.day}"
+
+
+def _build_volume_chart(volume: list[dict]) -> dict | None:
+    """Geometry for the daily mention-volume line. None when there's no data."""
+    if not volume:
+        return None
+
+    w, h = _CHART_W, 220
+    pl, pr, pt, pb = 44, 14, 16, 30
+    plot_w = w - pl - pr
+    plot_h = h - pt - pb
+    n = len(volume)
+    y_max = max(max((d["count"] for d in volume), default=0), 1)
+
+    def x_at(i: int) -> float:
+        return pl + plot_w / 2 if n == 1 else pl + (i / (n - 1)) * plot_w
+
+    def y_at(c: float) -> float:
+        return pt + (1 - c / y_max) * plot_h
+
+    pts = [(x_at(i), y_at(d["count"])) for i, d in enumerate(volume)]
+    baseline = pt + plot_h
+    line = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+    area = (
+        f"M {pts[0][0]:.1f},{baseline:.1f} "
+        + " ".join(f"L {x:.1f},{y:.1f}" for x, y in pts)
+        + f" L {pts[-1][0]:.1f},{baseline:.1f} Z"
+    )
+
+    y_ticks = [
+        {"y": round(y_at(v), 1), "label": str(v)}
+        for v in sorted({0, y_max // 2, y_max})
+    ]
+
+    n_labels = min(n, 5)
+    if n_labels <= 1:
+        idxs = [0]
+    else:
+        idxs = sorted({round(k * (n - 1) / (n_labels - 1)) for k in range(n_labels)})
+    x_ticks = [
+        {"x": round(x_at(i), 1), "label": _date_label(volume[i]["date"])}
+        for i in idxs
+    ]
+
+    return {
+        "w": w, "h": h, "pl": pl, "pr": pr,
+        "line": line, "area": area,
+        "y_ticks": y_ticks, "x_ticks": x_ticks, "y_max": y_max,
+    }
+
+
+def _rank_ticks(max_rank: int) -> list[int]:
+    """A few sensible rank gridlines between 1 and max_rank (inclusive)."""
+    if max_rank <= 1:
+        return [1]
+    step = max(1, round(max_rank / 4))
+    return sorted({1, max_rank} | set(range(1, max_rank + 1, step)))
+
+
+def _build_trajectory_chart(trajectories: dict) -> dict | None:
+    """Geometry for the rank-over-time lines. None when nothing is plottable.
+
+    Rank axis is inverted: #1 sits at the top. Each maker becomes one polyline
+    plus an end marker (so a single-point trajectory is still visible).
+    """
+    plotted = [m for m in trajectories.get("makers", []) if m["points"]]
+    if not plotted:
+        return None
+
+    w, h = _CHART_W, 300
+    pl, pr, pt, pb = 44, 14, 16, 30
+    plot_w = w - pl - pr
+    plot_h = h - pt - pb
+    max_rank = max(trajectories.get("max_rank", 1), 1)
+
+    all_ts = [p["computed_at"] for m in plotted for p in m["points"]]
+    tmin, tmax = min(all_ts), max(all_ts)
+    span = (tmax - tmin).total_seconds()
+
+    def x_at(t) -> float:
+        return pl + plot_w / 2 if span <= 0 else pl + ((t - tmin).total_seconds() / span) * plot_w
+
+    def y_at(rank: int) -> float:
+        return pt if max_rank == 1 else pt + ((rank - 1) / (max_rank - 1)) * plot_h
+
+    lines = []
+    for idx, m in enumerate(plotted):
+        coords = [(x_at(p["computed_at"]), y_at(p["rank"])) for p in m["points"]]
+        lines.append({
+            "name": m["canonical_name"],
+            "maker_id": m["maker_id"],
+            "current_rank": m["current_rank"],
+            "color": _TRAJECTORY_COLORS[idx % len(_TRAJECTORY_COLORS)],
+            "poly": " ".join(f"{x:.1f},{y:.1f}" for x, y in coords),
+            "end_x": round(coords[-1][0], 1),
+            "end_y": round(coords[-1][1], 1),
+        })
+
+    y_ticks = [
+        {"y": round(y_at(r), 1), "label": f"#{r}"}
+        for r in _rank_ticks(max_rank)
+    ]
+
+    if span <= 0:
+        x_ticks = [{"x": round(pl + plot_w / 2, 1), "label": _date_label(tmin)}]
+    else:
+        x_ticks = [
+            {
+                "x": round(pl + (k / 4) * plot_w, 1),
+                "label": _date_label(tmin + (tmax - tmin) * (k / 4)),
+            }
+            for k in range(5)
+        ]
+
+    return {
+        "w": w, "h": h, "pl": pl, "pr": pr,
+        "lines": lines, "y_ticks": y_ticks, "x_ticks": x_ticks, "max_rank": max_rank,
+    }
+
+
+@router.get("/trends", response_class=HTMLResponse)
+def trends(request: Request, preset: str = Query(None)) -> HTMLResponse:
+    """Render the trends page: mention volume over time + rank trajectories.
+
+    Both charts are server-side SVG (no JS, no schema change). Volume counts
+    non-awards mentions by ingest date (see fetch_mention_volume for why).
+    Trajectories plot the current top-10 makers' stored rank history under the
+    selected preset; an unknown preset falls back to the default.
+    """
+    preset = _resolve_preset(preset)
+
+    with session_scope() as session:
+        volume = fetch_mention_volume(session)
+        trajectories = fetch_rank_trajectories(session, preset, top_n=10)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="trends.html",
+        context={
+            "preset": preset,
+            "presets": list(PRESETS.keys()),
+            "volume_chart": _build_volume_chart(volume),
+            "trajectory_chart": _build_trajectory_chart(trajectories),
+            "total_mentions": sum(v["count"] for v in volume),
+            "n_days": len(volume),
         },
     )
 
