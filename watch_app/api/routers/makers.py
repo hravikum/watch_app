@@ -823,6 +823,11 @@ def _build_volume_chart(volume: list[dict]) -> dict | None:
 
     pts = [(x_at(i), y_at(d["count"])) for i, d in enumerate(volume)]
     baseline = pt + plot_h
+    points = [
+        {"x": round(x, 1), "y": round(y, 1),
+         "label": _date_label(volume[i]["date"]), "count": volume[i]["count"]}
+        for i, (x, y) in enumerate(pts)
+    ]
     line = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
     area = (
         f"M {pts[0][0]:.1f},{baseline:.1f} "
@@ -846,8 +851,9 @@ def _build_volume_chart(volume: list[dict]) -> dict | None:
     ]
 
     return {
-        "w": w, "h": h, "pl": pl, "pr": pr,
-        "line": line, "area": area,
+        "w": w, "h": h, "pl": pl, "pr": pr, "pt": pt,
+        "baseline": round(baseline, 1),
+        "line": line, "area": area, "points": points,
         "y_ticks": y_ticks, "x_ticks": x_ticks, "y_max": y_max,
     }
 
@@ -895,6 +901,11 @@ def _build_trajectory_chart(trajectories: dict) -> dict | None:
             "current_rank": m["current_rank"],
             "color": _TRAJECTORY_COLORS[idx % len(_TRAJECTORY_COLORS)],
             "poly": " ".join(f"{x:.1f},{y:.1f}" for x, y in coords),
+            "points": [
+                {"x": round(cx, 1), "y": round(cy, 1),
+                 "label": _date_label(p["computed_at"]), "rank": p["rank"]}
+                for (cx, cy), p in zip(coords, m["points"])
+            ],
             "end_x": round(coords[-1][0], 1),
             "end_y": round(coords[-1][1], 1),
         })

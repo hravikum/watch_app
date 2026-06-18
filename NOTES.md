@@ -885,6 +885,32 @@ For quick reference on what shipped when:
       project's own lifetime; the chart labels the exclusion. Per-maker momentum
       (the third candidate view) deferred to a Tier 3 follow-up. 21 tests in
       tests/test_trends.py. Suite 571 → 592.
+- 4G  Made the /trends charts interactive (vanilla JS, no new dependency). The
+      4F charts were deliberately zero-JS server-rendered SVG; this adds a small
+      `web/static/trends.js` (served via the existing /static mount) that does
+      pure DOM glue over that SVG — no library, no recompute. Volume gets a
+      hover tooltip with a vertical guide + point marker (nearest day by cursor
+      x). Trajectories get hover-or-legend highlight (the hovered maker lifts,
+      the rest dim to 0.12 — this is the fix for the 10-line tangle), a tooltip
+      reading "<name> · #<rank> on <date>" off the nearest point on the hovered
+      line, and click-a-swatch to toggle a line off. The data each tooltip needs
+      (dates/counts/ranks/names) is emitted server-side: the two geometry
+      helpers (`_build_volume_chart`, `_build_trajectory_chart`) now also return
+      per-point dicts, dumped into `<script type="application/json">` blobs the
+      JS parses. Markup: a `relative` wrapper + absolute tooltip div per chart,
+      transparent wide "halo" polylines as easy hover targets, hidden
+      marker/guide elements positioned by the JS. State (highlight/dim/hidden) is
+      done via inline-style toggles + Tailwind's `.hidden`; no custom CSS and
+      base.html untouched (script tag lives in trends.html). Degrades to the
+      static 4F charts with JS off. Testing note worth recording: the suite has
+      no browser/JS harness and adding one (Playwright/jsdom) is the kind of new
+      dependency this project avoids, so the *interaction behavior* is NOT
+      auto-tested — `node --check` covers JS syntax, and 6 new server-side tests
+      cover the hooks the JS depends on (parseable data blobs, one halo + one
+      swatch per line, tooltip containers, the geometry helpers' new point data,
+      and that /static/trends.js is served). Verified the behavior by reasoning,
+      not a browser test; flagged this to confirm before building. Suite 592 →
+      598.
 
 ## Findings logged from the week-1 data review (2G)
 

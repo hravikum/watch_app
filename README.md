@@ -60,10 +60,12 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   new entrants over a configurable lookback window (3, 7, or 14 days)
   under either preset. The "rising star" preset's purpose is finally
   visible as actual movement, not a static snapshot.
-- **Charts the longer arc** at `/trends`. Two server-side SVG charts (no
-  JS): mention volume per day, and rank trajectories for the current top
-  10 makers traced back through their stored score history. Where `/movers`
-  gives week-over-week numbers, this is the time-series picture.
+- **Charts the longer arc** at `/trends`. Two SVG charts — mention volume
+  per day, and rank trajectories for the current top 10 makers traced back
+  through their stored score history — with hover tooltips, hover-to-
+  highlight one maker through the tangle, and click-a-swatch to hide a line.
+  Where `/movers` gives week-over-week numbers, this is the time-series
+  picture.
 - **Summarizes what changed** at `/digest` (and `cli digest`). A weekly
   "what changed" recap over a configurable window: new discoveries, rank
   movers, and — the personal part — activity on the makers you've marked
@@ -544,7 +546,7 @@ watch_app/
 │   └── youtube_channels.yaml  # 15 YouTube channels with prestige weights and tier annotations
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 592 tests; run with `make test` (~60s, no network)
+tests/                    # 598 tests; run with `make test` (~60s, no network)
 alembic/                  # Schema migrations
 ```
 

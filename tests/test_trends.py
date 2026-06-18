@@ -283,3 +283,85 @@ def test_trends_nav_link_present(client, test_engine):
     assert r.status_code == 200
     assert "/trends" in r.text
     assert "Trends" in r.text
+
+
+# ---------- interactivity hooks (4G) ----------
+
+
+def test_volume_chart_carries_point_data():
+    """The volume geometry now exposes per-point data for hover tooltips."""
+    series = [
+        {"date": date(2026, 6, 1), "count": 7},
+        {"date": date(2026, 6, 2), "count": 0},
+        {"date": date(2026, 6, 3), "count": 4},
+    ]
+    chart = _build_volume_chart(series)
+    assert "pt" in chart and "baseline" in chart
+    assert len(chart["points"]) == 3
+    p = chart["points"][0]
+    assert set(p) == {"x", "y", "label", "count"}
+    assert p["count"] == 7
+
+
+def test_trajectory_chart_carries_point_data():
+    """Each trajectory line now carries its points (date + rank) for tooltips."""
+    t = datetime(2026, 6, 1, 12)
+    traj = {
+        "makers": [{
+            "maker_id": 3, "canonical_name": "Solo", "current_rank": 1,
+            "points": [
+                {"computed_at": t, "rank": 4},
+                {"computed_at": t + timedelta(days=5), "rank": 1},
+            ],
+        }],
+        "max_rank": 4,
+    }
+    chart = _build_trajectory_chart(traj)
+    pts = chart["lines"][0]["points"]
+    assert len(pts) == 2
+    assert set(pts[0]) == {"x", "y", "label", "rank"}
+    assert [p["rank"] for p in pts] == [4, 1]
+
+
+def _json_blob(html, blob_id):
+    import json, re
+    m = re.search(r'id="%s">(.*?)</script>' % blob_id, html, re.S)
+    assert m, f"blob {blob_id!r} not found"
+    return json.loads(m.group(1))
+
+
+def test_trends_emits_parseable_hover_data(client, test_engine):
+    """Both charts emit JSON data blobs the client script can parse."""
+    _seed_trends_population()
+    html = client.get("/trends").text
+    vol = _json_blob(html, "vol-data")
+    traj = _json_blob(html, "traj-data")
+    assert len(vol) == 4  # four gap-filled days
+    assert vol[0].keys() >= {"x", "y", "label", "count"}
+    assert len(traj) == 2  # Beta, Alpha
+    assert traj[0]["points"]  # each line has its history
+
+
+def test_trends_trajectory_has_hover_targets(client, test_engine):
+    """One transparent halo + one legend swatch per plotted line."""
+    _seed_trends_population()
+    html = client.get("/trends").text
+    assert html.count('class="traj-halo"') == 2
+    assert html.count("traj-swatch") == 2
+    assert 'data-line="0"' in html and 'data-line="1"' in html
+
+
+def test_trends_includes_interactivity_script(client, test_engine):
+    _seed_trends_population()
+    html = client.get("/trends").text
+    assert "/static/trends.js" in html
+    assert 'id="vol-tip"' in html and 'id="traj-tip"' in html
+
+
+def test_trends_js_asset_is_served():
+    """The glue script is reachable at its static path on the real app."""
+    from watch_app.api.main import app as main_app
+    c = TestClient(main_app)
+    r = c.get("/static/trends.js")
+    assert r.status_code == 200
+    assert "initTrajectory" in r.text
