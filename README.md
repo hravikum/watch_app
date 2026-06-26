@@ -109,7 +109,8 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   flag, since the value is now human-reviewed. Gated behind
   `WATCH_APP_ADMIN` (off by default, so it's never exposed on a public
   deployment). Seed makers are excluded — their taste stays curated in
-  the YAML.
+  the YAML. Each card also carries per-maker Suppress / Delete controls
+  (see "Suppress or delete a maker" below).
 - **Explore by taste** at `/explore`. Faceted filtering over every maker
   that carries taste tags (seed and discovered together): OR within a
   dimension, AND across, with a static count beside each option so you
@@ -173,7 +174,11 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   optional reason), and a Delete that opens a confirm panel showing the exact
   dry-run impact — how many mentions, watch models, signals, and scores would
   go — before it commits. A seed maker shows the blocker there instead of a
-  confirm, same as the CLI. Merge is on the detail page too, for the related
+  confirm, same as the CLI. Both are also on the `/review` grid — one Suppress
+  button and one Delete&hellip; link per card — so you can curate a discovered
+  maker without opening its page: suppressing drops it off the grid, and
+  Delete&hellip; opens the same dry-run confirm panel inline in that maker's
+  card before it commits. Merge is on the detail page too, for the related
   case where a maker isn't actually new — a duplicate or name variant: it
   offers near-duplicate suggestions plus a name-search typeahead to pick the
   target, then a confirm panel showing what moves (mentions, watch models,

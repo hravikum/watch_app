@@ -1084,7 +1084,11 @@ def _fetch_discovered_for_review() -> list[dict]:
 
 
 @router.get("/review", response_class=HTMLResponse)
-def review(request: Request) -> HTMLResponse:
+def review(
+    request: Request,
+    confirm: str = Query(None),
+    maker: int = Query(None),
+) -> HTMLResponse:
     """Admin page for reviewing and editing taste tags on discovered makers.
 
     Lists every auto-discovered (non-seed) maker with its seven taste
@@ -1092,9 +1096,18 @@ def review(request: Request) -> HTMLResponse:
     enrichment are flagged "auto"; saving an edit clears that flag, since the
     value is now human-reviewed. Seed makers are intentionally absent — their
     taste is curated in the YAML. Gated by WATCH_APP_ADMIN.
+
+    `confirm=delete&maker=<id>` renders an in-card delete confirmation populated
+    by a delete dry-run — the exact counts that would be removed — before the
+    POST commits, mirroring the detail page's panel. A seed maker shows the
+    blocker instead of a confirm button.
     """
     _require_admin()
     makers = _fetch_discovered_for_review()
+    delete_preview = None
+    if confirm == "delete" and maker is not None:
+        with session_scope() as session:
+            delete_preview = delete_maker(session, str(maker), commit=False)
     return templates.TemplateResponse(
         request=request,
         name="review.html",
@@ -1106,6 +1119,8 @@ def review(request: Request) -> HTMLResponse:
             "multi_fields": list(taste.MULTI_VALUE_FIELDS),
             "single_fields": list(taste.SINGLE_VALUE_FIELDS),
             "display_label": taste.display_label,
+            "delete_preview": delete_preview,
+            "confirm_maker_id": maker,
         },
     )
 
@@ -1210,6 +1225,45 @@ def review_promote(maker_id: int) -> RedirectResponse:
                 detail += " Use `cli promote --force` if it's genuinely distinct."
             raise HTTPException(status_code=409, detail=detail)
 
+    return RedirectResponse(url="/review", status_code=303)
+
+
+# --- Maker maintenance from the review grid (admin-only) ---
+#
+# The same suppress / delete operations 4D put on the detail page, surfaced on
+# /review so a discovered maker can be curated without opening its page. These
+# mirror the detail-page routes but stay on /review: suppress redirects back
+# here (the maker drops off the grid, which already filters suppressed makers),
+# and delete is routed through an in-card confirm panel (GET
+# /review?confirm=delete&maker=…, a dry-run) before this POST commits and
+# redirects back here. The dry-run/commit semantics and the seed guard are
+# inherited from maker_admin; these differ from the detail-page routes only in
+# where they redirect.
+
+
+@router.post("/review/suppress/{maker_id}")
+def review_suppress(maker_id: int) -> RedirectResponse:
+    """Suppress a discovered maker from the review grid. Redirects to /review;
+    the maker drops off the grid since suppressed makers are filtered there.
+    Reverse it from the maker's detail page (it's no longer shown here)."""
+    _require_admin()
+    with session_scope() as session:
+        res = suppress_maker(session, str(maker_id), commit=True)
+        if res.blockers:
+            raise HTTPException(status_code=404, detail=" ".join(res.blockers))
+    return RedirectResponse(url="/review", status_code=303)
+
+
+@router.post("/review/delete/{maker_id}")
+def review_delete(maker_id: int) -> RedirectResponse:
+    """Hard-delete a maker from the review grid. The in-card confirm panel
+    (GET /review?confirm=delete&maker=…) shows the dry-run impact first. Seed
+    makers are blocked and surface as 409, same as the detail-page route."""
+    _require_admin()
+    with session_scope() as session:
+        plan = delete_maker(session, str(maker_id), commit=True)
+        if plan.blockers:
+            raise HTTPException(status_code=409, detail=" ".join(plan.blockers))
     return RedirectResponse(url="/review", status_code=303)
 
 

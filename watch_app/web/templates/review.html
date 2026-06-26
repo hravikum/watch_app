@@ -27,6 +27,42 @@
 <div class="space-y-5">
   {% for m in makers %}
   <div class="bg-white border border-stone-200 rounded-xl p-5">
+    {# --- Delete confirmation (rendered when ?confirm=delete&maker=<this id>) --- #}
+    {% if delete_preview and confirm_maker_id == m.id %}
+    <div class="mb-5 rounded-xl border border-red-300 bg-red-50 p-5">
+      {% if delete_preview.blockers %}
+        <h3 class="text-sm font-semibold text-red-800">Can't delete this maker</h3>
+        <p class="mt-1 text-sm text-red-700">{{ delete_preview.blockers | join(' ') }}</p>
+        <div class="mt-3">
+          <a href="/review"
+             class="text-sm text-stone-600 hover:text-stone-900 underline underline-offset-2">Cancel</a>
+        </div>
+      {% else %}
+        <h3 class="text-sm font-semibold text-red-800">Permanently delete {{ delete_preview.maker_name }}?</h3>
+        <p class="mt-1 text-sm text-red-700 max-w-2xl leading-relaxed">
+          This removes the maker and everything that references it, and can't be undone.
+          Suppress instead if the name might recur in feeds — the row survives so a stray
+          article can't resurrect it.
+        </p>
+        <ul class="mt-3 text-sm text-red-700 space-y-0.5">
+          <li>{{ delete_preview.mentions_deleted }} mention{{ '' if delete_preview.mentions_deleted == 1 else 's' }}</li>
+          <li>{{ delete_preview.watch_models_deleted }} watch model{{ '' if delete_preview.watch_models_deleted == 1 else 's' }}</li>
+          <li>{{ delete_preview.signals_deleted }} signal{{ '' if delete_preview.signals_deleted == 1 else 's' }}</li>
+          <li>{{ delete_preview.scores_deleted }} score{{ '' if delete_preview.scores_deleted == 1 else 's' }}</li>
+        </ul>
+        <div class="mt-4 flex items-center gap-3">
+          <form method="post" action="/review/delete/{{ m.id }}">
+            <button type="submit"
+                    class="px-4 py-2 text-sm font-medium rounded-md bg-red-600 text-white border border-red-600 hover:bg-red-700 transition">
+              Confirm delete
+            </button>
+          </form>
+          <a href="/review"
+             class="text-sm text-stone-600 hover:text-stone-900 underline underline-offset-2">Cancel</a>
+        </div>
+      {% endif %}
+    </div>
+    {% endif %}
     <div class="flex items-baseline justify-between mb-4">
       <h2 class="text-base font-semibold text-stone-900">
         <a href="/makers/{{ m.id }}"
@@ -36,6 +72,17 @@
         {% endif %}
       </h2>
       <div class="flex items-center gap-2">
+        <form method="post" action="/review/suppress/{{ m.id }}"
+              onsubmit="return confirm('Suppress {{ m.canonical_name }}? It leaves review and the rankings; reverse it from the detail page.');">
+          <button type="submit"
+                  class="text-xs uppercase tracking-[0.1em] font-medium text-stone-700 bg-white border border-stone-300 hover:border-stone-500 transition rounded-lg px-3 py-2">
+            Suppress
+          </button>
+        </form>
+        <a href="/review?confirm=delete&maker={{ m.id }}"
+           class="text-xs uppercase tracking-[0.1em] font-medium text-red-700 bg-white border border-red-300 hover:border-red-500 transition rounded-lg px-3 py-2">
+          Delete…
+        </a>
         <form method="post" action="/review/promote/{{ m.id }}"
               onsubmit="return confirm('Promote {{ m.canonical_name }} into the seed YAML? It leaves review and is curated via the YAML from then on.');">
           <button type="submit"

@@ -911,6 +911,29 @@ For quick reference on what shipped when:
       and that /static/trends.js is served). Verified the behavior by reasoning,
       not a browser test; flagged this to confirm before building. Suite 592 →
       598.
+- 4H  Surfaced suppress / delete on the `/review` grid, so a discovered maker
+      can be curated without opening its detail page. 4D put these on the detail
+      page; this is the same maker_admin operations (suppress_maker /
+      delete_maker), reached from review. Each card gets a confirm-guarded
+      Suppress button (POST /review/suppress/{id}) and a Delete… link. No new
+      operation logic — the dry-run/commit and seed guard are inherited; these
+      routes differ from the detail-page ones only in redirect target, both 303
+      back to /review (vs the detail page's /makers/{id} and /discoveries) so
+      you stay on the grid. Suppress drops the maker off the grid for free,
+      since _fetch_discovered_for_review already filters is_suppressed. Delete
+      goes through an in-CARD confirm panel: the Delete… link is GET
+      /review?confirm=delete&maker={id}, which runs a delete dry-run and renders
+      the same red panel the detail page uses (exact mention / watch-model /
+      signal / score counts) inside that maker's card, with a Confirm delete
+      that POSTs /review/delete/{id}; Cancel is a link back to /review. Per-card
+      (not top-of-page) placement was chosen so the confirm sits with the maker
+      it names. One asymmetry worth recording: seed makers never appear on
+      /review (filtered), so the panel's blocker branch is unreachable through
+      the UI there — the POST route still 409s as a backstop. The review GET
+      route gained confirm/maker query params + a delete_preview; no schema
+      change, no new dependency. 9 tests in tests/test_review_maintenance.py
+      (gating, controls render, suppress + drop-off, confirm-panel counts,
+      commit + redirect, seed 409). Suite 598 → 607.
 
 ## Findings logged from the week-1 data review (2G)
 
