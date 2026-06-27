@@ -1499,3 +1499,104 @@ makers:
     country: "France"
     founded_year: 1753
     is_independent: false
+  - canonical_name: "Weiss"
+    aesthetic_tags: ["modern", "tool"]
+    maker_type: "microbrand"
+    price_band: "high"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "in-house"
+    website: "https://weisswatchcompany.com/"
+    country: "United States"
+  - canonical_name: "Vortic"
+    aesthetic_tags: ["vintage-inspired", "tool"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    output_scale: "50-500"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "modified-base"
+    website: "https://vorticwatches.com/"
+    country: "United States"
+  - canonical_name: "Bernhardt"
+    aesthetic_tags: ["vintage-inspired", "tool"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    website: "https://www.bernhardtwatch.com/"
+    country: "United States"
+    founded_year: 2005
+  - canonical_name: "Galvin Watch Company"
+    aesthetic_tags: ["modern"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://galvinwatchcompany.com.au/"
+    country: "Australia"
+    founded_year: 2021
+  - canonical_name: "Mineroci"
+    aesthetic_tags: ["modern", "vintage-inspired"]
+    maker_type: "microbrand"
+    price_band: "high"
+    output_scale: "sub-50"
+    distribution: "direct"
+    movement_origin: "in-house"
+    website: "https://www.instagram.com/mineroci_official/"
+    country: "China"
+  - canonical_name: "Brew Watch Co."
+    aesthetic_tags: ["vintage-inspired", "tool"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    output_scale: "500-plus"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://www.brew-watches.com/"
+    country: "United States"
+  - canonical_name: "Vincent Calabrese"
+    aesthetic_tags: ["classical", "dressy"]
+    maker_type: "solo-watchmaker"
+    distribution: "direct"
+    website: "https://www.vincent-calabrese.com/en/"
+    country: "Italy"
+  - canonical_name: "Dodane"
+    aesthetic_tags: ["tool"]
+    maker_type: "small-atelier"
+    price_band: "mid"
+    distribution: "direct"
+    movement_origin: "stock-base"
+    website: "https://www.dodane1857.fr"
+    country: "France"
+    founded_year: 1857
+  - canonical_name: "Linde Werdelin"
+    aesthetic_tags: ["modern", "avant-garde", "tool"]
+    maker_type: "small-atelier"
+    price_band: "high"
+    distribution: "direct"
+    movement_origin: "modified-base"
+    website: "https://lindewerdelin.com/"
+    country: "Denmark"
+  - canonical_name: "Dr Ludwig Oechslin"
+    aesthetic_tags: ["classical", "modern"]
+    maker_type: "solo-watchmaker"
+    price_band: "haute"
+    output_scale: "sub-50"
+    complication_focus: ["time-only", "calendar", "astronomical"]
+    movement_origin: "in-house"
+    website: "https://www.ochsundjunior.swiss/"
+    country: "Switzerland"
+    founded_year: 2006
+  - canonical_name: "Ochs und Junior"
+    aesthetic_tags: ["modern", "avant-garde"]
+    maker_type: "solo-watchmaker"
+    price_band: "haute"
+    output_scale: "sub-50"
+    distribution: "allocation-waitlist"
+    complication_focus: ["time-only", "calendar", "astronomical"]
+    movement_origin: "in-house"
+    website: "https://www.ochsundjunior.swiss/"
+    country: "Switzerland"
+    founded_year: 2006
