@@ -1579,16 +1579,6 @@ makers:
     movement_origin: "modified-base"
     website: "https://lindewerdelin.com/"
     country: "Denmark"
-  - canonical_name: "Dr Ludwig Oechslin"
-    aesthetic_tags: ["classical", "modern"]
-    maker_type: "solo-watchmaker"
-    price_band: "haute"
-    output_scale: "sub-50"
-    complication_focus: ["time-only", "calendar", "astronomical"]
-    movement_origin: "in-house"
-    website: "https://www.ochsundjunior.swiss/"
-    country: "Switzerland"
-    founded_year: 2006
   - canonical_name: "Ochs und Junior"
     aesthetic_tags: ["modern", "avant-garde"]
     maker_type: "solo-watchmaker"
@@ -1600,3 +1590,423 @@ makers:
     website: "https://www.ochsundjunior.swiss/"
     country: "Switzerland"
     founded_year: 2006
+  - canonical_name: "Awake Watches"
+    aesthetic_tags: ["modern", "avant-garde"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://awakewatches.com/"
+    country: "France"
+    founded_year: 2019
+  - canonical_name: "George Daniels"
+    aesthetic_tags: ["classical", "vintage-inspired"]
+    maker_type: "solo-watchmaker"
+    price_band: "haute"
+    output_scale: "one-off"
+    distribution: "direct"
+    complication_focus: ["time-only", "astronomical"]
+    movement_origin: "in-house"
+    country: "United Kingdom"
+  - canonical_name: "David E. Walter"
+    aesthetic_tags: ["classical", "vintage-inspired"]
+    maker_type: "solo-watchmaker"
+    output_scale: "one-off"
+    distribution: "direct"
+    complication_focus: ["time-only", "calendar"]
+    website: "https://www.davidwalter.com/"
+    founded_year: 1980
+  - canonical_name: "Autodromo"
+    aesthetic_tags: ["modern", "vintage-inspired", "tool"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    distribution: "direct"
+    complication_focus: ["chronograph"]
+    movement_origin: "stock-base"
+    website: "https://www.autodromo.com"
+    country: "United States"
+    founded_year: 2011
+  - canonical_name: "CLEMENCE"
+    aesthetic_tags: ["modern", "tool"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://www.clemencewatches.com/"
+    country: "United Kingdom"
+  - canonical_name: "Visitor Watch Co"
+    aesthetic_tags: ["classical", "vintage-inspired"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://www.visitorwatchco.com/"
+    country: "United States"
+    founded_year: 2025
+  - canonical_name: "Romain Gauthier"
+    aesthetic_tags: ["classical", "avant-garde", "dressy"]
+    maker_type: "solo-watchmaker"
+    price_band: "haute"
+    output_scale: "sub-50"
+    distribution: "dealer-only"
+    complication_focus: ["time-only", "tourbillon"]
+    movement_origin: "in-house"
+    website: "https://www.romaingauthier.com/"
+    country: "Switzerland"
+    founded_year: 2005
+  - canonical_name: "Echo/Neutra"
+    aesthetic_tags: ["modern", "vintage-inspired", "tool", "dressy"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    distribution: "direct"
+    complication_focus: ["chronograph"]
+    movement_origin: "stock-base"
+    website: "https://echoneutra.com/"
+    country: "Italy"
+  - canonical_name: "Islander"
+    aesthetic_tags: ["classical", "dressy"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    country: "United States"
+  - canonical_name: "Venezianico"
+    aesthetic_tags: ["classical", "vintage-inspired"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    website: "https://us.venezianico.com/"
+    country: "Italy"
+    founded_year: 2017
+  - canonical_name: "DUG"
+    aesthetic_tags: ["classical", "vintage-inspired"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    distribution: "direct"
+    complication_focus: ["time-only", "calendar"]
+    movement_origin: "modified-base"
+    website: "https://dug-glashuette.com/en"
+    country: "Germany"
+    founded_year: 2024
+  - canonical_name: "Manime"
+    aesthetic_tags: ["classical", "dressy"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    website: "https://www.manime-watches.com/"
+    country: "France"
+    founded_year: 2020
+  - canonical_name: "Zelos"
+    aesthetic_tags: ["vintage-inspired", "tool"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    output_scale: "500-plus"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    website: "https://zeloswatches.com/"
+    country: "Singapore"
+    founded_year: 2014
+  - canonical_name: "Marco Bracca"
+    aesthetic_tags: ["classical", "vintage-inspired", "tool"]
+    maker_type: "solo-watchmaker"
+    price_band: "entry"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    website: "https://www.braccaorologi.it/"
+    country: "Italy"
+  - canonical_name: "Aenigma"
+    aesthetic_tags: ["modern", "tool"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    website: "https://www.aenigma.world/index.php"
+    country: "Italy"
+  - canonical_name: "Duxot"
+    aesthetic_tags: ["modern", "tool"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    output_scale: "500-plus"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://duxotwatches.com/"
+    country: "Hong Kong"
+  - canonical_name: "Steeldive"
+    aesthetic_tags: ["modern", "tool"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    output_scale: "500-plus"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://www.steeldives.com/"
+    country: "China"
+    founded_year: 2008
+  - canonical_name: "Horizon"
+    aesthetic_tags: ["modern"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    distribution: "direct"
+    website: "https://www.horizon-watches.com/"
+    country: "Singapore"
+    founded_year: 2001
+  - canonical_name: "Spinnaker"
+    aesthetic_tags: ["vintage-inspired", "tool"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    output_scale: "500-plus"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://spinnaker-watches.com/"
+    country: "Hong Kong"
+    founded_year: 2013
+  - canonical_name: "Xeric"
+    aesthetic_tags: ["modern", "avant-garde"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    distribution: "direct"
+    complication_focus: ["time-only", "chronograph"]
+    movement_origin: "stock-base"
+    website: "https://www.xeric.com/"
+    country: "United States"
+    founded_year: 2013
+  - canonical_name: "San Martin"
+    aesthetic_tags: ["vintage-inspired", "tool"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    output_scale: "500-plus"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://sanmartinwatches.com/"
+    country: "China"
+    founded_year: 2016
+  - canonical_name: "Ercigoj"
+    aesthetic_tags: ["classical", "avant-garde"]
+    maker_type: "small-atelier"
+    price_band: "mid"
+    output_scale: "sub-50"
+    distribution: "direct"
+    movement_origin: "stock-base"
+    website: "https://watches.ercigoj.com/"
+    country: "Slovenia"
+    founded_year: 1923
+  - canonical_name: "Erebus"
+    aesthetic_tags: ["vintage-inspired", "tool"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    output_scale: "500-plus"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://erebuswatches.com/"
+    country: "Australia"
+    founded_year: 2022
+  - canonical_name: "Baltany"
+    aesthetic_tags: ["modern", "avant-garde"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    website: "https://www.baltany.com/collections"
+    country: "China"
+    founded_year: 2021
+  - canonical_name: "MMi"
+    aesthetic_tags: ["vintage-inspired", "tool"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["chronograph"]
+    movement_origin: "stock-base"
+    website: "https://www.mmiwatches.com/"
+    country: "Singapore"
+    founded_year: 2019
+  - canonical_name: "Phoibos"
+    aesthetic_tags: ["vintage-inspired", "tool"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    output_scale: "500-plus"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://phoiboswatch.com/"
+    country: "Greece"
+    founded_year: 2014
+  - canonical_name: "Nordic Marine Instruments"
+    aesthetic_tags: ["modern", "tool"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    distribution: "direct"
+    complication_focus: ["astronomical"]
+    movement_origin: "stock-base"
+    website: "https://nordicmarineinstruments.com/"
+    country: "Denmark"
+  - canonical_name: "Vario"
+    aesthetic_tags: ["modern", "vintage-inspired"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    distribution: "direct"
+    complication_focus: ["time-only", "chronograph"]
+    movement_origin: "stock-base"
+    website: "https://vario.sg/"
+    country: "Singapore"
+    founded_year: 2016
+  - canonical_name: "Kross Studio"
+    aesthetic_tags: ["modern", "avant-garde"]
+    maker_type: "small-atelier"
+    price_band: "haute"
+    distribution: "direct"
+    complication_focus: ["time-only", "tourbillon"]
+    movement_origin: "in-house"
+    website: "https://kross-studio.ch/en"
+    country: "Switzerland"
+    founded_year: 2020
+  - canonical_name: "Jean Khatchadourian"
+    aesthetic_tags: ["classical", "modern"]
+    maker_type: "solo-watchmaker"
+    price_band: "high"
+    output_scale: "one-off"
+    distribution: "direct"
+    complication_focus: ["time-only", "astronomical"]
+    movement_origin: "modified-base"
+    website: "http://www.jeankhatchadourian.com/"
+    country: "Switzerland"
+  - canonical_name: "Delaloye"
+    aesthetic_tags: ["classical", "vintage-inspired"]
+    maker_type: "solo-watchmaker"
+    price_band: "high"
+    output_scale: "one-off"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "in-house"
+    website: "https://delaloyegeneve.ch/en/"
+    country: "Switzerland"
+  - canonical_name: "Krayon"
+    aesthetic_tags: ["classical", "modern", "avant-garde"]
+    maker_type: "solo-watchmaker"
+    price_band: "haute"
+    complication_focus: ["time-only", "calendar", "astronomical"]
+    movement_origin: "in-house"
+    website: "https://krayon.ch/"
+    country: "Switzerland"
+    founded_year: 2017
+  - canonical_name: "Mathieu Cleguer"
+    aesthetic_tags: ["modern"]
+    maker_type: "solo-watchmaker"
+    price_band: "haute"
+    output_scale: "one-off"
+    distribution: "direct"
+    movement_origin: "in-house"
+    website: "https://cleguer.com/en-gb"
+    country: "Switzerland"
+    founded_year: 2026
+  - canonical_name: "Raul Tena"
+    aesthetic_tags: ["classical", "avant-garde"]
+    maker_type: "solo-watchmaker"
+    price_band: "haute"
+    output_scale: "one-off"
+    movement_origin: "in-house"
+    website: "https://raultena.com/"
+    country: "Spain"
+    founded_year: 2020
+  - canonical_name: "Reuben Schoots"
+    aesthetic_tags: ["classical", "tool"]
+    maker_type: "solo-watchmaker"
+    output_scale: "one-off"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "in-house"
+    website: "https://www.reubenschoots.com/"
+    country: "Australia"
+  - canonical_name: "Qianguobiao"
+    aesthetic_tags: ["modern", "vintage-inspired", "tool"]
+    maker_type: "solo-watchmaker"
+    price_band: "high"
+    output_scale: "sub-50"
+    complication_focus: ["tourbillon"]
+    movement_origin: "in-house"
+    website: "https://qianguobiao.com/"
+    country: "China"
+    founded_year: 2008
+  - canonical_name: "Nicholas Hacko"
+    aesthetic_tags: ["modern", "avant-garde", "dressy"]
+    maker_type: "small-atelier"
+    price_band: "mid"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "in-house"
+    website: "https://www.nicholashacko.com.au/"
+    country: "Australia"
+    founded_year: 2011
+  - canonical_name: "Pascal Coyon"
+    aesthetic_tags: ["modern", "avant-garde"]
+    maker_type: "solo-watchmaker"
+    price_band: "haute"
+    complication_focus: ["time-only"]
+    movement_origin: "in-house"
+    website: "https://www.instagram.com/pascalcoyon/?hl=en"
+    country: "France"
+  - canonical_name: "Mr Jones"
+    aesthetic_tags: ["modern", "avant-garde"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    distribution: "direct"
+    website: "https://mrjoneswatches.com/"
+    country: "United Kingdom"
+    founded_year: 2007
+  - canonical_name: "Stil Timepieces"
+    aesthetic_tags: ["modern", "tool"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    output_scale: "sub-50"
+    website: "https://stiltimepieces.com/"
+    country: "Switzerland"
+  - canonical_name: "Holthinrichs Watches"
+    aesthetic_tags: ["modern", "avant-garde"]
+    maker_type: "solo-watchmaker"
+    price_band: "mid"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only", "calendar"]
+    website: "https://holthinrichswatches.com/"
+    aliases: ["Michiel Holthinrichs"]
+    country: "Netherlands"
+    founded_year: 2016
+  - canonical_name: "Pequignet"
+    aesthetic_tags: ["classical", "dressy"]
+    maker_type: "heritage-relaunch"
+    price_band: "high"
+    distribution: "dealer-only"
+    complication_focus: ["chronograph"]
+    website: "https://showroom.pequignet.com/en"
+    country: "France"
+    founded_year: 1973
+  - canonical_name: "Pragma"
+    aesthetic_tags: ["modern"]
+    maker_type: "microbrand"
+    price_band: "haute"
+    distribution: "dealer-only"
+    complication_focus: ["time-only"]
+    movement_origin: "in-house"
+    website: "https://pragma-watches.ch/"
+    country: "Switzerland"
+  - canonical_name: "Ollech & Wajs"
+    aesthetic_tags: ["vintage-inspired", "tool"]
+    maker_type: "small-atelier"
+    price_band: "mid"
+    complication_focus: ["chronograph"]
+    movement_origin: "modified-base"
+    website: "https://ow-watch.com/"
+    country: "Switzerland"
+    founded_year: 1956
