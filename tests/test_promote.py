@@ -95,8 +95,14 @@ def test_dry_run_writes_nothing(tmp_seed):
 
 
 def test_commit_appends_and_parses(tmp_seed):
+    # The name deliberately avoids the substring "mmi" (which "committed" would
+    # contain): the seed has a brand "MMi", and fuzz.WRatio scores any
+    # "...mmi..." string against it at 90 — over NEAR_MATCH_THRESHOLD (88) — so
+    # promote would route this maker to needs_confirm and skip the auto-write
+    # this test asserts. "Appended" keeps the commit-appends sense without
+    # tripping the fuzzy seed-dup check.
     m = Maker(
-        canonical_name="Zzz Committed",
+        canonical_name="Zzz Appended",
         aesthetic_tags=["classical"],
         maker_type="solo-watchmaker",
         complication_focus=["time-only"],
@@ -104,7 +110,7 @@ def test_commit_appends_and_parses(tmp_seed):
     r = promote_to_seed(None, m, commit=True)
     assert r.written is True
     data = yaml.safe_load(tmp_seed.read_text())
-    entry = next(e for e in data["makers"] if e["canonical_name"] == "Zzz Committed")
+    entry = next(e for e in data["makers"] if e["canonical_name"] == "Zzz Appended")
     assert entry["aesthetic_tags"] == ["classical"]
     assert "# --- Promoted from discovery ---" in tmp_seed.read_text()
 

@@ -40,11 +40,16 @@ a weekly LLM discovery scan is now schedulable (4B). The maker-maintenance UI
 trajectories, 4F) have since shipped too. What's left is below.
 
 ### Tier 1 — strongest next bets
-- **Layer 3b — adaptive ranking.** The arc's headline and the one piece left to
-  finish it. Re-rank by each user's taste reactions, building on the captured
-  like/dislike signal (3V) and the existing `_similar_makers` engine. Gated on
-  reaction volume — still <20, but the weekly discovery scan (4B) + triage will
-  fill that clock faster now. Build once there's signal to adapt to.
+- **Layer 3b — adaptive ranking. SHIPPED in 4I** as the `/for-you` view: the
+  base ranking re-ordered by taste affinity (avg similarity to liked makers
+  minus disliked, blended into the composite as a z-scored term at
+  `AFFINITY_WEIGHT`, derived per request — no schema change). The arc's headline
+  is done. Follow-ups now live below: tune `AFFINITY_WEIGHT` against real
+  reactions (Tier 3), and optionally persist `/for-you` as a first-class preset
+  if the on-the-fly cost ever bites (lossless, the column→table pattern).
+- With the adaptive piece landed, the next strongest bet is the **engagement /
+  "act on it" end of the arc** — see Engagement data per maker in Tier 2 (do the
+  manual research first).
 
 ### Tier 2 — high value, sequence after a bit more data or groundwork
 - **Engagement data per maker** (access / sales model / contact path / how to
@@ -72,6 +77,12 @@ trajectories, 4F) have since shipped too. What's left is below.
   shipped overall mention volume + top-10 rank trajectories). A mentions-over-
   time sparkline on the maker detail page, scoped to one maker. Small, additive,
   no schema change — same SVG-geometry approach as the /trends charts.
+- **Tune the `/for-you` affinity blend.** `AFFINITY_WEIGHT` (0.6) and the
+  affinity definition (mean like-sim minus mean dislike-sim, z-scored) were set
+  on first principles in 4I. Look at the re-ranking against real reactions and
+  adjust — this is where the "adaptive" in Layer 3b tightens. Candidate tweaks:
+  the weight, per-dimension affinity weighting, or dropping disliked makers from
+  the view entirely rather than just sinking them.
 - **Automated seed entry** (paste a paragraph → LLM extracts fields → append
   YAML). QoL, but `promote` already graduates discovered makers and the seed is
   fairly complete — low marginal value until adding many brand-new seeds.
@@ -106,9 +117,11 @@ trajectories, 4F) have since shipped too. What's left is below.
 Captured 2026-05-11. The current tool surfaces makers. The longer arc
 is to help users *figure out which makers they'd be interested in*
 and eventually to act on that — contact, relationship, becoming part
-of a maker's story. Most of this arc has now shipped (see
-Sequencing below); only Layer 3b — adaptive ranking — remains.
-It is the headline Tier 1 item in the Roadmap.
+of a maker's story. The discovery→taste arc has now shipped end to
+end (see Sequencing below): Layer 3b — adaptive ranking — landed in
+4I as the `/for-you` view. What remains is the "act on it" end —
+engagement data per maker (Tier 2) — plus tuning the new affinity
+blend as reactions accumulate.
 
 ### The reframe
 
@@ -934,6 +947,58 @@ For quick reference on what shipped when:
       change, no new dependency. 9 tests in tests/test_review_maintenance.py
       (gating, controls render, suppress + drop-off, confirm-panel counts,
       commit + redirect, seed 409). Suite 598 → 607.
+- 4I  Shipped Layer 3b as the `/for-you` view — the discovery→taste arc's
+      headline and last piece. It re-orders the chosen base preset's ranking by
+      taste affinity: for each maker, average `taste.similarity` to the makers
+      you've LIKED minus the average to the ones you've DISLIKED (same
+      weighted-overlap engine as `_similar_makers`; a maker is excluded from its
+      own reference sets; untagged or no-shared-dimension makers are neutral and
+      hold their base spot). That affinity is z-scored across the comparable
+      makers and added to the base composite as one more weighted signal —
+      `for_you = composite + AFFINITY_WEIGHT * z(affinity)`, weight 0.6, on the
+      same z-scale the methodology already uses — then the universe is
+      re-ranked. Chose option (a): a dedicated view derived per request, so NO
+      schema change, NO stored preset, NO scan-pipeline touch, and it updates
+      the instant you react (options b/c — a persisted third preset, or a sort
+      toggle — were the rejected forks; persisting as a real preset stays a
+      lossless follow-up). Eligibility (rising_star's independent gate,
+      hidden_gem's mention cap) is inherited via the composite from
+      `fetch_top_makers`, not re-implemented; conglomerates, being untagged
+      (3D), stay neutral and don't surface. New `scoring/affinity.py`
+      (`compute_affinities`, `build_for_you_ranking`, `AFFINITY_WEIGHT`, a local
+      `_zscore` dup like ranker/methodology); a `/for-you` route next to
+      /trends (preset-aware via `_resolve_preset`, falls back on unknown,
+      onboarding state → /triage when no reactions); `for_you.html` (rank,
+      maker + liked/passed/conglomerate badges, country, signed affinity,
+      closest-liked "why", global rank, mentions); a "For You" nav link added to
+      base.html as the first item. One property worth recording: because
+      affinity is z-scored, a *single* comparable maker has z 0 and doesn't move
+      (no spread to judge against) — a non-issue at 211 reactions, but tested
+      and documented. The next refinement is tuning `AFFINITY_WEIGHT` against
+      real reactions (Tier 3). 19 tests in tests/test_for_you.py (affinity
+      sign / net-out / self-exclusion / neutral cases; re-rank climb, neutral
+      hold, single-comparable no-move, caps, counts; route render / preset
+      switch / fallback / onboarding / nav). Suite 607 → 626.
+- 4J  Fixed the one pre-existing test failure surfaced during 4I:
+      `test_promote.py::test_commit_appends_and_parses`. Root cause was a
+      fixture-name coincidence, not a defect — the test maker was named
+      `"Zzz Committed"`, and promote's fuzzy seed-dup check
+      (`fuzz.WRatio` over normalized names) scored `"zzz committed"` against the
+      seed brand `"MMi"` at 90, clearing `NEAR_MATCH_THRESHOLD` (88), because
+      "committed" contains the substring "mmi". That routed the maker to
+      `needs_confirm`, so promote didn't auto-write and the test's
+      `assert r.written is True` failed. Deterministic (rapidfuzz is pinned), so
+      it failed identically everywhere. Fix is test-only: renamed the fixture
+      maker to `"Zzz Appended"` (scores 60 against the seed, comfortably clear;
+      keeps the commit-appends sense) and added a comment so the collision isn't
+      reintroduced. Production dedup is intentionally untouched — WRatio's
+      partial-substring matching is doing its job, and `needs_confirm` is an
+      advisory the curator clears, not a hard block. (Worth noting separately:
+      short seed names like "MMi" (3 chars) partial-match any longer string
+      containing those letters — e.g. "Summit" → "MMi" — so the advisory has a
+      mild false-positive rate; a min-length or scorer guard is a possible
+      future dedup-quality tweak, not done here.) Suite 626, now fully green
+      (was 625 passing + this 1 failure). No test-count change.
 
 ## Findings logged from the week-1 data review (2G)
 

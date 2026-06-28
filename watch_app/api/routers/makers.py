@@ -37,6 +37,7 @@ from watch_app.scoring.methodology import (
     build_worked_example,
     build_worked_example_for_maker,
 )
+from watch_app.scoring.affinity import AFFINITY_WEIGHT, build_for_you_ranking
 from watch_app.scoring.presets import PRESETS
 from watch_app.scoring.queries import fetch_top_makers, fetch_all_makers_comparison, fetch_rank_changes, fetch_mention_volume, fetch_rank_trajectories, latest_scores_query
 from watch_app.storage.db import session_scope
@@ -957,6 +958,40 @@ def trends(request: Request, preset: str = Query(None)) -> HTMLResponse:
             "trajectory_chart": _build_trajectory_chart(trajectories),
             "total_mentions": sum(v["count"] for v in volume),
             "n_days": len(volume),
+        },
+    )
+
+
+@router.get("/for-you", response_class=HTMLResponse)
+def for_you(request: Request, preset: str = Query(None)) -> HTMLResponse:
+    """Render the taste-personalized ranking — Layer 3b, the arc's headline.
+
+    Re-orders the chosen base preset's ranking by how each maker's taste tags
+    line up with your like/dislike reactions (see scoring/affinity.py): a maker
+    close to what you've liked climbs, one close to what you've disliked sinks,
+    one with no taste signal holds its base spot. Derived per request from the
+    reactions — no schema change, updates the moment you react. An unknown
+    preset falls back to the default; with no reactions yet it points you at the
+    triage queue.
+    """
+    preset = _resolve_preset(preset)
+
+    with session_scope() as session:
+        data = build_for_you_ranking(session, preset, display_limit=30)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="for_you.html",
+        context={
+            "preset": preset,
+            "presets": list(PRESETS.keys()),
+            "rows": data["rows"],
+            "n_likes": data["n_likes"],
+            "n_dislikes": data["n_dislikes"],
+            "n_ranked": data["n_ranked"],
+            "has_reactions": data["has_reactions"],
+            "affinity_weight": AFFINITY_WEIGHT,
+            "reaction_labels": TASTE_REACTION_LABELS,
         },
     )
 

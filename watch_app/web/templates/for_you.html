@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}For You · Watch App{% endblock %}
+
+{% block content %}
+<header class="mb-8">
+  <h1 class="text-2xl font-semibold tracking-tight text-stone-900">For You</h1>
+  <p class="mt-2 text-sm text-stone-600 max-w-2xl leading-relaxed">
+    The <strong>{{ preset.replace("_", " ") }}</strong> ranking, re-ordered by
+    your taste. Each maker's standing is nudged by how its character lines up
+    with the makers you've liked and disliked — makers close to your likes rise,
+    makers close to your dislikes sink, and makers with no taste signal hold
+    their place.
+  </p>
+
+  {# Preset selector — round-trips to the GET param, like /movers and /trends. #}
+  <div class="mt-4 flex flex-wrap items-center gap-2 text-xs">
+    <div class="flex items-baseline gap-1.5">
+      <span class="uppercase tracking-[0.1em] text-stone-500">Preset:</span>
+      {% for p in presets %}
+      <a href="/for-you?preset={{ p }}"
+         class="px-2.5 py-1 rounded {% if p == preset %}bg-stone-900 text-white{% else %}text-stone-600 hover:bg-stone-100{% endif %} transition">
+        {{ p.replace("_", " ") }}
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</header>
+
+{% if not has_reactions %}
+<div class="bg-white border border-stone-200 rounded-xl p-8 text-center text-stone-500">
+  <p class="text-sm">You haven't reacted to any makers yet.</p>
+  <p class="text-xs mt-2 max-w-md mx-auto leading-relaxed">
+    For You re-orders the rankings around your taste. Like or dislike a few
+    makers in the <a href="/triage" class="underline decoration-stone-400 underline-offset-2">triage queue</a>
+    (or on any maker's page) and they'll start shaping this view.
+  </p>
+</div>
+{% elif not rows %}
+<div class="bg-white border border-stone-200 rounded-xl p-8 text-center text-stone-500">
+  <p class="text-sm">No makers are scored under {{ preset.replace("_", " ") }} yet.</p>
+  <p class="text-xs mt-2">Run a scan, then check back.</p>
+</div>
+{% else %}
+
+<p class="text-xs text-stone-500 mb-3">
+  Re-ranked from {{ n_ranked }} maker{% if n_ranked != 1 %}s{% endif %} ·
+  <span class="text-emerald-700">{{ n_likes }} liked</span> ·
+  <span class="text-stone-600">{{ n_dislikes }} disliked</span>
+</p>
+
+<div class="bg-white border border-stone-200 rounded-xl overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-stone-50 text-stone-500 uppercase text-[11px] tracking-[0.1em] font-medium">
+      <tr>
+        <th class="px-5 py-3 text-right w-16">For you</th>
+        <th class="px-5 py-3 text-left">Maker</th>
+        <th class="px-5 py-3 text-left w-28">Country</th>
+        <th class="px-5 py-3 text-right w-20">Affinity</th>
+        <th class="px-5 py-3 text-left w-48">Closest like</th>
+        <th class="px-5 py-3 text-right w-20">Global</th>
+        <th class="px-5 py-3 text-right w-20">Mentions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr class="border-t border-stone-100 hover:bg-stone-50 transition-colors group">
+        <td class="px-5 py-3 text-right tabular text-stone-900 font-medium">#{{ r.for_you_rank }}</td>
+        <td class="px-5 py-3 font-medium group-hover:text-stone-900">
+          <a href="/makers/{{ r.maker_id }}"
+             class="hover:underline decoration-stone-400 underline-offset-2">{{ r.name }}</a>
+          {% if r.taste_reaction == "like" %}
+            <span class="ml-2 text-[10px] uppercase tracking-widest text-emerald-600 border border-emerald-200 rounded px-1.5 py-0.5">liked</span>
+          {% elif r.taste_reaction == "dislike" %}
+            <span class="ml-2 text-[10px] uppercase tracking-widest text-stone-400 border border-stone-200 rounded px-1.5 py-0.5">passed</span>
+          {% endif %}
+          {% if not r.is_independent %}
+            <span class="ml-2 text-[10px] uppercase tracking-widest text-stone-400 border border-stone-200 rounded px-1.5 py-0.5">conglomerate</span>
+          {% endif %}
+        </td>
+        <td class="px-5 py-3 text-stone-600 text-[13px]">{{ r.country or "—" }}</td>
+        <td class="px-5 py-3 text-right tabular text-sm">
+          {% if r.affinity is none %}
+            <span class="text-stone-300">—</span>
+          {% elif r.affinity > 0 %}
+            <span class="text-emerald-700 font-medium">+{{ (r.affinity * 100) | round | int }}</span>
+          {% elif r.affinity < 0 %}
+            <span class="text-red-700 font-medium">&minus;{{ (-r.affinity * 100) | round | int }}</span>
+          {% else %}
+            <span class="text-stone-400">0</span>
+          {% endif %}
+        </td>
+        <td class="px-5 py-3 text-[13px]">
+          {% if r.nearest_like %}
+            <a href="/makers/{{ r.nearest_like.maker_id }}"
+               class="text-stone-700 hover:underline decoration-stone-400 underline-offset-2">{{ r.nearest_like.name }}</a>
+            <span class="text-stone-400 tabular ml-1">{{ r.nearest_like.match }}%</span>
+          {% else %}
+            <span class="text-stone-300">—</span>
+          {% endif %}
+        </td>
+        <td class="px-5 py-3 text-right tabular text-stone-500 text-xs">#{{ r.base_rank }}</td>
+        <td class="px-5 py-3 text-right tabular text-stone-700 text-sm">{{ r.mention_count }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p class="text-xs text-stone-500 leading-relaxed mt-4 max-w-2xl">
+  <strong>Affinity</strong> is your average taste-match to liked makers minus
+  your average match to disliked ones (on a 0&ndash;100 scale per side), blended
+  into each maker's {{ preset.replace("_", " ") }} score at weight
+  {{ affinity_weight }}. <strong>Global</strong> is the maker's place in the
+  un-personalized ranking — the gap between it and <strong>For you</strong> is
+  what your taste moved. Tune your view by reacting from
+  <a href="/triage" class="underline decoration-stone-400 underline-offset-2">triage</a>
+  or any maker page; see
+  <a href="/methodology" class="underline decoration-stone-400 underline-offset-2">methodology</a>
+  for how the base scores are computed.
+</p>
+{% endif %}
+{% endblock %}
