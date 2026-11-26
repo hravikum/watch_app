@@ -1,0 +1,119 @@
+# YouTube channel definitions for the YouTube RSS source.
+#
+# Each channel is a row with:
+#   name             - Display name (used as the Source.name in the DB)
+#   channel_id       - 24-char YouTube channel ID starting with "UC"
+#   prestige_weight  - 0.0-1.0; same scale as RSS sources (SJX=1.0)
+#   tier             - Informational only: "1" (indie-focused),
+#                      "2" (broad coverage), "3" (mainstream/dealer)
+#
+# To add a channel: append a row below. No code change needed.
+# To verify a channel ID: visit youtube.com, find the channel, and
+# check "View Page Source" → search for `"channelId":"UC...`.
+
+channels:
+  # === Tier 1: indie-focused, high prestige ===
+  - name: "YouTube: Bark and Jack"
+    channel_id: "UCvIIb5YF8sUnm1D62jCvVVw"
+    prestige_weight: 0.45  # 4A: 0 first-surfaced over 6wk, only 7 makers — was overweighted at 0.9
+    tier: 1
+
+  - name: "YouTube: Swiss Watch Gang"
+    channel_id: "UCQx9I9IbkTVqbbhzq--mpIQ"
+    prestige_weight: 0.55  # 4A: mid discovery (4 firsts, 8.7% yield) — trimmed from 0.8
+    tier: 1
+
+  - name: "YouTube: Watches TV"
+    channel_id: "UCj3See1FxZIe9xkZx5oBNcQ"
+    prestige_weight: 0.8
+    tier: 1
+
+  - name: "YouTube: Escapement & Watch"
+    channel_id: "UCHxzEYORroLWkBncKUFvDtA"
+    prestige_weight: 0.35  # 4A: 28 mentions across only 2 makers — pure re-coverage
+    tier: 1
+
+  # === Tier 2: broad coverage with some indie content ===
+  - name: "YouTube: Just One More Watch"
+    channel_id: "UCzllztCuniR_83Fwuz70xcg"
+    # NOTE: Initially weighted at 0.8 expecting indie focus. Research
+    # showed actual content is sub-$500 budget/microbrand reviews.
+    # Useful for microbrand discovery (Studio Underd0g, Anordain, etc.)
+    # but won't surface high-end haute horlogerie indies. Lowered to 0.6.
+    prestige_weight: 0.6
+    tier: 2
+
+  - name: "YouTube: Teddy Baldassarre"
+    channel_id: "UCPsgQZxEACESR0ogWm0dUFw"
+    prestige_weight: 0.45  # 4A: mainstream review, 0 first-surfaced
+    tier: 2
+
+  # WatchAdvisor disabled in 2N-hotfix3 — channel ID verified correct
+  # (Alexander Linz's Swiss media operation), but YouTube's feed
+  # endpoint persistently returns 404 across all retries and across
+  # multiple scans. Other channels in the same scans succeed normally,
+  # ruling out generic flakiness. Possible causes: channel disabled
+  # RSS, regional restriction, or some other channel-specific YouTube
+  # quirk. Re-enable by uncommenting if YouTube starts serving the feed.
+  # - name: "YouTube: WatchAdvisor"
+  #   channel_id: "UCFh-oKEXamVSLQRzG2_23wQ"
+  #   prestige_weight: 0.6
+  #   tier: 2
+
+  - name: "YouTube: The Urban Gentry"
+    channel_id: "UCcQKflvHe7evJw-_0lfhN9w"
+    prestige_weight: 0.5
+    tier: 2
+
+  - name: "YouTube: Watchfinder & Co."
+    channel_id: "UCLaoR2K7Dsa_KUK-DVpdZZA"
+    # Channel ID corrected in 2N-hotfix2 from UCu16y62LPCwTknfV5_7Zalg
+    # (regional/dead) to the main Watchfinder & Co. UK channel.
+    # Dealer channel. Production quality is high but content skews
+    # toward mainstream Swiss (Rolex/AP/Patek). Some indie coverage.
+    prestige_weight: 0.35  # 4A: 81 mentions, 0 first-surfaced (dealer coverage)
+    tier: 2
+
+  - name: "YouTube: Random Rob"
+    channel_id: "UCgJzRfE1tXOheX3EPjVXmIw"
+    prestige_weight: 0.5
+    tier: 2
+
+  - name: "YouTube: Worn & Wound"
+    channel_id: "UCudCroWJwn32mqsEIKluwcA"
+    prestige_weight: 0.5
+    tier: 2
+
+  - name: "YouTube: Watch Brothers London"
+    channel_id: "UC2EJ2JSdxKJ7bPCWRF1hRwQ"
+    # NOTE: Initially expected indie focus. Research showed actual content
+    # is a neo-vintage dealer (AP/VC/Rolex/Patek/Cartier). Useful for
+    # vintage signal but not for indie discovery. Lowered to 0.5.
+    prestige_weight: 0.5
+    tier: 2
+
+  # === Tier 3: mainstream/dealer/aggregator ===
+  - name: "YouTube: WatchBox Studios"
+    channel_id: "UCpIdSH75bNfHIsryKCTzTWw"
+    # Dealer-channel; reviews are inventory-driven. Tim Mosso's expertise
+    # is real, but the content bias toward high-end Swiss is strong.
+    prestige_weight: 0.4
+    tier: 3
+
+  - name: "YouTube: Federico Talks Watches"
+    channel_id: "UCgC-88AiluUdd6imwiENLYA"
+    prestige_weight: 0.4
+    tier: 3
+
+  - name: "YouTube: The Time Teller"
+    channel_id: "UCt4id9K_t9zu-O23182P4vQ"
+    prestige_weight: 0.4
+    tier: 3
+
+  - name: "YouTube: WatchCrunch"
+    channel_id: "UC5VxIXiCY7avq7xhMJi83GQ"
+    # Watch enthusiast platform. Content is downstream of journalism
+    # rather than original reporting — likely re-covers what other
+    # sources already surfaced.
+    prestige_weight: 0.3
+    tier: 3
