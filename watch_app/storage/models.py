@@ -117,6 +117,15 @@ class Maker(Base):
     # curated in the YAML) and for any maker the tagger hasn't reached yet.
     taste_enriched_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # Set when you Save a maker on /review (chunk 4N): a human has checked every
+    # field on its card, so its values are authoritative. NULL = still in the
+    # review queue. Both enrichment paths (factual + taste) skip a reviewed maker
+    # entirely — never-overwrite alone can't protect it, since is_independent has
+    # no NULL state and a field you deliberately cleared reads as missing and
+    # would be refilled from the LLM cache. Stays None for seed makers (curated
+    # in the YAML, never on /review). See migration 0012.
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
     mentions: Mapped[list["Mention"]] = relationship(back_populates="maker")
     signals: Mapped[list["Signal"]] = relationship(back_populates="maker")
     scores: Mapped[list["Score"]] = relationship(back_populates="maker")

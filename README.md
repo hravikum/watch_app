@@ -92,7 +92,8 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   via Haiku 4.5 for three fields: website (HTTP-verified), country
   (known-list validated), and is_independent (strict YES/NO/NONE).
   Capped at 25 makers per scan. Manual `cli enrich --commit` still
-  works for one-off backfills.
+  works for one-off backfills. Neither touches a maker you've already
+  saved in `/review`, and the taste tagger below skips those too.
 - **Auto-tags taste for discovered makers.** After the factual
   enrichment phase, any auto-discovered independent that hasn't been
   taste-attempted yet gets its seven taste / character dimensions
@@ -104,10 +105,22 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   per maker, even on abstention) so nothing is re-queried; capped at 25
   per scan. `cli enrich --taste` backfills older discoveries; add
   `--retag` to re-attempt makers that previously abstained.
-- **Review &amp; edit tags (admin).** A `/review` page lists every
-  discovered maker with its taste dimensions and factual fields, all
-  editable in-place; saving overwrites the drafts and clears the "auto"
-  flag, since the value is now human-reviewed. Gated behind
+- **Review queue (admin).** `/review` is a queue of the discovered makers
+  nobody has checked yet, with a running "N to go" count — ranked makers
+  first (in rank order under your default preset), then the unranked tail
+  newest-first. Each card leads with the evidence the tool found the maker
+  on (rank, mention count, sources, the latest article titles as links, the
+  website as a link) and a summary of its current values: anything LLM
+  enrichment filled that nobody has checked is marked "auto" in amber, and
+  blank fields are listed. If it's right, Save; if not, fix it under
+  "Edit fields" first (taste dimensions and factual fields are all
+  editable). Saving overwrites the drafts, clears the "auto" flags, and
+  signs the maker off: it leaves the queue (`/review?show=reviewed` lists
+  reviewed makers for corrections) and enrichment never touches it again.
+  Save, Suppress, Delete and Promote all happen in place — the card
+  collapses to a ✓ row and the count ticks down without a page reload — and
+  anything refused (a name collision, say) shows inside the card without
+  losing your edits. Gated behind
   `WATCH_APP_ADMIN` (off by default, so it's never exposed on a public
   deployment). Seed makers are excluded — their taste stays curated in
   the YAML. Each card also carries per-maker Suppress / Delete controls
@@ -571,7 +584,7 @@ watch_app/
 │                         # BlockedMaker — delete tombstones, migration 0011).
 │                         # Maker also carries the 7 taste-dimension columns (migration 0006),
 │                         # suppression columns (0008), relationship_state + notes (0009),
-│                         # and taste_reaction + taste_reaction_at (0010)
+│                         # taste_reaction + taste_reaction_at (0010), and reviewed_at (0012)
 ├── pipeline/             # orchestrator.py wires the layers: fetch → extract → resolve → store →
 │                         # fetch GPHG model details → score
 ├── notify/               # email.py renders the digest email (summary HTML + full HTML attachment)
@@ -585,6 +598,7 @@ watch_app/
 │                         # triage.html, digest.html, discoveries.html, explore.html,
 │                         # review.html, source_detail.html, _makers_table.html,
 │                         # _explore_results.html, _merge_results.html, _triage_reacted.html,
+│                         # _review_done.html, _review_message.html, _review_delete_panel.html,
 │                         # _macros.html)
 ├── web/static/           # trends.js — hover/highlight/toggle for the /trends charts (vanilla JS)
 ├── data/
@@ -592,7 +606,7 @@ watch_app/
 │   └── youtube_channels.yaml  # 15 YouTube channels with prestige weights and tier annotations
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 664 tests; run with `make test` (~30s, no network)
+tests/                    # 691 tests; run with `make test` (~30s, no network)
 alembic/                  # Schema migrations
 ```
 
@@ -617,7 +631,7 @@ alembic/                  # Schema migrations
 ## Development
 
 ```bash
-make test         # Full suite (~30s); expects 664 passing
+make test         # Full suite (~30s); expects 691 passing
 pytest -v tests/test_ranker.py  # Run one file
 pytest -v -k hidden_gem         # Run tests matching a name
 ```

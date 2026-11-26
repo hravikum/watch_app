@@ -31,7 +31,7 @@ parked — see "Explicitly NOT doing"); going public re-tiers everything
 (personal-state features become multi-user/auth, source breadth + methodology
 defensibility rise).
 
-Status (2026-09-16): the discovery→engagement arc is complete through taste —
+Status (2026-11-26): the discovery→engagement arc is complete through taste —
 Layers 1a/1b (taste schema + bulk tagging, 3A/3B), Layer 2 (the /explore filter
 + similarity, 3O/3P), Layer 3a (reaction capture 3V + triage 3X), and Layer 3b
 (the /for-you re-ranking, 4I) all shipped. Source-weight calibration is done end
@@ -40,9 +40,26 @@ schedulable (4B). The trends page shipped (4F) and became interactive (4G).
 Maker maintenance is now covered end to end: suppress/delete (4D) and merge
 (4E) on the detail page, suppress/delete on the /review grid (4H), deletes that
 stay deleted via tombstones (4K), and rename for wrongly-grabbed names on
-/review (4L). What's left is below.
+/review (4L). /review itself became a queue (4N): saving signs a maker off, it
+leaves the queue, and enrichment never touches it again. What's left is below.
 
 ### Tier 1 — strongest next bets
+- **Web-researched audit drafts — next up (4O).** The queue (4N) made saving
+  fast, but each card still means searching the web to vet the maker and then
+  typing its fields. One research pass per maker: Haiku 4.5 with the API's web
+  search tool (`web_search_20250305`, `max_uses` 3) plus the mention context 3G
+  builds, drafting (a) a scope verdict — "a real, active wristwatch maker?"
+  yes / no / unsure + a one-line reason, shown as a badge, informing only, never
+  auto-suppressing (the check the 3O brand-validation findings asked for) — and
+  (b) every field that's blank or only auto-filled, founded year included
+  (range-checked), with the two or three source URLs it relied on shown on the
+  card. `cli enrich --audit`, dry-run then `--commit`; never touches reviewed
+  makers or values you entered. Roughly $10–15 one-off for the ~180 backlog
+  (searches are $10 per 1,000, plus tokens), cents per new maker after. The
+  pinned anthropic 0.39.0 parses web-search response blocks (checked offline
+  while scoping 4N), so no SDK bump. Close the 4N in-flight gap here too: the
+  apply step should re-read each row (populate_existing) and skip a maker
+  reviewed since propose.
 - **Layer 3b — adaptive ranking. SHIPPED in 4I** as the `/for-you` view: the
   base ranking re-ordered by taste affinity (avg similarity to liked makers
   minus disliked, blended into the composite as a z-scored term at
@@ -1095,6 +1112,63 @@ For quick reference on what shipped when:
       longer says 3b is the piece left; the stale "charts are now a Tier-1
       candidate" aside now points at /trends. No code change; suite unchanged
       at 664.
+- 4N  Turned /review into a queue, because auditing ~180 discovered makers on it
+      didn't scale: the grid never shrank (saving didn't take a maker off it —
+      only promote/suppress/delete did), every Save was a full POST-redirect
+      that re-rendered every card and dropped you back at the top, and the card
+      had the form but none of the evidence, so each call meant a trip to the
+      detail page or a web search. New nullable `Maker.reviewed_at` (migration
+      0012), stamped by Save — saving already meant "I've checked this whole
+      card", since it clears every auto marker. /review now lists only
+      unreviewed makers with an "N to go" count, ordered like /triage (ranked
+      makers first in rank order under the default preset, then the unranked
+      tail newest-first); `?show=reviewed` lists the reviewed ones, most recent
+      first, for corrections. No backfill: a maker saved before 4N can't be told
+      apart from one whose values were never marked auto (enrichment before 0005
+      wrote unmarked values), and wrongly hiding a maker from the queue is the
+      worse error — re-confirming a correct card is one click. Each card now
+      leads with its evidence (rank, mention count, sources, the three latest
+      distinct article titles as links, the website as a link) and a chip
+      summary of its current values — unchecked auto values amber, blank fields
+      listed — with the full form behind an "Edit fields" toggle, so a correct
+      card is one Save. is_independent has no NULL state, so an unreviewed maker
+      whose independence nothing determined reads "Yes (default)" rather than
+      passing the schema default off as a fact (the 3D silent-default trap,
+      seen from the UI). Save / Suppress / Delete / Promote answer HTMX requests
+      in place: the card collapses to a ✓ row like /triage and the count updates
+      out-of-band, no reload. Delete… fetches the dry-run panel into the card
+      (new GET /review/confirm-delete/{id}) and its Cancel just clears it. A
+      blocker (rename collision, out-of-vocabulary value, promote collision,
+      seed guard, missing maker) renders inline in the card with nothing saved
+      and the form's unsaved edits intact — returned as 200 + HX-Retarget, since
+      htmx doesn't swap 4xx by default. Plain form posts (the no-JS path) keep
+      their 303 / 4xx, so every existing review, rename, promote and maintenance
+      test passes unchanged. The confirm() prompts became hx-confirm, which is
+      plain attribute text — a maker name with an apostrophe used to break the
+      inline JS string and skip the prompt — so the no-JS fallback now posts
+      without a prompt. Fixed alongside, found while scoping: `cli enrich
+      --commit` undid human review. Its 2Q selection takes any maker with a blank
+      founded year (nearly all of them); it re-proposed is_independent because
+      saving drops the auto marker that was its only guard; and it refilled any
+      field the reviewer had cleared from the same cached LLM answer, marking
+      both auto again (`--taste --retag --commit` did the same to taste cleared
+      entirely). Both enrichment iterators — factual in both modes, taste under
+      both gates — now exclude reviewed makers. Known gap, deliberately left for
+      4O: the apply step re-checks the ORM objects loaded at propose time, so a
+      card saved in the browser while a CLI run is mid-flight can still be
+      overwritten by that run; rare with today's short runs, worth closing once
+      4O's long `--audit` pass exists. The HTMX flows were exercised in headless
+      Chrome against a local htmx 2.0.3 (save + count, inline rename blocker
+      keeping edits, delete panel → cancel → confirm, suppress with exactly one
+      prompt, state after reload) — a manual check, since the suite still has no
+      browser harness. No new dependency. 27 tests in tests/test_review_queue.py
+      (queue membership, toggle, counts, empty state; ordering in both views;
+      evidence and summary, incl. default independence; HTMX wiring; plain save
+      stamps reviewed_at; HTMX save success / rename collision / out-of-vocab /
+      missing maker; HTMX suppress, delete, seed guard, promote success and
+      collision; the confirm-delete fragment and its gate; enrichment skips
+      reviewed makers on both paths; the `cli enrich --commit` overwrite
+      regression). Suite 664 → 691.
 
 ## Findings logged from the week-1 data review (2G)
 
@@ -1232,7 +1306,8 @@ means a one-off article can't resurrect a name.
 
 Open theme worth a future feature: an LLM-assisted "is this an active
 independent wristwatch maker?" check at discovery (or a flag in /review) would
-cut this manual vetting — scoped to inform, not auto-suppress.
+cut this manual vetting — scoped to inform, not auto-suppress. Planned as 4O,
+web-search-backed (see Roadmap, Tier 1).
 
 ## Potential future scoring refinements (not urgent)
 

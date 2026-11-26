@@ -8,9 +8,10 @@ Serves:
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Form, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func
 from sqlalchemy.orm import joinedload
@@ -42,7 +43,7 @@ from watch_app.scoring.affinity import AFFINITY_WEIGHT, build_for_you_ranking
 from watch_app.scoring.presets import PRESETS
 from watch_app.scoring.queries import fetch_top_makers, fetch_all_makers_comparison, fetch_rank_changes, fetch_mention_volume, fetch_rank_trajectories, latest_scores_query
 from watch_app.storage.db import session_scope
-from watch_app.storage.models import Maker, Mention, Signal
+from watch_app.storage.models import Maker, Mention, Signal, Source
 
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "web" / "templates"
@@ -1078,7 +1079,7 @@ def discoveries(request: Request) -> HTMLResponse:
     )
 
 
-# --- Review / edit (admin-only, chunk 3H) ---
+# --- Review / edit (admin-only, chunk 3H; a queue since 4N) ---
 
 
 def _require_admin() -> None:
@@ -1087,22 +1088,160 @@ def _require_admin() -> None:
         raise HTTPException(status_code=404)
 
 
-def _fetch_discovered_for_review() -> list[dict]:
-    """Discovered (non-seed) makers with their taste + factual fields, for the
-    review grid. Newest first. Each dict carries the current taste values and
-    a per-field `auto` flag so the template can show what still needs vetting.
+def _is_htmx(request: Request) -> bool:
+    """True when the request came from an HTMX swap rather than a plain form
+    post (the no-JS fallback), so a route can answer with a fragment."""
+    return request.headers.get("HX-Request") == "true"
+
+
+def _review_counts(session) -> tuple[int, int]:
+    """(to go, reviewed) over the universe /review covers — discovered
+    (non-seed), non-suppressed makers — split by whether they've been saved on
+    /review yet. "To go" is the queue's header count."""
+    from watch_app.scoring.discovery import _load_seed_names
+
+    seed_names = _load_seed_names()
+    to_go = reviewed = 0
+    rows = session.query(Maker.canonical_name, Maker.reviewed_at).filter(
+        Maker.is_suppressed.is_(False)
+    )
+    for name, reviewed_at in rows:
+        if name in seed_names:
+            continue
+        if reviewed_at is None:
+            to_go += 1
+        else:
+            reviewed += 1
+    return to_go, reviewed
+
+
+def _review_evidence(
+    session, maker_ids: list[int], max_recent: int = 3
+) -> dict[int, dict]:
+    """Per-maker evidence for the review cards, batched rather than N+1: the
+    mention count, distinct source names, and the most recent distinct article
+    titles with links (published_at, else discovered_at — the detail page's
+    order). Enough to judge "is this a real maker?" without leaving the card."""
+    out = {
+        mid: {"mention_count": 0, "sources": [], "recent": []} for mid in maker_ids
+    }
+    if not maker_ids:
+        return out
+    rows = (
+        session.query(Mention.maker_id, Mention.title, Mention.url, Source.name)
+        .join(Source, Source.id == Mention.source_id)
+        .filter(Mention.maker_id.in_(maker_ids))
+        .order_by(func.coalesce(Mention.published_at, Mention.discovered_at).desc())
+        .all()
+    )
+    for maker_id, title, url, source_name in rows:
+        ev = out[maker_id]
+        ev["mention_count"] += 1
+        if source_name not in ev["sources"]:
+            ev["sources"].append(source_name)
+        title = (title or "").strip()
+        if (
+            title
+            and len(ev["recent"]) < max_recent
+            and all(r["title"] != title for r in ev["recent"])
+        ):
+            ev["recent"].append({"title": title, "url": url, "source": source_name})
+    for ev in out.values():
+        ev["sources"].sort()
+    return out
+
+
+def _review_summary(m: Maker, auto: dict) -> tuple[list[dict], list[str]]:
+    """The card's at-a-glance read of a maker's current values, so a correct
+    card can be confirmed without opening the form: one entry per populated
+    field (label, display text, and whether it's an unchecked "auto" value),
+    plus the labels of the fields still blank. Website is left to the
+    evidence line, where it's a link.
+
+    is_independent has no blank state — it defaults to True — so an
+    unreviewed maker whose independence enrichment never determined reads
+    "Yes (default)" rather than passing the schema default off as a fact."""
+    filled: list[dict] = []
+    blank: list[str] = []
+    factual = [
+        ("country", "Country", m.country),
+        ("founded_year", "Founded", str(m.founded_year) if m.founded_year else None),
+    ]
+    for field, label, text in factual:
+        if text:
+            filled.append({"label": label, "text": text, "auto": auto[field]})
+        else:
+            blank.append(label)
+    if not m.is_independent:
+        independent = "No"
+    elif auto["is_independent"] or m.reviewed_at is not None:
+        independent = "Yes"
+    else:
+        independent = "Yes (default)"
+    filled.append(
+        {
+            "label": "Independent",
+            "text": independent,
+            "auto": auto["is_independent"],
+        }
+    )
+    if not m.website:
+        blank.append("Website")
+    for field in taste.TASTE_FIELDS:
+        value = getattr(m, field)
+        label = taste.FIELD_LABELS[field]
+        if not value:
+            blank.append(label)
+            continue
+        tokens = value if field in taste.MULTI_VALUE_FIELDS else [value]
+        filled.append(
+            {
+                "label": label,
+                "text": ", ".join(taste.display_label(t) for t in tokens),
+                "auto": auto[field],
+            }
+        )
+    return filled, blank
+
+
+def _fetch_discovered_for_review(reviewed: bool = False) -> list[dict]:
+    """Discovered (non-seed, non-suppressed) makers for the review grid, with
+    their taste + factual fields, a value summary, and the evidence to judge
+    them by.
+
+    By default this is the queue — makers not yet saved on /review — ordered
+    like /triage: ranked makers first in rank order under the default preset
+    (the ones that move rankings get checked first), then the unranked tail
+    newest-first. `reviewed=True` lists the already-reviewed makers instead,
+    most recently reviewed first, for corrections. Each dict carries a
+    per-field `auto` flag so the template can show what nobody has checked.
     """
     from watch_app.scoring.discovery import _load_seed_names
 
     seed_names = _load_seed_names()
     tracked = taste.TASTE_FIELDS + ("country", "founded_year", "website", "is_independent")
+    preset = get_settings().default_preset
     out: list[dict] = []
     with session_scope() as session:
-        rows = session.query(Maker).filter(Maker.is_suppressed.is_(False)).order_by(Maker.first_seen_at.desc()).all()
+        rank_by_id = {
+            r["maker_id"]: r["rank"]
+            for r in fetch_top_makers(session, preset, limit=100_000)
+        }
+        query = session.query(Maker).filter(Maker.is_suppressed.is_(False))
+        if reviewed:
+            query = query.filter(Maker.reviewed_at.isnot(None)).order_by(
+                Maker.reviewed_at.desc()
+            )
+        else:
+            query = query.filter(Maker.reviewed_at.is_(None)).order_by(
+                Maker.first_seen_at.desc()
+            )
+        rows = [m for m in query.all() if m.canonical_name not in seed_names]
+        evidence = _review_evidence(session, [m.id for m in rows])
         for m in rows:
-            if m.canonical_name in seed_names:
-                continue
             taste_values = {f: getattr(m, f) for f in taste.TASTE_FIELDS}
+            auto = {f: (f in (m.enriched_fields or [])) for f in tracked}
+            summary, blank = _review_summary(m, auto)
             out.append(
                 {
                     "id": m.id,
@@ -1110,12 +1249,23 @@ def _fetch_discovered_for_review() -> list[dict]:
                     "country": m.country,
                     "founded_year": m.founded_year,
                     "website": m.website,
+                    "website_host": (
+                        (urlparse(m.website).netloc or m.website) if m.website else None
+                    ),
                     "is_independent": m.is_independent,
                     "taste": taste_values,
                     "has_taste": any(taste_values.values()),
-                    "auto": {f: (f in (m.enriched_fields or [])) for f in tracked},
+                    "auto": auto,
+                    "rank": rank_by_id.get(m.id),
+                    "summary": summary,
+                    "blank": blank,
+                    **evidence[m.id],
                 }
             )
+    if not reviewed:
+        # Ranked makers first, in rank order; the unranked tail keeps the
+        # query's newest-first order (the sort is stable).
+        out.sort(key=lambda d: (d["rank"] is None, d["rank"] or 0))
     return out
 
 
@@ -1124,22 +1274,31 @@ def review(
     request: Request,
     confirm: str = Query(None),
     maker: int = Query(None),
+    show: str = Query(None),
 ) -> HTMLResponse:
-    """Admin page for reviewing and editing taste tags on discovered makers.
+    """Admin review queue for discovered makers (chunk 3H; a queue since 4N).
 
-    Lists every auto-discovered (non-seed) maker with its seven taste
-    dimensions plus the factual fields, all editable. Fields filled by LLM
-    enrichment are flagged "auto"; saving an edit clears that flag, since the
-    value is now human-reviewed. Seed makers are intentionally absent — their
-    taste is curated in the YAML. Gated by WATCH_APP_ADMIN.
+    Lists the auto-discovered (non-seed) makers nobody has reviewed yet, each
+    card leading with its current values (fields filled by LLM enrichment
+    flagged "auto") and the evidence it was discovered on, with the seven taste
+    dimensions plus the factual fields editable behind an Edit toggle. Saving
+    is the sign-off: edits overwrite the drafts, the "auto" flags clear,
+    `reviewed_at` is stamped, and the maker leaves the queue — enrichment never
+    touches it again. `show=reviewed` lists the reviewed makers instead, for
+    corrections. Seed makers are intentionally absent — their taste is curated
+    in the YAML. Gated by WATCH_APP_ADMIN.
 
     `confirm=delete&maker=<id>` renders an in-card delete confirmation populated
     by a delete dry-run — the exact counts that would be removed — before the
     POST commits, mirroring the detail page's panel. A seed maker shows the
-    blocker instead of a confirm button.
+    blocker instead of a confirm button. (With HTMX the card fetches the same
+    panel from /review/confirm-delete/<id> instead; this is the no-JS path.)
     """
     _require_admin()
-    makers = _fetch_discovered_for_review()
+    show_reviewed = show == "reviewed"
+    makers = _fetch_discovered_for_review(reviewed=show_reviewed)
+    with session_scope() as session:
+        to_go, reviewed_count = _review_counts(session)
     delete_preview = None
     if confirm == "delete" and maker is not None:
         with session_scope() as session:
@@ -1150,6 +1309,9 @@ def review(
         context={
             "makers": makers,
             "count": len(makers),
+            "to_go": to_go,
+            "reviewed_count": reviewed_count,
+            "show_reviewed": show_reviewed,
             "vocabulary": taste.VOCABULARY,
             "field_labels": taste.FIELD_LABELS,
             "multi_fields": list(taste.MULTI_VALUE_FIELDS),
@@ -1161,8 +1323,50 @@ def review(
     )
 
 
+def _review_done(
+    request: Request,
+    maker_id: int,
+    name: str,
+    action: str,
+    to_go: int,
+    link: bool = True,
+) -> HTMLResponse:
+    """HTMX answer to a successful card action: a slim ✓ row that replaces the
+    card (a trail of what this pass did) plus an out-of-band update of the "to
+    go" count. `link=False` for a deleted maker — its page is gone."""
+    return templates.TemplateResponse(
+        request=request,
+        name="_review_done.html",
+        context={
+            "maker_id": maker_id,
+            "name": name,
+            "action": action,
+            "to_go": to_go,
+            "link": link,
+        },
+    )
+
+
+def _review_blocked(request: Request, maker_id: int, message: str) -> HTMLResponse:
+    """HTMX answer to a refused card action (rename collision, out-of-vocabulary
+    value, promote collision, ...): the reason, retargeted into the card's
+    message slot so the card — and any unsaved edits in its form — stays put.
+    Status 200 on purpose: htmx doesn't swap 4xx responses by default, and here
+    the swapped-in message is the answer. Plain form posts still get the 4xx.
+    """
+    response = templates.TemplateResponse(
+        request=request,
+        name="_review_message.html",
+        context={"message": message},
+    )
+    response.headers["HX-Retarget"] = f"#review-msg-{maker_id}"
+    response.headers["HX-Reswap"] = "innerHTML"
+    return response
+
+
 @router.post("/review/maker/{maker_id}")
 def review_save(
+    request: Request,
     maker_id: int,
     aesthetic_tags: list[str] = Form(default=[]),
     complication_focus: list[str] = Form(default=[]),
@@ -1177,7 +1381,7 @@ def review_save(
     is_independent: str = Form(default=""),
     canonical_name: str = Form(default=""),
     keep_old_name: str = Form(default=""),
-) -> RedirectResponse:
+) -> Response:
     """Persist edits from the review grid for one maker.
 
     Human edits are authoritative, so this overwrites (not never-overwrite):
@@ -1190,8 +1394,16 @@ def review_save(
     other write, keeping the old name as an alias when `keep_old_name` is
     ticked. A blocker (name taken by another maker, seed maker) is a 409 with
     nothing saved. A blank name is ignored rather than cleared.
+
+    Saving is also the review sign-off (4N): it stamps `reviewed_at`, so the
+    maker leaves the queue and enrichment won't touch it again. From the HTMX
+    card (HX-Request), success answers with the collapsed "saved" row and the
+    new "to go" count instead of the 303, and a blocker (out-of-vocabulary
+    value, rename collision, missing maker) renders inline in the card, with
+    nothing saved, instead of a bare error.
     """
     _require_admin()
+    hx = _is_htmx(request)
 
     submitted_multi = {
         "aesthetic_tags": aesthetic_tags,
@@ -1211,6 +1423,8 @@ def review_save(
     try:
         taste.validate_taste_fields(to_check)
     except ValueError as exc:
+        if hx:
+            return _review_blocked(request, maker_id, str(exc))
         raise HTTPException(status_code=400, detail=str(exc))
 
     from datetime import datetime, timezone
@@ -1218,6 +1432,10 @@ def review_save(
     with session_scope() as session:
         m = session.query(Maker).filter_by(id=maker_id).first()
         if m is None:
+            if hx:
+                return _review_blocked(
+                    request, maker_id, "This maker no longer exists — reload the page."
+                )
             raise HTTPException(status_code=404)
 
         new_name = canonical_name.strip()
@@ -1230,6 +1448,8 @@ def review_save(
                 commit=True,
             )
             if res.blockers:
+                if hx:
+                    return _review_blocked(request, maker_id, " ".join(res.blockers))
                 raise HTTPException(status_code=409, detail=" ".join(res.blockers))
 
         for field, vals in submitted_multi.items():
@@ -1249,28 +1469,40 @@ def review_save(
         m.enriched_fields = [
             f for f in (m.enriched_fields or []) if f not in editable
         ]
-        m.taste_enriched_at = datetime.now(timezone.utc)
+        now = datetime.now(timezone.utc)
+        m.taste_enriched_at = now
+        m.reviewed_at = now
         session.commit()
+        if hx:
+            return _review_done(
+                request, maker_id, m.canonical_name, "Saved", _review_counts(session)[0]
+            )
 
     return RedirectResponse(url="/review", status_code=303)
 
 
 @router.post("/review/promote/{maker_id}")
-def review_promote(maker_id: int) -> RedirectResponse:
+def review_promote(request: Request, maker_id: int) -> Response:
     """Promote a discovered maker into the seed YAML from the review grid.
 
     Calls the same logic as `cli promote`. On success the maker is appended to
     known_makers.yaml and (being seed now) drops off this page. A hard blocker
     (collision) or a fuzzy near-match returns 409 with the reason — the
     near-match case is intentionally routed to the CLI, where `--force` can
-    confirm it after you've seen the dry-run.
+    confirm it after you've seen the dry-run. From the HTMX card the success
+    is the collapsed row and the blocker renders inline (see review_save).
     """
     _require_admin()
+    hx = _is_htmx(request)
     from watch_app.extraction.promote import promote_to_seed
 
     with session_scope() as session:
         m = session.query(Maker).filter_by(id=maker_id).first()
         if m is None:
+            if hx:
+                return _review_blocked(
+                    request, maker_id, "This maker no longer exists — reload the page."
+                )
             raise HTTPException(status_code=404)
         result = promote_to_seed(session, m, commit=True, force=False)
         if not result.written:
@@ -1278,7 +1510,17 @@ def review_promote(maker_id: int) -> RedirectResponse:
             detail = " ".join(reasons) if reasons else "Could not promote."
             if result.needs_confirm:
                 detail += " Use `cli promote --force` if it's genuinely distinct."
+            if hx:
+                return _review_blocked(request, maker_id, detail)
             raise HTTPException(status_code=409, detail=detail)
+        if hx:
+            return _review_done(
+                request,
+                maker_id,
+                m.canonical_name,
+                "Promoted to seed",
+                _review_counts(session)[0],
+            )
 
     return RedirectResponse(url="/review", status_code=303)
 
@@ -1293,32 +1535,69 @@ def review_promote(maker_id: int) -> RedirectResponse:
 # /review?confirm=delete&maker=…, a dry-run) before this POST commits and
 # redirects back here. The dry-run/commit semantics and the seed guard are
 # inherited from maker_admin; these differ from the detail-page routes only in
-# where they redirect.
+# where they redirect. Since 4N the card drives them over HTMX: the confirm
+# panel is fetched into the card (GET /review/confirm-delete/{id}), and each
+# POST answers an HX-Request with the collapsed row (or an inline blocker)
+# instead of the redirect, so the grid never reloads.
+
+
+@router.get("/review/confirm-delete/{maker_id}", response_class=HTMLResponse)
+def review_confirm_delete(request: Request, maker_id: int) -> HTMLResponse:
+    """HTMX: one card's delete confirm panel — a delete dry-run, the same panel
+    GET /review?confirm=delete&maker=… renders in the full page — swapped into
+    the card without reloading the grid. Its Cancel just clears the panel."""
+    _require_admin()
+    with session_scope() as session:
+        preview = delete_maker(session, str(maker_id), commit=False)
+    return templates.TemplateResponse(
+        request=request,
+        name="_review_delete_panel.html",
+        context={"delete_preview": preview, "maker_id": maker_id, "inline": True},
+    )
 
 
 @router.post("/review/suppress/{maker_id}")
-def review_suppress(maker_id: int) -> RedirectResponse:
+def review_suppress(request: Request, maker_id: int) -> Response:
     """Suppress a discovered maker from the review grid. Redirects to /review;
     the maker drops off the grid since suppressed makers are filtered there.
     Reverse it from the maker's detail page (it's no longer shown here)."""
     _require_admin()
+    hx = _is_htmx(request)
     with session_scope() as session:
         res = suppress_maker(session, str(maker_id), commit=True)
         if res.blockers:
+            if hx:
+                return _review_blocked(request, maker_id, " ".join(res.blockers))
             raise HTTPException(status_code=404, detail=" ".join(res.blockers))
+        if hx:
+            return _review_done(
+                request, maker_id, res.maker_name, "Suppressed", _review_counts(session)[0]
+            )
     return RedirectResponse(url="/review", status_code=303)
 
 
 @router.post("/review/delete/{maker_id}")
-def review_delete(maker_id: int) -> RedirectResponse:
+def review_delete(request: Request, maker_id: int) -> Response:
     """Hard-delete a maker from the review grid. The in-card confirm panel
     (GET /review?confirm=delete&maker=…) shows the dry-run impact first. Seed
     makers are blocked and surface as 409, same as the detail-page route."""
     _require_admin()
+    hx = _is_htmx(request)
     with session_scope() as session:
         plan = delete_maker(session, str(maker_id), commit=True)
         if plan.blockers:
+            if hx:
+                return _review_blocked(request, maker_id, " ".join(plan.blockers))
             raise HTTPException(status_code=409, detail=" ".join(plan.blockers))
+        if hx:
+            return _review_done(
+                request,
+                maker_id,
+                plan.maker_name,
+                "Deleted",
+                _review_counts(session)[0],
+                link=False,
+            )
     return RedirectResponse(url="/review", status_code=303)
 
 

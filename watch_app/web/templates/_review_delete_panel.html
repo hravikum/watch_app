@@ -1,0 +1,53 @@
+{# The in-card delete confirmation on /review: a delete dry-run's exact impact,
+   or the blocker for a maker that can't be deleted. Expects delete_preview,
+   maker_id and inline. Rendered into the card by GET
+   /review?confirm=delete&maker=… on the no-JS path (inline false: Cancel is a
+   link back to /review), and fetched into the card over HTMX from GET
+   /review/confirm-delete/{id} (inline true: Cancel just clears the panel). #}
+<div class="mb-5 rounded-xl border border-red-300 bg-red-50 p-5">
+  {% if delete_preview.blockers %}
+    <h3 class="text-sm font-semibold text-red-800">Can't delete this maker</h3>
+    <p class="mt-1 text-sm text-red-700">{{ delete_preview.blockers | join(' ') }}</p>
+    <div class="mt-3">
+      {% if inline %}
+      <button type="button"
+              onclick="document.getElementById('review-panel-{{ maker_id }}').innerHTML = ''"
+              class="text-sm text-stone-600 hover:text-stone-900 underline underline-offset-2">Cancel</button>
+      {% else %}
+      <a href="/review"
+         class="text-sm text-stone-600 hover:text-stone-900 underline underline-offset-2">Cancel</a>
+      {% endif %}
+    </div>
+  {% else %}
+    <h3 class="text-sm font-semibold text-red-800">Permanently delete {{ delete_preview.maker_name }}?</h3>
+    <p class="mt-1 text-sm text-red-700 max-w-2xl leading-relaxed">
+      This removes the maker and everything that references it, and can't be undone.
+      The name (and its aliases) is also blocked from re-discovery, so future scans
+      won't re-create it — reversible with <code>unblock</code> from the CLI.
+    </p>
+    <ul class="mt-3 text-sm text-red-700 space-y-0.5">
+      <li>{{ delete_preview.mentions_deleted }} mention{{ '' if delete_preview.mentions_deleted == 1 else 's' }}</li>
+      <li>{{ delete_preview.watch_models_deleted }} watch model{{ '' if delete_preview.watch_models_deleted == 1 else 's' }}</li>
+      <li>{{ delete_preview.signals_deleted }} signal{{ '' if delete_preview.signals_deleted == 1 else 's' }}</li>
+      <li>{{ delete_preview.scores_deleted }} score{{ '' if delete_preview.scores_deleted == 1 else 's' }}</li>
+    </ul>
+    <div class="mt-4 flex items-center gap-3">
+      <form method="post" action="/review/delete/{{ maker_id }}"
+            hx-post="/review/delete/{{ maker_id }}"
+            hx-target="#review-card-{{ maker_id }}" hx-swap="outerHTML">
+        <button type="submit"
+                class="px-4 py-2 text-sm font-medium rounded-md bg-red-600 text-white border border-red-600 hover:bg-red-700 transition">
+          Confirm delete
+        </button>
+      </form>
+      {% if inline %}
+      <button type="button"
+              onclick="document.getElementById('review-panel-{{ maker_id }}').innerHTML = ''"
+              class="text-sm text-stone-600 hover:text-stone-900 underline underline-offset-2">Cancel</button>
+      {% else %}
+      <a href="/review"
+         class="text-sm text-stone-600 hover:text-stone-900 underline underline-offset-2">Cancel</a>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>

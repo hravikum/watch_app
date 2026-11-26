@@ -26,7 +26,9 @@ Different fields have different ways to verify the LLM's output:
   NONE skips. Done in `llm/client.py` before the value gets back here.
 
 The "never overwrite existing data" rule applies to all fields:
-enrichment only writes when the current value is None.
+enrichment only writes when the current value is None. Separately, a
+maker you've saved on /review (``reviewed_at`` set, chunk 4N) is skipped
+entirely — on both the factual and taste paths.
 
 ## Default behavior
 
@@ -359,12 +361,20 @@ def iter_unenriched_makers(
     Suppressed makers are excluded on both paths: a maker you've hidden
     shouldn't consume LLM spend. The exclusion is reversible — unsuppressing
     leaves enriched_at NULL, so the maker becomes a candidate again.
+
+    Reviewed makers (saved on /review, chunk 4N) are excluded on both paths
+    too: a human has signed off on every field. Never-overwrite alone doesn't
+    protect them — saving drops the "auto" marker that is is_independent's
+    only guard, and a field the reviewer cleared reads as missing — so the
+    2Q path would otherwise undo their independence call and refill cleared
+    fields from the LLM cache.
     """
     if only_auto_enrichable:
         yield from (
             session.query(Maker)
             .filter(Maker.enriched_at.is_(None))
             .filter(Maker.is_suppressed.isnot(True))
+            .filter(Maker.reviewed_at.is_(None))
             .order_by(Maker.canonical_name)
             .all()
         )
@@ -383,6 +393,7 @@ def iter_unenriched_makers(
             | (Maker.enriched_at.is_(None))
         )
         .filter(Maker.is_suppressed.isnot(True))
+        .filter(Maker.reviewed_at.is_(None))
         .order_by(Maker.canonical_name)
         .all()
     )
@@ -614,6 +625,10 @@ def iter_untagged_discovered_independents(
       all, regardless of whether it was attempted before. This re-opens the
       previously-abstained makers (e.g. for a better, context-aware prompt)
       while still skipping anything that already got tags.
+
+    Reviewed makers (saved on /review, chunk 4N) are excluded under both
+    gates: their taste was set by hand, and taste deliberately left blank
+    would otherwise be redrafted by `--retag`.
     """
     from watch_app.scoring.discovery import _load_seed_names
 
@@ -621,6 +636,7 @@ def iter_untagged_discovered_independents(
     query = session.query(Maker).filter(
         Maker.is_independent.is_(True),
         Maker.is_suppressed.isnot(True),
+        Maker.reviewed_at.is_(None),
     )
     if not include_attempted:
         query = query.filter(Maker.taste_enriched_at.is_(None))
