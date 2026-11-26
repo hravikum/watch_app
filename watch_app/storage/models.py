@@ -126,6 +126,32 @@ class Maker(Base):
         return f"<Maker {self.canonical_name!r}>"
 
 
+class BlockedMaker(Base):
+    """Tombstone for a hard-deleted maker, so the resolver won't re-create it.
+
+    Written by delete_maker on commit: one row per deleted maker, carrying the
+    canonical name and the alias list as they stood at deletion. The resolver
+    consults this table before creating a NEW maker — any candidate that would
+    have resolved into the deleted maker (same normalize + fuzzy >=90 semantics)
+    is skipped instead of re-created. Matching of EXISTING makers is untouched.
+
+    Deliberately not gated on the seed loader: adding a blocked name to
+    known_makers.yaml is an explicit curation decision and overrides the
+    tombstone. Reversible via `cli unblock`. See migration 0011.
+    """
+
+    __tablename__ = "blocked_makers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    canonical_name: Mapped[str] = mapped_column(String(200), unique=True, index=True)
+    aliases: Mapped[list[str]] = mapped_column(JSON, default=list)
+    reason: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    blocked_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+    def __repr__(self) -> str:
+        return f"<BlockedMaker {self.canonical_name!r}>"
+
+
 class Source(Base):
     """A place we pull mentions from.
 

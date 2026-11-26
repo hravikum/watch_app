@@ -25,6 +25,7 @@ from watch_app.extraction.maker_admin import (
     delete_maker,
     find_near_duplicates,
     merge_makers,
+    rename_maker,
     set_relationship_state,
     set_taste_reaction,
     suppress_maker,
@@ -1174,6 +1175,8 @@ def review_save(
     founded_year: str = Form(default=""),
     website: str = Form(default=""),
     is_independent: str = Form(default=""),
+    canonical_name: str = Form(default=""),
+    keep_old_name: str = Form(default=""),
 ) -> RedirectResponse:
     """Persist edits from the review grid for one maker.
 
@@ -1182,6 +1185,11 @@ def review_save(
     vocabulary first. On save, the edited fields drop their "auto" markers and
     taste_enriched_at is stamped so the auto-tagger won't revisit. Redirects
     back to /review (POST-redirect-GET).
+
+    A changed `canonical_name` renames the maker via rename_maker before any
+    other write, keeping the old name as an alias when `keep_old_name` is
+    ticked. A blocker (name taken by another maker, seed maker) is a 409 with
+    nothing saved. A blank name is ignored rather than cleared.
     """
     _require_admin()
 
@@ -1211,6 +1219,18 @@ def review_save(
         m = session.query(Maker).filter_by(id=maker_id).first()
         if m is None:
             raise HTTPException(status_code=404)
+
+        new_name = canonical_name.strip()
+        if new_name and new_name != m.canonical_name:
+            res = rename_maker(
+                session,
+                str(maker_id),
+                new_name,
+                keep_old_as_alias=keep_old_name == "on",
+                commit=True,
+            )
+            if res.blockers:
+                raise HTTPException(status_code=409, detail=" ".join(res.blockers))
 
         for field, vals in submitted_multi.items():
             setattr(m, field, vals or None)

@@ -2010,3 +2010,324 @@ makers:
     website: "https://ow-watch.com/"
     country: "Switzerland"
     founded_year: 1956
+  - canonical_name: "Nodus"
+    aesthetic_tags: ["modern", "tool"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://www.noduswatches.com/"
+    country: "United States"
+    founded_year: 2017
+  - canonical_name: "RZE"
+    aesthetic_tags: ["modern", "tool"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://www.rzewatches.com/"
+    country: "Singapore"
+    founded_year: 2020
+  - canonical_name: "Bremont"
+    aesthetic_tags: ["classical", "vintage-inspired", "tool"]
+    maker_type: "established-indie"
+    price_band: "high"
+    output_scale: "500-plus"
+    distribution: "dealer-only"
+    complication_focus: ["time-only", "chronograph"]
+    movement_origin: "modified-base"
+    website: "https://us.bremont.com/"
+    country: "United Kingdom"
+    founded_year: 2002
+  - canonical_name: "Laco"
+    aesthetic_tags: ["classical", "vintage-inspired", "tool"]
+    maker_type: "heritage-relaunch"
+    price_band: "entry"
+    output_scale: "500-plus"
+    distribution: "dealer-only"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    country: "Germany"
+    founded_year: 1925
+  - canonical_name: "Interimlambwatch"
+    aesthetic_tags: ["classical", "tool"]
+    maker_type: "solo-watchmaker"
+    price_band: "high"
+    output_scale: "one-off"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "modified-base"
+    website: "https://www.instagram.com/interimlambwatch/"
+    country: "Japan"
+    founded_year: 2012
+  - canonical_name: "Haim Watch Co."
+    aesthetic_tags: ["classical", "modern"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "modified-base"
+    website: "https://haimwatchco.com/"
+    country: "United States"
+    founded_year: 2020
+  - canonical_name: "Lorier Watches"
+    aesthetic_tags: ["classical", "vintage-inspired"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    output_scale: "50-500"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://www.lorierwatches.com/"
+    country: "United States"
+    founded_year: 2017
+  - canonical_name: "Lebois & Co"
+    aesthetic_tags: ["classical", "vintage-inspired"]
+    maker_type: "heritage-relaunch"
+    price_band: "mid"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://www.lebois.com/"
+    country: "Switzerland"
+    founded_year: 2014
+  - canonical_name: "Franc Vila"
+    aesthetic_tags: ["modern", "avant-garde"]
+    maker_type: "heritage-relaunch"
+    price_band: "haute"
+    output_scale: "sub-50"
+    distribution: "allocation-waitlist"
+    complication_focus: ["tourbillon", "calendar"]
+    movement_origin: "in-house"
+    website: "https://www.francvila.ch/"
+    country: "Switzerland"
+    founded_year: 2004
+  - canonical_name: "Maurice de Mauriac"
+    aesthetic_tags: ["classical", "vintage-inspired"]
+    maker_type: "small-atelier"
+    price_band: "high"
+    output_scale: "50-500"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://mdm-watches.com/"
+    country: "Switzerland"
+    founded_year: 1997
+  - canonical_name: "Sugess"
+    aesthetic_tags: ["classical", "vintage-inspired", "tool"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://sugesswatch.com/"
+    country: "China"
+    founded_year: 2010
+  - canonical_name: "OraOrea"
+    aesthetic_tags: ["modern", "avant-garde"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    output_scale: "50-500"
+    distribution: "direct"
+    complication_focus: ["calendar"]
+    movement_origin: "stock-base"
+    website: "https://oraorea.com/"
+    country: "United States"
+    founded_year: 2026
+  - canonical_name: "Nivada"
+    aesthetic_tags: ["vintage-inspired", "tool"]
+    maker_type: "heritage-relaunch"
+    price_band: "entry"
+    output_scale: "500-plus"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "in-house"
+    website: "https://nivadagrenchenofficial.com/"
+    country: "Switzerland"
+    founded_year: 1926
+  - canonical_name: "Squale"
+    aesthetic_tags: ["vintage-inspired", "tool"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    output_scale: "500-plus"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://www.squale.ch/en/home"
+    country: "Switzerland"
+    founded_year: 1959
+  - canonical_name: "Carlo Ferrara"
+    aesthetic_tags: ["classical"]
+    maker_type: "solo-watchmaker"
+    price_band: "high"
+    output_scale: "sub-50"
+    complication_focus: ["time-only"]
+    country: "Italy"
+    founded_year: 1991
+  - canonical_name: "Schwarz Etienne"
+    aesthetic_tags: ["classical", "dressy"]
+    maker_type: "established-indie"
+    price_band: "high"
+    output_scale: "50-500"
+    distribution: "dealer-only"
+    complication_focus: ["time-only", "calendar"]
+    movement_origin: "in-house"
+    website: "https://www.schwarz-etienne.ch/"
+    country: "Switzerland"
+    founded_year: 1902
+  - canonical_name: "Marcu"
+    aesthetic_tags: ["modern", "avant-garde"]
+    maker_type: "solo-watchmaker"
+    price_band: "haute"
+    output_scale: "sub-50"
+    distribution: "direct"
+    movement_origin: "modified-base"
+    website: "https://marcu-geneve.ch/en/"
+    aliases: ["Jérôme Marcu"]
+    country: "Switzerland"
+    founded_year: 2026
+  - canonical_name: "BOLDR"
+    aesthetic_tags: ["modern", "vintage-inspired", "tool"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    output_scale: "50-500"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://www.boldrsupply.co/"
+    country: "Singapore"
+    founded_year: 2015
+  - canonical_name: "Demarco"
+    aesthetic_tags: ["modern", "tool"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    output_scale: "500-plus"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://www.demarcowatches.com/"
+    country: "United States"
+    founded_year: 2025
+  - canonical_name: "Norqain"
+    aesthetic_tags: ["modern", "tool"]
+    maker_type: "microbrand"
+    price_band: "high"
+    output_scale: "500-plus"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "modified-base"
+    website: "https://norqain.com/"
+    country: "Switzerland"
+    founded_year: 2018
+  - canonical_name: "Slomo Watches"
+    aesthetic_tags: ["modern", "tool"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    output_scale: "500-plus"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://slomowatches.com/"
+    country: "Canada"
+    founded_year: 2025
+  - canonical_name: "Kenkichi Kumada"
+    aesthetic_tags: ["classical", "vintage-inspired"]
+    maker_type: "solo-watchmaker"
+    price_band: "high"
+    output_scale: "one-off"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "modified-base"
+    website: "https://www.instagram.com/interimlambwatch/?hl=en"
+    country: "Japan"
+    founded_year: 2012
+  - canonical_name: "Selten"
+    aesthetic_tags: ["modern", "avant-garde"]
+    maker_type: "microbrand"
+    price_band: "high"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["calendar"]
+    movement_origin: "stock-base"
+    website: "https://seltenwatch.com/"
+    country: "Hong Kong"
+    founded_year: 2017
+  - canonical_name: "Atelier Pieters"
+    aesthetic_tags: ["classical", "modern"]
+    maker_type: "small-atelier"
+    price_band: "high"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "in-house"
+    website: "https://atelierpieters.ch/"
+    country: "Switzerland"
+    founded_year: 2026
+  - canonical_name: "Ianos"
+    aesthetic_tags: ["classical", "tool"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://ianoswatches.com/"
+    country: "Greece"
+    founded_year: 2017
+  - canonical_name: "Farasute"
+    aesthetic_tags: ["modern", "tool"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    output_scale: "50-500"
+    distribution: "direct"
+    complication_focus: ["calendar"]
+    movement_origin: "modified-base"
+    website: "https://farasute.com/"
+    country: "China"
+    founded_year: 2015
+  - canonical_name: "Pierre DeRoche"
+    aesthetic_tags: ["modern", "avant-garde"]
+    maker_type: "microbrand"
+    price_band: "high"
+    output_scale: "sub-50"
+    distribution: "direct"
+    movement_origin: "stock-base"
+    website: "https://www.pierrederoche.com/"
+    country: "Switzerland"
+    founded_year: 2004
+  - canonical_name: "Pagani Design"
+    aesthetic_tags: ["modern", "tool"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    output_scale: "500-plus"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://www.paganidesignwatch.com/"
+    aliases: ["Pagani"]
+    country: "China"
+    founded_year: 2012
+  - canonical_name: "LÜM-TEC"
+    aesthetic_tags: ["modern", "tool"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    output_scale: "50-500"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://lum-tec.com/"
+    country: "United States"
+    founded_year: 2007
+  - canonical_name: "SeaQuartz"
+    aesthetic_tags: ["modern", "tool"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://www.seaquartzofficial.com/"
+    aliases: ["SeaQuartz Official"]

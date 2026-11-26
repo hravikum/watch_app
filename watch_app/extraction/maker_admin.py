@@ -1,4 +1,4 @@
-"""Maintenance operations on makers: merge duplicates, fix aliases, find dupes.
+"""Maintenance operations on makers: merge duplicates, fix aliases and names, find dupes.
 
 The remedy half of the resolver's safety net (3N). The resolver auto-aliases on
 a fuzzy match; when that occasionally goes wrong, or two makers slip through as
@@ -16,7 +16,14 @@ from sqlalchemy.orm import Session
 
 from watch_app.extraction.resolver import _normalize
 from watch_app.scoring.discovery import _load_seed_names
-from watch_app.storage.models import Maker, Mention, Score, Signal, WatchModel
+from watch_app.storage.models import (
+    BlockedMaker,
+    Maker,
+    Mention,
+    Score,
+    Signal,
+    WatchModel,
+)
 
 
 #: Personal relationship state vocabulary (chunk B). ORTHOGONAL to suppression:
@@ -235,6 +242,94 @@ def remove_alias(
     )
 
 
+# --- Rename (fix a wrongly-grabbed name) --------------------------------------
+
+
+@dataclass
+class RenameResult:
+    old_name: str
+    new_name: str
+    alias_kept: bool = False        # old name recorded as an alias
+    alias_promoted: bool = False    # new name was one of this maker's aliases
+    blockers: list[str] = field(default_factory=list)
+    done: bool = False
+
+
+def rename_maker(
+    session: Session,
+    maker_ref: str,
+    new_name: str,
+    *,
+    keep_old_as_alias: bool = True,
+    commit: bool = False,
+) -> RenameResult:
+    """Correct a discovered maker's canonical name, e.g. one the scan grabbed
+    wrong. Mentions, scores and history hang off maker_id, so they carry over.
+
+    With ``keep_old_as_alias`` the old name is recorded as an alias, so a later
+    scan that extracts the same string resolves it here instead of re-creating
+    the bad row. Turn it off when the old name was junk rather than a spelling
+    of this maker — as an alias, generic text would fuzzy-match unrelated
+    mentions into it. Skipped when the names are equal under normalization
+    (matching is normalized, so the alias would add nothing). If the new name
+    is one of this maker's own aliases, it moves out of the alias list.
+
+    Blocks seed makers (the loader would re-create the seed name next scan —
+    rename it in known_makers.yaml instead) and any new name that normalizes to
+    another maker's canonical name or alias: that's a duplicate, so merge
+    instead. Dry-run by default.
+    """
+    new_name = (new_name or "").strip()
+    maker = _resolve_maker(session, maker_ref)
+    if maker is None:
+        return RenameResult(maker_ref, new_name, blockers=[f"No maker found for '{maker_ref}'."])
+    old_name = maker.canonical_name
+
+    def _blocked(reason: str) -> RenameResult:
+        return RenameResult(old_name, new_name, blockers=[reason])
+
+    if not new_name:
+        return _blocked("The new name can't be empty.")
+    if new_name == old_name:
+        return _blocked(f"'{old_name}' already has that name.")
+    if old_name in _load_seed_names():
+        return _blocked(
+            f"'{old_name}' is a seed maker — the loader would re-create it under "
+            f"its seed name next scan. Rename it in known_makers.yaml instead."
+        )
+
+    target = _normalize(new_name)
+    for other in session.query(Maker).filter(Maker.id != maker.id):
+        if any(_normalize(n) == target for n in [other.canonical_name, *(other.aliases or [])]):
+            return _blocked(
+                f"'{new_name}' already belongs to '{other.canonical_name}' "
+                f"(id {other.id}) — that's a duplicate, not a rename. Merge this "
+                f"maker into it from its detail page instead."
+            )
+
+    current_aliases = list(maker.aliases or [])
+    aliases = [a for a in current_aliases if a != new_name]
+    alias_promoted = len(aliases) != len(current_aliases)
+    alias_kept = (
+        keep_old_as_alias
+        and _normalize(old_name) != target
+        and old_name not in aliases
+    )
+
+    if commit:
+        maker.canonical_name = new_name
+        maker.aliases = [*aliases, old_name] if alias_kept else aliases
+        session.commit()
+
+    return RenameResult(
+        old_name=old_name,
+        new_name=new_name,
+        alias_kept=alias_kept,
+        alias_promoted=alias_promoted,
+        done=commit,
+    )
+
+
 def find_near_duplicates(session: Session, *, threshold: int = 85) -> list[DupePair]:
     """Maker pairs whose normalized canonical names score in [threshold, 100)
     by WRatio — candidates a human should eyeball for merging.
@@ -260,6 +355,7 @@ class DeletePlan:
     watch_models_deleted: int = 0
     signals_deleted: int = 0
     scores_deleted: int = 0
+    names_blocked: list[str] = field(default_factory=list)
     blockers: list[str] = field(default_factory=list)
     done: bool = False
 
@@ -271,9 +367,13 @@ def delete_maker(
     mentions, watch models, and derived signal/score rows.
 
     Dry-run by default. Blocks seed makers — the loader re-creates those next
-    scan, so the known_makers.yaml entry must be removed instead. Note this does
-    NOT prevent re-discovery: if a live article still mentions the name, the next
-    scan's resolver creates the maker again. Suppress instead for recurring names.
+    scan, so the known_makers.yaml entry must be removed instead.
+
+    On commit, the maker's canonical name + aliases are written to the
+    blocked_makers tombstone table, and the resolver refuses to re-create any
+    candidate matching them (same normalize + fuzzy semantics as matching) —
+    so a still-live article can't resurrect the maker on the next scan.
+    Reversible via unblock_maker / `cli unblock`.
     """
     maker = _resolve_maker(session, maker_ref)
     if maker is None:
@@ -291,12 +391,34 @@ def delete_maker(
     watch_models = session.query(WatchModel).filter_by(maker_id=maker.id).count()
     signals = session.query(Signal).filter_by(maker_id=maker.id).count()
     scores = session.query(Score).filter_by(maker_id=maker.id).count()
+    names_blocked = [maker.canonical_name, *(maker.aliases or [])]
 
     if commit:
         session.query(Mention).filter_by(maker_id=maker.id).delete()
         session.query(WatchModel).filter_by(maker_id=maker.id).delete()
         session.query(Signal).filter_by(maker_id=maker.id).delete()
         session.query(Score).filter_by(maker_id=maker.id).delete()
+        # Tombstone in the same transaction, so delete + block is atomic.
+        # A re-delete after unblock + re-discovery updates the existing row
+        # (canonical_name is unique) and unions any newly-learned aliases.
+        existing_block = (
+            session.query(BlockedMaker)
+            .filter_by(canonical_name=maker.canonical_name)
+            .one_or_none()
+        )
+        if existing_block is not None:
+            existing_block.aliases = _merge_name_lists(
+                existing_block.aliases, maker.aliases
+            )
+            existing_block.blocked_at = datetime.now(timezone.utc)
+        else:
+            session.add(
+                BlockedMaker(
+                    canonical_name=maker.canonical_name,
+                    aliases=list(maker.aliases or []),
+                    reason=f"deleted maker '{maker.canonical_name}'",
+                )
+            )
         session.delete(maker)
         session.commit()
 
@@ -306,8 +428,21 @@ def delete_maker(
         watch_models_deleted=watch_models,
         signals_deleted=signals,
         scores_deleted=scores,
+        names_blocked=names_blocked,
         done=commit,
     )
+
+
+def _merge_name_lists(existing: list[str] | None, incoming: list[str] | None) -> list[str]:
+    """Union of two name lists, preserving order and dropping duplicates."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for lst in (existing or [], incoming or []):
+        for name in lst:
+            if name not in seen:
+                seen.add(name)
+                out.append(name)
+    return out
 
 
 # --- Suppress (soft, reversible) ---------------------------------------------
@@ -379,4 +514,66 @@ def list_suppressed(session: Session) -> list[Maker]:
         .filter(Maker.is_suppressed.is_(True))
         .order_by(Maker.canonical_name)
         .all()
+    )
+
+
+# --- Blocklist (tombstones from hard deletes) ---------------------------------
+
+
+@dataclass
+class UnblockResult:
+    blocked_name: str
+    aliases_freed: list[str] = field(default_factory=list)
+    blockers: list[str] = field(default_factory=list)
+    done: bool = False
+
+
+def unblock_maker(
+    session: Session, name_ref: str, *, commit: bool = False
+) -> UnblockResult:
+    """Remove a blocked_makers tombstone so the name can be re-discovered.
+
+    `name_ref` is the tombstone id or the blocked canonical name (exact, then
+    normalized as a fallback). Removes the whole tombstone — canonical name and
+    all its blocked aliases together. Dry-run by default.
+    """
+    row = None
+    if name_ref.isdigit():
+        row = session.query(BlockedMaker).filter_by(id=int(name_ref)).first()
+    if row is None:
+        row = (
+            session.query(BlockedMaker)
+            .filter_by(canonical_name=name_ref)
+            .one_or_none()
+        )
+    if row is None:
+        target = _normalize(name_ref)
+        row = next(
+            (
+                b
+                for b in session.query(BlockedMaker).all()
+                if _normalize(b.canonical_name) == target
+            ),
+            None,
+        )
+    if row is None:
+        return UnblockResult(
+            blocked_name=name_ref,
+            blockers=[f"No blocked name found for '{name_ref}'."],
+        )
+
+    aliases = list(row.aliases or [])
+    if commit:
+        session.delete(row)
+        session.commit()
+
+    return UnblockResult(
+        blocked_name=row.canonical_name, aliases_freed=aliases, done=commit
+    )
+
+
+def list_blocked(session: Session) -> list[BlockedMaker]:
+    """All blocked-name tombstones, ordered by name."""
+    return (
+        session.query(BlockedMaker).order_by(BlockedMaker.canonical_name).all()
     )

@@ -31,13 +31,16 @@ parked — see "Explicitly NOT doing"); going public re-tiers everything
 (personal-state features become multi-user/auth, source breadth + methodology
 defensibility rise).
 
-Status (2026-06-15): the discovery→engagement arc is nearly complete — Layers
-1a/1b (taste schema + bulk tagging, 3A/3B), Layer 2 (the /explore filter +
-similarity, 3O/3P), and Layer 3a (reaction capture 3V + triage 3X) all shipped.
-Source-weight calibration is done end to end (diagnostic 3Y/3Z, tuning 4A), and
-a weekly LLM discovery scan is now schedulable (4B). The maker-maintenance UI
-(suppress/delete 4D, merge 4E) and the trends page (mention volume + rank
-trajectories, 4F) have since shipped too. What's left is below.
+Status (2026-09-16): the discovery→engagement arc is complete through taste —
+Layers 1a/1b (taste schema + bulk tagging, 3A/3B), Layer 2 (the /explore filter
++ similarity, 3O/3P), Layer 3a (reaction capture 3V + triage 3X), and Layer 3b
+(the /for-you re-ranking, 4I) all shipped. Source-weight calibration is done end
+to end (diagnostic 3Y/3Z, tuning 4A), and a weekly LLM discovery scan is
+schedulable (4B). The trends page shipped (4F) and became interactive (4G).
+Maker maintenance is now covered end to end: suppress/delete (4D) and merge
+(4E) on the detail page, suppress/delete on the /review grid (4H), deletes that
+stay deleted via tombstones (4K), and rename for wrongly-grabbed names on
+/review (4L). What's left is below.
 
 ### Tier 1 — strongest next bets
 - **Layer 3b — adaptive ranking. SHIPPED in 4I** as the `/for-you` view: the
@@ -207,9 +210,10 @@ to work with. Layer 1 itself splits into:
 - **2 — Multi-filter explorer: SHIPPED (3O/3P).** The /explore UI lets you
   navigate by these dimensions, with similarity ("makers like X") built on
   `_similar_makers`.
-- **3 — Reactions: CAPTURE SHIPPED (3V/3X).** Like/dislike per maker plus the
-  `/triage` queue. Only the adaptive re-ranking (Layer 3b) is left — the arc's
-  last piece. See the Roadmap.
+- **3 — Reactions: SHIPPED.** Like/dislike capture (3V) plus the `/triage`
+  queue (3X), then the adaptive re-ranking (3b) as the `/for-you` view (4I).
+  Tuning the affinity blend against real reactions is the open follow-up
+  (Roadmap, Tier 3).
 
 Layers 1a/1b came in faster than the 4-6 week estimate because the
 LLM-assisted draft + review workflow turned ~420 tag decisions into a
@@ -283,8 +287,8 @@ skip-seen-URL guard). What's parked is specifically making *every daily* scan
 LLM-backed: it re-pays Haiku for the whole feed window each run for marginal
 value. The daily job stays rule-based.
 
-(Charts on the dashboard moved OUT of this section — the data gate is met, it's
-now a Tier-1 Roadmap candidate. Public deployment lives in the Roadmap's
+(Charts moved OUT of this section once the data gate was met, and have since
+shipped as `/trends` (4F/4G). Public deployment lives in the Roadmap's
 "Parked" bucket and "Open questions".)
 
 ## Open questions to sit with
@@ -999,6 +1003,98 @@ For quick reference on what shipped when:
       mild false-positive rate; a min-length or scorer guard is a possible
       future dedup-quality tweak, not done here.) Suite 626, now fully green
       (was 625 passing + this 1 failure). No test-count change.
+- 4K  Made delete stick: hard-deleted makers no longer reappear on later scans.
+      Root cause was already noted in delete_maker's docstring — delete removed
+      the row and everything referencing it but left nothing saying "don't
+      re-create this", so the resolver's create step resurrected the maker as
+      soon as any live article mentioned the name again. Fix is a tombstone
+      table, `blocked_makers` (migration 0011): one row per deleted maker,
+      carrying its canonical name + aliases at deletion. delete_maker writes it
+      in the same transaction as the delete (atomic; a re-delete updates the
+      existing row and unions aliases — canonical_name is unique). The resolver
+      gates ONLY its create step: a candidate matching a tombstone — same
+      normalize + fuzzy >=90 semantics as matching, per design decision, so
+      variant spellings can't resurrect it under a near-name — returns None
+      instead of creating, and _ingest_mention drops that candidate with a
+      debug log. Existing-maker matching is never gated, and the seed loader
+      deliberately bypasses the check (adding a blocked name to
+      known_makers.yaml is an explicit curation override). Reversal: `cli
+      unblock <name-or-id>` (dry-run default, removes the whole tombstone —
+      canonical + aliases together) and `cli blocked` to list. Both web delete
+      routes (detail page 4D, review grid 4H) go through delete_maker, so they
+      inherit the tombstone with no route changes; the two confirm-panel copies
+      and the detail-page delete description were updated since "suppress
+      instead, delete can be resurrected" is no longer the story — delete now
+      means gone and stays gone, suppress means hidden but kept. DeletePlan
+      gains `names_blocked` (previewed in dry-run too), and the delete CLI
+      prints it. 15 tests in tests/test_blocklist.py (tombstone write / dry-run
+      / re-delete union x2; resolver exact / alias / fuzzy-variant / unrelated
+      passes / existing-match never gated; ingest drops blocked candidate;
+      unblock round-trip / dry-run / id + normalized lookup / unknown blocker;
+      list ordering). Suite 626 → 641.
+- 4L  Rename a maker from the `/review` grid, for names a scan grabbed wrong.
+      New `rename_maker` in maker_admin (dry-run default, like its siblings)
+      changes canonical_name in place; mentions, watch models, signals and
+      scores hang off maker_id, so history carries over with no migration.
+      The one real design call was the old name. Kept as an alias (the
+      default, same as merge), a later scan that extracts the same bad string
+      resolves it to the corrected maker instead of re-creating the bad row —
+      the 4K lesson again. But if the bad grab is generic text rather than a
+      spelling variant ("Hands On"), the resolver's fuzzy >=90 WRatio would
+      quietly pull unrelated mentions into the maker, which is worse than a
+      visible duplicate. So it's a per-rename choice: a "keep old name as an
+      alias" checkbox under the Name field, ticked by default, and
+      `--drop-old-name` on the CLI. The alias is skipped when old and new are
+      equal under normalization (it would add nothing to matching), and a new
+      name that is one of the maker's own aliases moves out of the alias list.
+      Blockers: seed makers (the loader re-creates the seed name next scan —
+      rename in the YAML), empty/unchanged names, and any name that normalizes
+      to ANOTHER maker's canonical name or alias — that's a duplicate, so the
+      message names the maker + id and points at Merge on its detail page.
+      Tombstones are deliberately not consulted: the resolver never gates
+      existing makers, so a live maker whose name resembles a deleted one is
+      harmless, and blocking would trip up renaming the survivor of a pair
+      whose junk twin you already deleted. Also deliberately NOT touched:
+      enrichment state. Auto-enrichment is never-overwrite and already retries
+      makers it wrote nothing for (the new name is a fresh LLM cache key);
+      resetting enriched_at would let it re-propose is_independent over a
+      reviewed value, since review_save drops that field from enriched_fields.
+      `cli enrich --commit` fills remaining gaps under the new name. UI: a Name
+      input heads each card's factual fields inside the existing Save form, so
+      renaming is just another field edit. review_save renames only when the
+      value changed and does so BEFORE any other write, so a blocker is a 409
+      (same as Promote) with nothing on the card saved; a blank name is
+      ignored, not cleared. Detail page unchanged. Also `cli rename <maker>
+      <new name> [--drop-old-name] [--commit]`, since every other maker_admin
+      op is CLI-reachable. No schema change, no new dependency. 23 tests in
+      tests/test_rename.py (commit / dry-run / alias opt-out / own-alias
+      promotion / normalization-only change / name ref; collision with another
+      maker's canonical or alias; seed, empty, unchanged, unknown blockers;
+      mentions stay attached; old name resolves to the renamed maker only when
+      kept — using a junk name the fuzzy step can't reach on its own; review
+      field renders / rename + rest of card saves / unticked drops alias /
+      collision 409 saves nothing / unchanged is a no-op; CLI dry-run → commit
+      and blocker exit). Suite 641 → 664.
+- 4M  Documentation refresh (doc-only, like 2O). The per-chunk doc updates
+      since 4C had kept the test counts and CLI reference current but let
+      other things drift. README: `/for-you` (4I) was never described — added a
+      feature bullet (how the affinity blend works, AFFINITY_WEIGHT, the
+      onboarding state, inherited eligibility); three places still called the
+      personalized re-ranking future work and the taste section still called
+      the explorer "planned" — now they point at /for-you and /explore, and
+      "taste never affects scores" is narrowed to the preset scores, since
+      /for-you does read the tags; seed figures updated from ~125 makers /
+      117 websites to the current 239 entries / 222 websites (the extractor
+      line no longer quotes a fixed vocabulary size); project layout gained
+      affinity.py, calibration.py, the /trends queries, migration 0010's
+      reaction columns, the unblock op, the resolver's blocklist gate, the
+      trends / for-you / triage routes and templates, _merge_results.html, and
+      web/static/trends.js; suite time harmonized to ~30s (it said ~60s in one
+      place, ~30s in another). NOTES: roadmap status line brought from
+      2026-06-15 (stopped at 4F) to now; the Sequencing entry for Layer 3 no
+      longer says 3b is the piece left; the stale "charts are now a Tier-1
+      candidate" aside now points at /trends. No code change; suite unchanged
+      at 664.
 
 ## Findings logged from the week-1 data review (2G)
 

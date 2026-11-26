@@ -172,6 +172,10 @@ def _ingest_mention(
     written = 0
     for candidate in raw.candidate_names:
         maker = resolve_or_create_maker(session, candidate)
+        if maker is None:
+            # Candidate matches a blocked (hard-deleted) maker — drop it.
+            logger.debug("Skipping blocked candidate %r: %s", candidate, raw.url)
+            continue
 
         # Dedup on (source, url): if we've already recorded this article for
         # this maker from this source, skip.

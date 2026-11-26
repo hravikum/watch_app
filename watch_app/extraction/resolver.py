@@ -19,7 +19,7 @@ import unicodedata
 from rapidfuzz import fuzz, process
 from sqlalchemy.orm import Session
 
-from watch_app.storage.models import Maker
+from watch_app.storage.models import BlockedMaker, Maker
 
 logger = logging.getLogger(__name__)
 
@@ -66,11 +66,47 @@ def _normalize(name: str) -> str:
     return out or collapsed  # never reduce a name to the empty string
 
 
-def resolve_or_create_maker(session: Session, candidate_name: str) -> Maker:
+def _matches_blocklist(session: Session, normalized_candidate: str) -> str | None:
+    """Return the blocked canonical name the candidate matches, or None.
+
+    Applies the SAME semantics the resolver uses to match existing makers
+    (normalized exact, then fuzzy >= FUZZY_MATCH_THRESHOLD across canonical
+    names + aliases) — so anything that would have resolved into a deleted
+    maker is blocked, including variant spellings. Only consulted at the
+    create step; existing-maker matching is never gated.
+    """
+    blocked = session.query(BlockedMaker).all()
+    if not blocked:
+        return None
+
+    lookup: dict[str, str] = {}
+    for row in blocked:
+        lookup[_normalize(row.canonical_name)] = row.canonical_name
+        for alias in row.aliases or []:
+            lookup[_normalize(alias)] = row.canonical_name
+
+    if normalized_candidate in lookup:
+        return lookup[normalized_candidate]
+
+    best = process.extractOne(
+        normalized_candidate, list(lookup.keys()), scorer=fuzz.WRatio
+    )
+    if best is not None:
+        matched_key, score, _ = best
+        if score >= FUZZY_MATCH_THRESHOLD:
+            return lookup[matched_key]
+    return None
+
+
+def resolve_or_create_maker(session: Session, candidate_name: str) -> Maker | None:
     """Find an existing Maker matching `candidate_name`, or create a new one.
 
     Matches against both canonical_name and aliases. Uses fuzzy matching so
     minor variants ("Simon Brette" vs "Simon Brette ") resolve together.
+
+    Returns None if the candidate matches the blocked_makers tombstone table
+    (a hard-deleted maker) — the create step is gated so a deleted maker
+    can't be resurrected by the next scan. See BlockedMaker.
     """
     candidate_name = candidate_name.strip()
     if not candidate_name:
@@ -118,7 +154,16 @@ def resolve_or_create_maker(session: Session, candidate_name: str) -> Maker:
                     session.flush()
                 return maker
 
-    # Step 3: create a new maker.
+    # Step 3: create a new maker — unless the name is tombstoned.
+    blocked_as = _matches_blocklist(session, normalized_candidate)
+    if blocked_as is not None:
+        logger.info(
+            "Skipping creation of %r — matches blocked (deleted) maker %r.",
+            candidate_name,
+            blocked_as,
+        )
+        return None
+
     new_maker = Maker(canonical_name=candidate_name, aliases=[])
     session.add(new_maker)
     session.flush()  # populate id

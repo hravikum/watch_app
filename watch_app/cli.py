@@ -1398,6 +1398,54 @@ def unalias(
 
 
 @app.command()
+def rename(
+    maker: str = typer.Argument(
+        ..., help="Maker (id or name) to rename — must be a discovered maker."
+    ),
+    new_name: str = typer.Argument(..., help="The corrected canonical name."),
+    drop_old_name: bool = typer.Option(
+        False,
+        "--drop-old-name",
+        help="Don't keep the old name as an alias (use when it was junk, not a spelling of this maker).",
+    ),
+    commit: bool = typer.Option(
+        False, "--commit", help="Apply the rename. Dry-run otherwise."
+    ),
+) -> None:
+    """Correct a discovered maker's name (e.g. one a scan grabbed wrong).
+
+    Dry-run by default. The old name is kept as an alias so later scans resolve
+    it to this maker; pass --drop-old-name when it was junk. Refuses seed makers
+    and names that already belong to another maker (merge instead).
+    """
+    from watch_app.extraction.maker_admin import rename_maker
+
+    with session_scope() as session:
+        res = rename_maker(
+            session,
+            maker,
+            new_name,
+            keep_old_as_alias=not drop_old_name,
+            commit=commit,
+        )
+        for blocker in res.blockers:
+            console.print(f"[red]\u2717 {blocker}[/red]")
+        if res.blockers:
+            raise typer.Exit(1)
+
+        console.print(f"[bold]Rename '{res.old_name}' \u2192 '{res.new_name}'[/bold]")
+        console.print(f"  old name kept as alias: {'yes' if res.alias_kept else 'no'}")
+        if res.alias_promoted:
+            console.print("  new name removed from aliases (it's canonical now)")
+        if res.done:
+            console.print(
+                "\n[green]Renamed.[/green] Mentions and scores stay with the maker."
+            )
+        else:
+            console.print("\n[yellow]Dry run.[/yellow] Re-run with --commit to apply.")
+
+
+@app.command()
 def delete(
     maker: str = typer.Argument(
         ..., help="Maker (id or name) to delete — must be a discovered maker."
@@ -1426,8 +1474,14 @@ def delete(
             f"  derived rows dropped: {plan.signals_deleted} signals, "
             f"{plan.scores_deleted} scores"
         )
+        console.print(
+            f"  names blocked from re-discovery: {', '.join(plan.names_blocked)}"
+        )
         if plan.done:
-            console.print("\n[green]Deleted.[/green]")
+            console.print(
+                "\n[green]Deleted.[/green] Future scans won't re-create this "
+                "maker; reverse with `unblock`."
+            )
         else:
             console.print("\n[yellow]Dry run.[/yellow] Re-run with --commit to apply.")
 
@@ -1512,6 +1566,61 @@ def suppressed() -> None:
         table.add_column("Reason", style="dim")
         for m in makers:
             table.add_row(str(m.id), m.canonical_name, m.suppressed_reason or "\u2014")
+        console.print(table)
+
+
+@app.command()
+def unblock(
+    name: str = typer.Argument(
+        ..., help="Blocked name (tombstone id or canonical name) to free up."
+    ),
+    commit: bool = typer.Option(
+        False, "--commit", help="Apply. Dry-run otherwise."
+    ),
+) -> None:
+    """Remove a delete tombstone so the name can be re-discovered on scans."""
+    from watch_app.extraction.maker_admin import unblock_maker
+
+    with session_scope() as session:
+        res = unblock_maker(session, name, commit=commit)
+        for blocker in res.blockers:
+            console.print(f"[red]\u2717 {blocker}[/red]")
+        if res.blockers:
+            raise typer.Exit(1)
+
+        console.print(f"[bold]Unblock '{res.blocked_name}'[/bold]")
+        console.print(f"  aliases freed with it: {res.aliases_freed or 'none'}")
+        if res.done:
+            console.print(
+                "\n[green]Unblocked.[/green] The next scan may re-create the "
+                "maker if the name still appears in feeds."
+            )
+        else:
+            console.print("\n[yellow]Dry run.[/yellow] Re-run with --commit to apply.")
+
+
+@app.command()
+def blocked() -> None:
+    """List names blocked from re-discovery by past deletes."""
+    from watch_app.extraction.maker_admin import list_blocked
+
+    with session_scope() as session:
+        rows = list_blocked(session)
+        if not rows:
+            console.print("[green]No blocked names.[/green]")
+            return
+        table = Table(title="Blocked names (delete tombstones)")
+        table.add_column("id", justify="right", style="dim")
+        table.add_column("Name")
+        table.add_column("Aliases", style="dim")
+        table.add_column("Blocked at", style="dim")
+        for b in rows:
+            table.add_row(
+                str(b.id),
+                b.canonical_name,
+                ", ".join(b.aliases or []) or "\u2014",
+                b.blocked_at.strftime("%Y-%m-%d") if b.blocked_at else "\u2014",
+            )
         console.print(table)
 
 

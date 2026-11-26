@@ -5,7 +5,7 @@ makers who might become nominees, finalists, or winners of prizes like the Louis
 Vuitton Watch Prize for Independent Creatives.
 
 The app ingests from watch media and award nominations, resolves mentions against
-a curated seed of ~125 known makers (plus auto-creates new ones it sees), scores
+a curated seed of ~240 known makers (plus auto-creates new ones it sees), scores
 each maker under two rankings, and surfaces results in a CLI and local web UI.
 
 ## What it does today
@@ -15,7 +15,7 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   scraper of the official site (2023/2024/2025), 3 Reddit subreddits
   (r/watchmaking, r/horology, r/Watches), and 15 YouTube channels
   covering indie watchmakers across three prestige tiers.
-- **Tracks 125 curated seed makers** plus anyone new that surfaces from GPHG or
+- **Tracks ~240 curated seed makers** plus anyone new that surfaces from GPHG or
   an article mentioning them. The seed includes every LV Watch Prize finalist,
   every AHCI member, most GPHG regulars, and major conglomerate brands flagged
   as non-independent.
@@ -42,7 +42,8 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   for (time-only, chronograph, tourbillon, calendar, chiming, astronomical),
   maker type, price band, output scale, distribution, and movement origin.
   They render as a "Profile" panel on the detail page. These are descriptive,
-  for navigating by taste — they do **not** feed scoring. The controlled
+  for navigating by taste — they do **not** feed the preset scores (only the
+  `/for-you` re-ranking reads them, alongside your reactions). The controlled
   vocabulary lives in `watch_app/taste.py`; the seed loader validates every
   tag against it.
 - **Drafts taste tags via LLM for review.** `python -m watch_app.cli
@@ -77,9 +78,9 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   full digest attached as a styled HTML file, over stdlib SMTP. Dry-run by
   default (writes a preview, sends nothing); `--send` delivers. See
   [Email digest](#email-digest) for setup.
-- **Links to maker websites** on every detail page where one exists. 117
-  of 125 seed makers have a verified website URL — the remaining 8 (e.g.
-  Philippe Dufour) genuinely don't have public web presence.
+- **Links to maker websites** on every detail page where one exists. 222
+  of 239 seed makers have a website URL — most of the rest (e.g. Philippe
+  Dufour) genuinely don't have a public web presence.
 - **Surfaces auto-discovered makers** at `/discoveries`. Any brand the
   resolver caught from an article that isn't in the curated seed YAML
   appears here, sorted by most recently found. The page shows what's
@@ -110,7 +111,14 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   `WATCH_APP_ADMIN` (off by default, so it's never exposed on a public
   deployment). Seed makers are excluded — their taste stays curated in
   the YAML. Each card also carries per-maker Suppress / Delete controls
-  (see "Suppress or delete a maker" below).
+  (see "Suppress or delete a maker" below). If a scan grabbed a maker's
+  name wrong, fix it in the card's Name field: mentions and scores stay
+  with the maker, and by default the old name is kept as an alias so later
+  scans resolve it to the corrected maker rather than re-creating the bad
+  row (untick the box when the old name was junk rather than a real
+  spelling). A name that already belongs to another maker is refused —
+  that's a duplicate, so merge instead. `cli rename` does the same from
+  the terminal.
 - **Explore by taste** at `/explore`. Faceted filtering over every maker
   that carries taste tags (seed and discovered together): OR within a
   dimension, AND across, with a static count beside each option so you
@@ -148,7 +156,7 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   **taste reaction** — like / dislike on the maker's *work* — kept separate
   from the relationship state (posture toward the maker) and from suppression
   (whether it's in the tool at all). It records when you reacted and is the
-  signal a future personalized re-ranking will read.
+  signal the `/for-you` view re-ranks on.
 - **Triage your reactions in one pass** at `/triage`. A queue of every
   maker you haven't reacted to yet (suppressed makers excluded), scored
   ones first in rank order under your default preset, then the unranked
@@ -157,8 +165,20 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   buttons; reacting drops the maker from the queue and ticks the remaining
   count down without a full reload. Skipping is just leaving a card alone —
   it returns next time. To change or clear a reaction, use the maker's
-  detail page. This is the fast way to build up the like/dislike signal the
-  personalized re-ranking will read.
+  detail page. This is the fast way to build up the like/dislike signal
+  `/for-you` reads.
+- **A ranking tuned to your taste** at `/for-you` (first link in the nav).
+  It takes either preset's ranking and re-orders it by your reactions: each
+  maker's taste tags are compared with the makers you've liked and disliked
+  (the same similarity that powers "Similar makers"), and that affinity is
+  z-scored and blended into the preset score at a fixed weight
+  (`AFFINITY_WEIGHT`, 0.6, in `scoring/affinity.py`). Makers close to your
+  likes climb, makers close to your dislikes sink, and untagged makers hold
+  their place. The table shows the affinity, the closest liked maker as the
+  "why", and each maker's original rank. Computed on every page load, so it
+  shifts the moment you react; with no reactions yet it points you to
+  `/triage`. Eligibility (rising_star's independent gate, hidden_gem's
+  mention cap) carries over from the base preset.
 - **Suppress or delete a maker.** When a discovered name isn't worth
   tracking — a defunct historical brand, something out of scope —
   `cli suppress "<maker>"` hides it from `/discoveries`, the rankings,
@@ -168,7 +188,13 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   `cli unsuppress`. Suppressed makers are also skipped by on-scan
   enrichment and taste-tagging, so they stop costing LLM calls.
   `cli delete` is the hard path — removes the maker and everything that
-  references it — for genuinely one-off mentions you're sure about. Both
+  references it, and tombstones the name (plus its aliases) in the
+  `blocked_makers` table so the resolver won't re-create it when a live
+  article still mentions it. The block uses the same normalize + fuzzy
+  matching the resolver does, so variant spellings can't resurrect it
+  either; `cli blocked` lists the tombstones and `cli unblock` reverses
+  one. (Adding a blocked name to the seed YAML deliberately overrides the
+  tombstone — an explicit curation decision wins.) Both
   are dry-run by default. With `WATCH_APP_ADMIN` on, both are also on each
   maker's detail page: a reversible Suppress / Unsuppress toggle (with an
   optional reason), and a Delete that opens a confirm panel showing the exact
@@ -372,11 +398,14 @@ python -m watch_app.cli dupes                   # List near-duplicate makers (po
 python -m watch_app.cli merge <from> <into>     # Dry-run: fold one maker into another (mentions, aliases)
 python -m watch_app.cli merge <from> <into> --commit
 python -m watch_app.cli unalias "<maker>" "<alias>"  # Remove a bad alias (e.g. a wrong fuzzy merge); --commit to apply
+python -m watch_app.cli rename "<maker>" "<new name>"  # Dry-run: fix a wrongly-grabbed name (old name kept as alias; --drop-old-name to skip); --commit to apply
 
 python -m watch_app.cli suppress "<maker>" --reason "..."   # Dry-run: hide from discoveries/rankings (reversible); --commit to apply
 python -m watch_app.cli unsuppress "<maker>"    # Restore a suppressed maker; --commit to apply
 python -m watch_app.cli suppressed              # List currently-suppressed makers
-python -m watch_app.cli delete "<maker>"        # Dry-run: hard-delete a discovered maker + all its rows; --commit to apply
+python -m watch_app.cli delete "<maker>"        # Dry-run: hard-delete a discovered maker + all its rows, and block the name from re-discovery; --commit to apply
+python -m watch_app.cli unblock "<name>"        # Remove a delete tombstone so the name can be re-discovered; --commit to apply
+python -m watch_app.cli blocked                 # List names blocked from re-discovery by past deletes
 
 python -m watch_app.cli serve                   # Web UI at http://localhost:8000
 ```
@@ -413,7 +442,8 @@ preset weights compose cleanly. The two presets:
 Separate from scoring, each independent maker can carry curated **taste
 dimensions** — the data that lets you navigate by your own taste rather than
 only a global ranking. They're shown as a "Profile" panel on the maker detail
-page and are the foundation for the planned multi-filter explorer.
+page, and they drive the `/explore` filters, the "Similar makers" panel, and
+the `/for-you` re-ranking.
 
 Seven dimensions, two multi-tag and five single-value, all optional:
 
@@ -432,7 +462,8 @@ is the single source of truth. `validate_taste_fields()` rejects anything out
 of vocabulary; the seed loader calls it per entry, and a test
 (`test_committed_seed_yaml_is_all_in_vocabulary`) runs it across the whole
 committed YAML so a typo fails the suite rather than silently fragmenting the
-tags. These fields are descriptive judgment — they never affect scores.
+tags. These fields are descriptive judgment — they never affect the preset
+scores.
 
 Tagging was done in two passes: a hand-tagged core of well-known makers, then
 an LLM-assisted bulk pass via `draft-taste` (Haiku, constrained to the
@@ -481,7 +512,8 @@ three shapes:
 
 - **RSS-based media sources** (`sources/media/*.py`) — inherit from `RSSSource`,
   specify a feed URL and prestige weight. Title and article text go through the
-  rule-based extractor to find maker mentions against the 125-maker vocabulary.
+  rule-based extractor to find maker mentions against the maker vocabulary
+  (every name and alias in the Makers table).
 - **Structured award sources** (`sources/awards/*.py`) — the GPHG scraper parses
   the nominee list directly from the official Next.js page. It doesn't use the
   general extractor because GPHG's data is already well-structured (brand name
@@ -519,39 +551,48 @@ watch_app/
 │   ├── awards/           # GPHG list scraper (gphg.py) + per-watch detail parser (gphg_detail.py)
 │   ├── dummy.py          # Test source for unit tests
 │   └── base.py           # Source / RawMention protocol
-├── extraction/           # Rule-based entity extraction; resolver.py fuzzy-matches to Makers;
+├── extraction/           # Rule-based entity extraction; resolver.py fuzzy-matches to Makers
+│                         # (and won't re-create a name blocked by a past delete);
 │                         # taste_draft.py drafts taste tags via LLM into the seed YAML (Layer 1b);
 │                         # enrich.py fills factual fields + auto-tags taste on scan;
 │                         # promote.py graduates a discovery to seed; maker_admin.py has
-│                         # merge/unalias/dupes + suppress/unsuppress/delete + relationship-state helper
+│                         # merge/unalias/rename/dupes + suppress/unsuppress/delete/unblock + relationship-state helper
 ├── taste.py              # Controlled vocabulary for the 7 taste dimensions + validation (single source of truth)
 ├── llm/                  # Anthropic client + content-hash response cache
 ├── scoring/              # signals.py computes the 7 signals; ranker.py composes them under presets;
 │                         # methodology.py builds worked examples and source-contribution stats;
 │                         # queries.py has fetch_top_makers, fetch_all_makers_comparison,
-│                         # and fetch_rank_changes used by the web UI;
+│                         # fetch_rank_changes, and the /trends queries used by the web UI;
+│                         # affinity.py re-ranks a preset by your taste reactions (/for-you);
+│                         # calibration.py is the read-only source-quality diagnostic;
 │                         # discovery.py finds auto-discovered makers (not in seed YAML);
 │                         # digest.py composes the weekly "what changed" digest + markdown export
-├── storage/              # SQLAlchemy models (Maker, Mention, Signal, Score, ScanRun, Source, WatchModel).
+├── storage/              # SQLAlchemy models (Maker, Mention, Signal, Score, ScanRun, Source, WatchModel,
+│                         # BlockedMaker — delete tombstones, migration 0011).
 │                         # Maker also carries the 7 taste-dimension columns (migration 0006),
-│                         # suppression columns (0008), and relationship_state + notes (0009)
+│                         # suppression columns (0008), relationship_state + notes (0009),
+│                         # and taste_reaction + taste_reaction_at (0010)
 ├── pipeline/             # orchestrator.py wires the layers: fetch → extract → resolve → store →
 │                         # fetch GPHG model details → score
 ├── notify/               # email.py renders the digest email (summary HTML + full HTML attachment)
 │                         # and sends it over stdlib SMTP (dry-run by default)
-├── api/                  # FastAPI routers; makers.py has dashboard, detail (+ state form),
-│                         # methodology, comparison, movers, digest, discoveries, explore,
+├── api/                  # FastAPI routers; makers.py has dashboard, detail (+ state form and
+│                         # admin suppress/delete/merge), methodology, comparison, movers,
+│                         # trends, for-you, triage, digest, discoveries, explore,
 │                         # review (admin), and per-source routes
 ├── web/templates/        # Jinja2 + HTMX (dashboard.html, maker_detail.html, methodology.html,
-│                         # comparison.html, movers.html, digest.html, discoveries.html,
-│                         # explore.html, review.html, source_detail.html, _makers_table.html,
-│                         # _explore_results.html, _macros.html)
+│                         # comparison.html, movers.html, trends.html, for_you.html,
+│                         # triage.html, digest.html, discoveries.html, explore.html,
+│                         # review.html, source_detail.html, _makers_table.html,
+│                         # _explore_results.html, _merge_results.html, _triage_reacted.html,
+│                         # _macros.html)
+├── web/static/           # trends.js — hover/highlight/toggle for the /trends charts (vanilla JS)
 ├── data/
-│   ├── known_makers.yaml      # The ~127-maker curated seed, most independents now carrying taste tags
+│   ├── known_makers.yaml      # The ~240-maker curated seed, most independents now carrying taste tags
 │   └── youtube_channels.yaml  # 15 YouTube channels with prestige weights and tier annotations
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 626 tests; run with `make test` (~60s, no network)
+tests/                    # 664 tests; run with `make test` (~30s, no network)
 alembic/                  # Schema migrations
 ```
 
@@ -576,7 +617,7 @@ alembic/                  # Schema migrations
 ## Development
 
 ```bash
-make test         # Full suite (~30s); expects 626 passing
+make test         # Full suite (~30s); expects 664 passing
 pytest -v tests/test_ranker.py  # Run one file
 pytest -v -k hidden_gem         # Run tests matching a name
 ```
