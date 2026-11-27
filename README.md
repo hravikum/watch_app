@@ -106,9 +106,10 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   per scan. `cli enrich --taste` backfills older discoveries; add
   `--retag` to re-attempt makers that previously abstained.
 - **Review queue (admin).** `/review` is a queue of the discovered makers
-  nobody has checked yet, with a running "N to go" count — ranked makers
-  first (in rank order under your default preset), then the unranked tail
-  newest-first. Each card leads with the evidence the tool found the maker
+  nobody has checked yet, with a running "N to go" count — any the audit
+  (below) judged not to be a maker first, then ranked makers (in rank order
+  under your default preset), then the unranked tail newest-first. Each
+  card leads with the evidence the tool found the maker
   on (rank, mention count, sources, the latest article titles as links, the
   website as a link) and a summary of its current values: anything LLM
   enrichment filled that nobody has checked is marked "auto" in amber, and
@@ -132,6 +133,33 @@ each maker under two rankings, and surfaces results in a CLI and local web UI.
   spelling). A name that already belongs to another maker is refused —
   that's a duplicate, so merge instead. `cli rename` does the same from
   the terminal.
+- **Web-researched audit for the review queue.** `cli enrich --audit`
+  researches each discovered maker waiting in `/review` with the Claude
+  API's web search (Haiku 5.5, at most three searches a maker) instead of
+  answering from memory. It drafts a verdict — is this a real, active
+  wristwatch maker? yes / no / unsure, with a one-line reason — plus the
+  brand a person's or partial name actually belongs to, a pre-launch flag
+  (announced, not shipping yet), and drafts for the card's country,
+  founded year, website, independence and taste fields, and it keeps up to
+  three pages it relied on, one per site, for every verdict (only URLs its
+  search really returned). Every
+  drafted value is checked first (the website must resolve and not be a
+  marketplace, forum, social or press page; the country must be on the
+  known list, the founded year in range, taste in vocabulary). Drafts land
+  marked "auto"; nothing you entered and no reviewed maker is touched, and
+  a "no" drafts nothing. On the card: a verdict badge, the reason, source
+  links, and for a person or partial name the brand — with a link straight
+  to the merge confirmation if it's already tracked, or a hint to rename
+  the card to it if not. "Not a maker" cards sort to the top of the queue;
+  nothing is suppressed automatically, but the queue's "Not a maker (N)"
+  link opens a checklist of them — ticked unless the audit suggested a
+  brand — to suppress in one go, each with the audit's reasoning recorded
+  as its reason. Pre-launch makers get a chip, a
+  checkbox under Edit fields, and their own list at
+  `/review?show=prelaunch`. Dry-run by default with a cost line (a few
+  cents a maker); `--limit N` works in batches from the top of the queue;
+  results are cached as they arrive, so dry-run then `--commit` costs
+  nothing extra and an interrupted run resumes.
 - **Explore by taste** at `/explore`. Faceted filtering over every maker
   that carries taste tags (seed and discovered together): OR within a
   dimension, AND across, with a static count beside each option so you
@@ -398,6 +426,9 @@ python -m watch_app.cli source-quality --days 14   # Restrict to the last 14 day
 
 python -m watch_app.cli enrich                  # Dry-run: propose website/country/independence for unenriched makers
 python -m watch_app.cli enrich --commit         # Write proposals to DB
+python -m watch_app.cli enrich --audit --limit 5           # Dry-run: web-research the top 5 of /review (verdict, drafts, sources, cost)
+python -m watch_app.cli enrich --audit --limit 5 --commit  # Write them (cached from the dry run, so free)
+python -m watch_app.cli enrich --audit --commit            # Research and write every unaudited discovered maker
 
 python -m watch_app.cli draft-taste             # Dry-run: propose taste tags for untagged independents
 python -m watch_app.cli draft-taste --commit    # Write drafts into the seed YAML (review the git diff)
@@ -571,7 +602,8 @@ watch_app/
 │                         # promote.py graduates a discovery to seed; maker_admin.py has
 │                         # merge/unalias/rename/dupes + suppress/unsuppress/delete/unblock + relationship-state helper
 ├── taste.py              # Controlled vocabulary for the 7 taste dimensions + validation (single source of truth)
-├── llm/                  # Anthropic client + content-hash response cache
+├── llm/                  # Anthropic client + content-hash response cache; client.py also has
+│                         # the web-search audit lookup behind `enrich --audit`
 ├── scoring/              # signals.py computes the 7 signals; ranker.py composes them under presets;
 │                         # methodology.py builds worked examples and source-contribution stats;
 │                         # queries.py has fetch_top_makers, fetch_all_makers_comparison,
@@ -584,7 +616,8 @@ watch_app/
 │                         # BlockedMaker — delete tombstones, migration 0011).
 │                         # Maker also carries the 7 taste-dimension columns (migration 0006),
 │                         # suppression columns (0008), relationship_state + notes (0009),
-│                         # taste_reaction + taste_reaction_at (0010), and reviewed_at (0012)
+│                         # taste_reaction + taste_reaction_at (0010), reviewed_at (0012),
+│                         # and the audit columns + is_pre_launch (0013)
 ├── pipeline/             # orchestrator.py wires the layers: fetch → extract → resolve → store →
 │                         # fetch GPHG model details → score
 ├── notify/               # email.py renders the digest email (summary HTML + full HTML attachment)
@@ -596,7 +629,7 @@ watch_app/
 ├── web/templates/        # Jinja2 + HTMX (dashboard.html, maker_detail.html, methodology.html,
 │                         # comparison.html, movers.html, trends.html, for_you.html,
 │                         # triage.html, digest.html, discoveries.html, explore.html,
-│                         # review.html, source_detail.html, _makers_table.html,
+│                         # review.html, review_bulk_suppress.html, source_detail.html, _makers_table.html,
 │                         # _explore_results.html, _merge_results.html, _triage_reacted.html,
 │                         # _review_done.html, _review_message.html, _review_delete_panel.html,
 │                         # _macros.html)
@@ -606,7 +639,7 @@ watch_app/
 │   └── youtube_channels.yaml  # 15 YouTube channels with prestige weights and tier annotations
 └── cli.py                # Typer CLI entry point
 
-tests/                    # 691 tests; run with `make test` (~30s, no network)
+tests/                    # 747 tests; run with `make test` (~30s, no network)
 alembic/                  # Schema migrations
 ```
 
@@ -631,7 +664,7 @@ alembic/                  # Schema migrations
 ## Development
 
 ```bash
-make test         # Full suite (~30s); expects 691 passing
+make test         # Full suite (~30s); expects 747 passing
 pytest -v tests/test_ranker.py  # Run one file
 pytest -v -k hidden_gem         # Run tests matching a name
 ```

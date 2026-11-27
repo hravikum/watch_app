@@ -126,6 +126,23 @@ class Maker(Base):
     # in the YAML, never on /review). See migration 0012.
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # Web-researched audit (chunk 4O). `cli enrich --audit` researches a
+    # discovered maker with web search and records a scope verdict — "yes" /
+    # "no" / "unsure": is this a real, active wristwatch maker? — a one-line
+    # reason, the brand a person / partial / model name actually belongs to
+    # (only when it differs), and the pages it relied on ([{url, title}], only
+    # URLs the search really returned). Informational: the verdict never
+    # suppresses anything. `audited_at` is the once-per-maker gate.
+    audit_verdict: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    audit_reason: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    audit_brand: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    audit_sources: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
+    audited_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Announced or presented watches but not delivering yet (4O). Drafted by the
+    # audit (marked "auto"), editable on /review. Flags makers whose data is
+    # thin for now, for a later pass once they ship (NOTES roadmap).
+    is_pre_launch: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+
     mentions: Mapped[list["Mention"]] = relationship(back_populates="maker")
     signals: Mapped[list["Signal"]] = relationship(back_populates="maker")
     scores: Mapped[list["Score"]] = relationship(back_populates="maker")

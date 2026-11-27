@@ -2331,3 +2331,273 @@ makers:
     movement_origin: "stock-base"
     website: "https://www.seaquartzofficial.com/"
     aliases: ["SeaQuartz Official"]
+  - canonical_name: "Genus"
+    aesthetic_tags: ["modern", "avant-garde"]
+    maker_type: "small-atelier"
+    price_band: "high"
+    output_scale: "sub-50"
+    distribution: "gallery"
+    complication_focus: ["time-only"]
+    aliases: ["The Genus"]
+  - canonical_name: "Royter Watches"
+    aesthetic_tags: ["classical", "tool"]
+    maker_type: "solo-watchmaker"
+    price_band: "high"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    aliases: ["Dan Royter"]
+  - canonical_name: "Yema"
+    aesthetic_tags: ["tool", "vintage-inspired", "dressy"]
+    maker_type: "established-indie"
+    price_band: "entry"
+    output_scale: "500-plus"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "in-house"
+    website: "https://yema.com"
+    country: "France"
+    founded_year: 1948
+    is_independent: false
+  - canonical_name: "Kiwame Tokyo"
+    aesthetic_tags: ["classical", "dressy"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    output_scale: "50-500"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://kiwametokyo.com"
+    aliases: ["Kiwame"]
+    country: "Japan"
+    founded_year: 2025
+  - canonical_name: "Brellum"
+    aesthetic_tags: ["vintage-inspired", "classical"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    output_scale: "50-500"
+    distribution: "direct"
+    complication_focus: ["chronograph", "calendar"]
+    movement_origin: "modified-base"
+    website: "https://www.brellum.swiss"
+    country: "Switzerland"
+    founded_year: 2016
+  - canonical_name: "Serica"
+    aesthetic_tags: ["vintage-inspired", "tool"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://serica-watches.com"
+    country: "France"
+    founded_year: 2019
+  - canonical_name: "Pattern Recognition"
+    aesthetic_tags: ["avant-garde", "modern"]
+    price_band: "haute"
+    distribution: "direct"
+    complication_focus: ["tourbillon", "astronomical"]
+    website: "https://p16n.com/"
+  - canonical_name: "Atælier Haute Complication"
+    aesthetic_tags: ["avant-garde", "modern"]
+    maker_type: "small-atelier"
+    price_band: "haute"
+    output_scale: "sub-50"
+    distribution: "allocation-waitlist"
+    complication_focus: ["tourbillon", "chiming", "calendar"]
+    movement_origin: "in-house"
+    website: "https://ataelier.ch/en/"
+    aliases: ["Atelier Haute Complication"]
+    country: "Switzerland"
+    founded_year: 2018
+  - canonical_name: "Formex"
+    aesthetic_tags: ["modern", "tool"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://formexwatch.com"
+    country: "Switzerland"
+  - canonical_name: "Hanhart"
+    aesthetic_tags: ["vintage-inspired", "tool"]
+    maker_type: "established-indie"
+    price_band: "mid"
+    complication_focus: ["chronograph"]
+    website: "https://www.hanhart.com"
+    country: "Germany"
+    founded_year: 1882
+  - canonical_name: "Mephalie"
+    aesthetic_tags: ["classical", "avant-garde"]
+    maker_type: "heritage-relaunch"
+    price_band: "high"
+    output_scale: "50-500"
+    distribution: "direct"
+    complication_focus: ["chiming"]
+    movement_origin: "in-house"
+    country: "China"
+  - canonical_name: "Minase"
+    aesthetic_tags: ["classical", "modern"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    output_scale: "50-500"
+    distribution: "direct"
+    complication_focus: ["time-only", "tourbillon"]
+    movement_origin: "modified-base"
+    website: "https://minasewatches.com/"
+    country: "Japan"
+    founded_year: 2005
+    is_independent: false
+  - canonical_name: "Alterum"
+    aesthetic_tags: ["modern"]
+    maker_type: "microbrand"
+    price_band: "mid"
+    output_scale: "50-500"
+    distribution: "direct"
+    complication_focus: ["astronomical"]
+    website: "https://www.alterumwatchco.com/"
+    country: "United States"
+    founded_year: 2024
+  - canonical_name: "Synchron"
+    aesthetic_tags: ["tool", "vintage-inspired"]
+    maker_type: "heritage-relaunch"
+    price_band: "entry"
+    output_scale: "50-500"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    founded_year: 2021
+  - canonical_name: "Kneijnsberg"
+    aesthetic_tags: ["modern"]
+    maker_type: "solo-watchmaker"
+    price_band: "entry"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["calendar"]
+    movement_origin: "modified-base"
+    country: "Netherlands"
+  - canonical_name: "Cimier"
+    aesthetic_tags: ["tool", "modern"]
+    maker_type: "heritage-relaunch"
+    price_band: "entry"
+    distribution: "direct"
+    complication_focus: ["time-only", "chronograph"]
+    movement_origin: "stock-base"
+    website: "https://cimier.com"
+    country: "Switzerland"
+    founded_year: 1924
+  - canonical_name: "Keaton Myrick"
+    aesthetic_tags: ["classical"]
+    maker_type: "solo-watchmaker"
+    price_band: "high"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "modified-base"
+    website: "http://www.keatonmyrick.com/"
+    country: "United States"
+    founded_year: 2012
+  - canonical_name: "Pégoud"
+    aesthetic_tags: ["vintage-inspired", "tool"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    distribution: "direct"
+    complication_focus: ["chronograph", "time-only"]
+    movement_origin: "stock-base"
+    website: "https://pegoud-watches.com/"
+  - canonical_name: "Monta"
+    aesthetic_tags: ["tool", "vintage-inspired"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    output_scale: "500-plus"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    website: "https://montawatch.com/"
+    country: "United States"
+    founded_year: 2016
+  - canonical_name: "RGM"
+    aesthetic_tags: ["classical", "vintage-inspired"]
+    maker_type: "established-indie"
+    price_band: "high"
+    output_scale: "50-500"
+    distribution: "direct"
+    complication_focus: ["tourbillon"]
+    movement_origin: "in-house"
+    website: "https://www.rgmwatches.com"
+    country: "United States"
+    founded_year: 1992
+  - canonical_name: "SGP Watches"
+    aesthetic_tags: ["modern", "avant-garde"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    output_scale: "50-500"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://www.sgpwatches.com/"
+    country: "Singapore"
+  - canonical_name: "Auret"
+    aesthetic_tags: ["modern"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+  - canonical_name: "Takashi Murakami Time Objects"
+    aesthetic_tags: ["avant-garde", "modern"]
+    maker_type: "microbrand"
+    price_band: "haute"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["tourbillon"]
+    country: "Japan"
+    founded_year: 2026
+  - canonical_name: "Mickaël Gaspar"
+    aesthetic_tags: ["modern", "avant-garde"]
+    maker_type: "solo-watchmaker"
+    price_band: "haute"
+    output_scale: "sub-50"
+    distribution: "allocation-waitlist"
+    complication_focus: ["calendar"]
+    movement_origin: "modified-base"
+    website: "https://mickaelgaspar.com/"
+    country: "Switzerland"
+  - canonical_name: "JM Fleury"
+    aesthetic_tags: ["modern"]
+    maker_type: "solo-watchmaker"
+    price_band: "high"
+    output_scale: "sub-50"
+    complication_focus: ["chronograph"]
+    movement_origin: "in-house"
+    country: "Switzerland"
+    founded_year: 2020
+  - canonical_name: "Halios"
+    aesthetic_tags: ["tool", "vintage-inspired"]
+    maker_type: "microbrand"
+    price_band: "entry"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["time-only"]
+    movement_origin: "stock-base"
+    website: "https://halioswatches.com/"
+    country: "Canada"
+    founded_year: 2009
+  - canonical_name: "FVF Genève"
+    aesthetic_tags: ["avant-garde", "dressy"]
+    maker_type: "small-atelier"
+    price_band: "haute"
+    output_scale: "sub-50"
+    distribution: "direct"
+    complication_focus: ["tourbillon", "calendar"]
+    movement_origin: "in-house"
+    website: "https://fvfgeneve.com"
+    country: "Switzerland"
+  - canonical_name: "James C. Pellaton"
+    aesthetic_tags: ["classical"]
+    maker_type: "solo-watchmaker"
+    price_band: "haute"
+    output_scale: "sub-50"
+    complication_focus: ["tourbillon"]
+    movement_origin: "in-house"
+    aliases: ["James Pellaton"]
+    country: "Switzerland"
+    founded_year: 2009

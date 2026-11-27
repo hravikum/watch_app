@@ -31,7 +31,7 @@ parked — see "Explicitly NOT doing"); going public re-tiers everything
 (personal-state features become multi-user/auth, source breadth + methodology
 defensibility rise).
 
-Status (2026-11-26): the discovery→engagement arc is complete through taste —
+Status (2026-11-27): the discovery→engagement arc is complete through taste —
 Layers 1a/1b (taste schema + bulk tagging, 3A/3B), Layer 2 (the /explore filter
 + similarity, 3O/3P), Layer 3a (reaction capture 3V + triage 3X), and Layer 3b
 (the /for-you re-ranking, 4I) all shipped. Source-weight calibration is done end
@@ -41,25 +41,24 @@ Maker maintenance is now covered end to end: suppress/delete (4D) and merge
 (4E) on the detail page, suppress/delete on the /review grid (4H), deletes that
 stay deleted via tombstones (4K), and rename for wrongly-grabbed names on
 /review (4L). /review itself became a queue (4N): saving signs a maker off, it
-leaves the queue, and enrichment never touches it again. What's left is below.
+leaves the queue, and enrichment never touches it again — and a web-researched
+audit (4O) now drafts its cards: a "real maker?" verdict, the brand a person's
+name belongs to, a pre-launch flag, and every field, with sources. It has run
+over the whole backlog, and the cards it judged not to be makers can be
+suppressed in bulk (4P). What's left is below.
 
 ### Tier 1 — strongest next bets
-- **Web-researched audit drafts — next up (4O).** The queue (4N) made saving
-  fast, but each card still means searching the web to vet the maker and then
-  typing its fields. One research pass per maker: Haiku 4.5 with the API's web
-  search tool (`web_search_20250305`, `max_uses` 3) plus the mention context 3G
-  builds, drafting (a) a scope verdict — "a real, active wristwatch maker?"
-  yes / no / unsure + a one-line reason, shown as a badge, informing only, never
-  auto-suppressing (the check the 3O brand-validation findings asked for) — and
-  (b) every field that's blank or only auto-filled, founded year included
-  (range-checked), with the two or three source URLs it relied on shown on the
-  card. `cli enrich --audit`, dry-run then `--commit`; never touches reviewed
-  makers or values you entered. Roughly $10–15 one-off for the ~180 backlog
-  (searches are $10 per 1,000, plus tokens), cents per new maker after. The
-  pinned anthropic 0.39.0 parses web-search response blocks (checked offline
-  while scoping 4N), so no SDK bump. Close the 4N in-flight gap here too: the
-  apply step should re-read each row (populate_existing) and skip a maker
-  reviewed since propose.
+- **Web-researched audit drafts. SHIPPED in 4O** as `cli enrich --audit`: one
+  Haiku 5.5 call per queued maker with the API's web search tool (at most three
+  searches), drafting a scope verdict, a brand suggestion, a pre-launch flag and
+  every field, with the pages it relied on, all shown on the /review card.
+  First full run (2026-11-27): 165 makers in 20 minutes for $3.93, no failures
+  — 85 yes (5 pre-launch), 78 no, 2 unsure, 480 drafted values; the "no" cards
+  clear in bulk since 4P. Follow-ups: decide whether new discoveries should get
+  it on scan once the backlog drafts have been judged (CLI-only for now, ~2–3
+  cents a maker); the pre-launch re-check (Tier 3) once some flagged makers
+  have shipped; and the audit context, website check and country gaps the
+  first run surfaced (Tier 3).
 - **Layer 3b — adaptive ranking. SHIPPED in 4I** as the `/for-you` view: the
   base ranking re-ordered by taste affinity (avg similarity to liked makers
   minus disliked, blended into the composite as a z-scored term at
@@ -86,6 +85,31 @@ leaves the queue, and enrichment never touches it again. What's left is below.
   as data accumulates. Treat the diagnostic as a standing practice.
 
 ### Tier 3 — worthwhile, lower leverage or small
+- **Re-check pre-launch makers once they ship.** 4O flags brands that have
+  announced but aren't delivering yet (`is_pre_launch`, the
+  `/review?show=prelaunch` list), and their price, output, access and movement
+  are often unknowable until they ship. A later pass re-researches the flagged
+  makers, drafts only still-blank fields as auto, clears the flag once they're
+  shipping, and sends them back to the queue for a look — the one deliberate
+  exception to "reviewed means hands off", so scope it on its own. Not before
+  some have actually shipped (months).
+- **Audit context: the text around the name.** The audit is given each
+  mention's title plus the first 200 characters of its stored excerpt
+  (`_gather_taste_context`, shared with taste tagging). In the first full run
+  nine reasons said that text never contained the name (deal lists and
+  roundups: IXDAO, Boderry, Sanda, Breda, North Edge…), so "judge the name as
+  these mentions use it" had nothing to go on. Give it a window around where
+  the name occurs instead — check first what the scan stores (the excerpt may
+  itself be just the article's opening).
+- **Website check: blocked isn't dead.** `_verify_website` rejects any status
+  ≥ 400, but 401/403/429 usually mean the site exists and turned the check
+  away: the first full audit rejected five real brand sites that way (Synchron,
+  Auret, Nezumi, L.Leroy; CHRONVALE's 503 too). Treat those as resolving, and
+  add `https://` when the model leaves the scheme off (Traska). Shared with
+  `cli enrich`, so it changes both.
+- **Country list gaps.** Colombia isn't in `KNOWN_WATCHMAKING_COUNTRIES`, so
+  Auret's country was dropped. One line; after later runs, scan the audit
+  output's ✗ lines for others.
 - **Feed-health check.** Four configured sources produced zero mentions over six
   weeks (Worn & Wound, Urban Gentry, The Time Teller, WatchAdvisor — the last a
   known 404 from 2N). Flag dead/stale feeds — possibly a `source-quality` column
@@ -254,7 +278,10 @@ review pass rather than hand entry.
 Still open / surfaced during the work:
 - *Vocabulary gaps.* The bulk pass surfaced at least one real gap:
   resonance / skeletonization (Armin Strom's signature) can't be
-  expressed. One data point so far — expand only if it recurs.
+  expressed. One data point so far — expand only if it recurs. The 4O
+  audit's output lists every out-of-vocabulary value it drops
+  ("✗ Aesthetic: dropped out-of-vocabulary ['skeletonized']"), so a full
+  backlog run is a cheap way to see whether it does.
 - The original three questions, for reference:
 
 - **Vocabulary stability.** Once tags are committed and users start
@@ -1169,6 +1196,196 @@ For quick reference on what shipped when:
       collision; the confirm-delete fragment and its gate; enrichment skips
       reviewed makers on both paths; the `cli enrich --commit` overwrite
       regression). Suite 664 → 691.
+- 4O  Web-researched audit for the /review queue — the other half of 4N.
+      The queue made saving fast, but each card still meant searching the web
+      to see whether the name was a real maker and then typing its fields. New
+      `cli enrich --audit` researches each queued maker (discovered, not
+      suppressed, not reviewed, not yet audited — in queue order, so `--limit N`
+      takes the top of the queue): one Messages call per maker with the API's
+      server-side web search tool (basic `web_search_20250305`, max_uses 3)
+      plus the mention context 3G builds, on Haiku 5.5 (`AUDIT_MODEL`): newer,
+      supports web search, a tenth of Haiku 4.5's token price, and the per-search
+      fee dominates either way; the other lookups stay on Haiku 4.5. It drafts
+      (a) a verdict — "a real, active wristwatch maker?" yes / no / unsure + a
+      one-line reason, using the line agreed while scoping: group-owned and
+      announced-but-not-shipping brands are a yes; mis-grabbed phrases / model /
+      partial names, a person whose brand goes by another name, customizers of
+      other brands' watches, retailers, movement suppliers, clock / pocket-watch
+      / kit makers, quartz fashion brands and auction-only defunct houses are a
+      no; (b) the brand a person / partial name belongs to; (c) a pre-launch
+      flag; (d) every field on the card; and (e) the two or three pages relied
+      on — kept only if the URL appeared in that response's own search results,
+      so a source can't be invented. No SDK bump: the pinned anthropic 0.39.0
+      sends the tool definition through as plain JSON and constructs the unknown
+      response blocks leniently — verified with the real SDK against an
+      in-process fake API (httpx MockTransport), which is also how the tests
+      drive it, offline. Every drafted value is checked before it's written
+      (website resolves and isn't on BLOCKED_DOMAINS, country on the known list,
+      founded year 1700..now, taste in vocabulary — out-of-vocabulary drops are
+      reported, a cheap way to spot recurring vocabulary gaps). Write policy:
+      fills blank fields and replaces values still marked auto, marks what it
+      writes auto, never replaces a value without the marker, never touches a
+      reviewed maker; is_independent's default True counts as unset, only an
+      unmarked False is yours; a "no" writes no fields. Applying also stamps
+      enriched_at / taste_enriched_at so the guess-only passes leave audited
+      makers alone. Six nullable columns (migration 0013): audit_verdict /
+      audit_reason / audit_brand / audit_sources / audited_at (the once-per-maker
+      gate) and is_pre_launch. Each lookup's cache entry is committed as it
+      returns, so dry-run → --commit and an interrupted run never pay twice;
+      a failed lookup isn't stamped and is retried next run; three failures in
+      a row stop the run (the cause is then systemic — no key, web search off,
+      network). pause_turn or no JSON object → no result, nothing cached. The
+      run prints a progress line per maker, a table (verdict, reason / brand,
+      drafts with dropped values, source hosts) and its cost (searches, tokens,
+      ≈ $, live calls only). On /review: a verdict badge (Real maker / Not a
+      maker / Unsure), the reason, source links, and the brand line — "already
+      tracked as X · merge this into it →" (a deep link to the detail page's
+      merge confirm, 4E) or "not tracked yet: rename this card to it", which
+      keeps the person's name as an alias so later articles about them land on
+      the brand. "No" cards sort first. Pre-launch gets a chip, an editable
+      checkbox under Edit fields (Save takes it; it drops the auto marker like
+      the other fields), and a `/review?show=prelaunch` list for the later
+      re-check (Roadmap, Tier 3). Also closed the 4N in-flight gap: all three
+      apply steps (factual, taste, audit) re-read each row with
+      populate_existing — sessions don't expire on commit, so a long run could
+      otherwise trust a stale copy — and skip a maker reviewed since its
+      lookups ran. conftest stubs the audit lookup like the others, so no test
+      can make a real, billable search. Deliberately out: running it on scan,
+      per-field sources, a re-audit flag, the detail page, the newer search tool
+      versions (code-execution blocks the pinned SDK may not parse), and the
+      pre-launch re-check. Exercised end to end offline: the real CLI through
+      the real SDK against a fake API (dry run → cached commit at $0 → the rest
+      → "nothing to do"), then the cards in headless Chrome (ordering, badges,
+      brand merge link opening the detail page's merge panel, pre-launch view);
+      the live API is first exercised by the first real `--limit 5` dry run. 33 tests in
+      tests/test_audit.py (request carries the tool; narrated, split answer
+      parses; sources limited to returned URLs and topped up from citations;
+      pause_turn / no JSON give None and cache nothing; caching; field names
+      track the vocabulary; cost; scope and queue order; checked and rejected
+      values incl. a partial vocabulary drop; "no" drafts nothing; own-name brand
+      dropped; failure isolated + retried; systemic stop; results committed as
+      they arrive; blanks / auto replaced but yours kept; independence rules;
+      verdict + stamps; "no" records without fields; pre-launch as auto; a maker
+      reviewed mid-run skipped by all three apply paths, with the stale copy
+      held so a missing re-read can't hide; CLI dry run / --limit --commit /
+      systemic stop; card verdict, reason and sources; "no" first; brand merge
+      link and rename hint; pre-launch chip, checkbox and filter; Save takes the
+      checkbox). Suite 691 → 724.
+- 4O.1 Fix after the first live run. The first real `--limit 5` dry run showed
+      web search works through the pinned SDK (200s, replies citing that week's
+      news), but none of the three replies had a JSON object the parser could
+      read. They opened with long field-by-field prose, so the JSON most likely
+      fell past the 1,500-token cap. The run stopped after three in a row, as
+      designed: nothing cached, about 10 cents of searches spent. Fix: the model
+      now answers by calling a client tool, `record_audit`, sent next to web
+      search in the same request, so the answer comes back as structured input
+      instead of trailing a long cited reply. The API's JSON-output mode wasn't
+      an option: it refuses citations, and web search always has them on. The
+      tool schema gives types only (a verdict enum; taste fields as plain
+      strings / lists), so an out-of-vocabulary pick still surfaces as a
+      vocabulary gap. A JSON object in the text is still read as a fallback; the
+      tool call wins if both appear. Also: the token cap 1,500 → 4,096
+      (`AUDIT_MAX_TOKENS`); a max_tokens stop is treated like pause_turn, since
+      an answer cut off part-way can't be trusted; an answer without a valid
+      verdict is rejected and retried rather than stamping the maker audited
+      with nothing; the warning for an unusable reply now gives the stop
+      reason, the search count and the END of the reply (the old one showed
+      the first 200 characters, which couldn't show where it went wrong); and
+      the cost line notes that failed lookups aren't in it, though they still
+      paid for their searches. Prompt version v1 → v2. Exercised offline
+      through the real CLI and SDK against a fake API answering via the tool,
+      with one maker replying the old way to check the warning. Tests: the
+      request carries both tools, the schema shape and the cap; the answer is
+      read from the tool; the tool wins over text JSON; max_tokens, no answer,
+      and a missing or invalid verdict each give None and cache nothing; the
+      warning shows how the reply ended; the cost line flags failures. The
+      general lookup tests moved onto the tool path, keeping the text-JSON test
+      as the fallback's. 8 deliberate breakages, all caught. Suite 724 → 729.
+- 4O.2 Fixes from the second live run (`--limit 5` dry run: 5 of 5 answered,
+      $0.11, about 2 cents a maker). Two problems surfaced before anything was
+      committed. (1) La Joux-Perret came back with the brand "null": the v2
+      prompt still said "otherwise null" for brand_name, and the answer tool
+      types it as text, so the card would have offered to rename the maker to
+      "null". The prompt now says "leave it out", and the lookup drops values
+      that only mean "no value" (None, empty text, "null", "none", "n/a",
+      "unknown", any case, also inside lists) before anything else sees the
+      answer. No taste vocabulary uses those words. (2) Split came back "yes":
+      its mentions were about split-seconds chronographs, but a British brand
+      called Split exists, so the model judged the name rather than the record.
+      The prompt now says to judge the name as the mentions use it: a term,
+      phrase or another company's watch is "no" even if a brand of that name
+      exists, and mentions of a maker's own watches and models count as the
+      maker (Hanhart's came back as one of its models). That's the agreed "no"
+      line for mis-grabbed phrases, now enforced when a brand shares the name.
+      The rule appears only when there are mentions to judge by. Prompt version
+      v2 → v3, so the five cached v2 answers aren't reused. Tests: stand-ins
+      dropped at the top level and in lists, real values untouched; the rule
+      present only with mentions; no "null" in the prompt. 6 deliberate
+      breakages, all caught. Suite 729 → 731.
+- 4O.3 Sources on every verdict (third live run: all five verdicts right —
+      Split "no" with the reason spelled out, no "null" brand — for $0.13). Two
+      of the three "no" verdicts came back with no sources: the field list
+      had sources last, and a "no" leaves out "everything from country down",
+      which read as covering them. Sources now sit right after pre_launch,
+      asked for "for every verdict, a "no" included". A "no" whose reason makes
+      a claim (Robert Cart → the HU-02 by Horologically Unique) is exactly the
+      card that needs a link to check, and the reason's details varied
+      between runs. Sources are also one per site now (www. and case
+      ignored): yema.com filled two of three slots. Judgment fields still vary
+      run to run — Hanhart's independence flipped yes → no, next to a drafted
+      "Established indie" type; Yema's price band went entry → mid — so the
+      drafts stay drafts, marked auto until a review saves them. Prompt
+      version v3 → v4. Tests: one source per site; sources before country in
+      the prompt and asked for on a "no". 5 deliberate breakages, all caught.
+      Suite 731 → 733.
+- 4O.4 Brand suggestions only for a brand's own names (fourth live run:
+      the first five committed, every verdict right, sources on all five,
+      $0.12). Split came back "no" with brand Petermann Bédat, because its
+      mentions were about that maker's split-seconds watches; Robert Cart came
+      back with Horologically Unique, which revives his Chronoscope. A suggested
+      brand becomes the card's merge link, and a merge folds the name in as an
+      alias, so merging Split would have credited every future split-seconds
+      mention to Petermann Bédat. brand_name is now asked for only when the
+      name belongs to the brand (its founder or owner, a short form of its
+      name, one of its own models) — "the name will count as that brand from
+      now on" — and left out for a general term or phrase, or a name the brand
+      doesn't own, even when the mentions are about one brand's watch. The two
+      already committed keep their suggestions; suppress both (suppressing
+      also blocks re-discovery) rather than following the link. Prompt version
+      v4 → v5. Also: one 4O test fetched fjordwatch.no for real through
+      enrich's website check, because conftest's real-HTTP block patched
+      `watch_app.http.get` but not enrich's own `http_get` reference; the block
+      now covers both (only that test was affected — probed across the suite),
+      with a test that it holds. Tests: the brand rule in the prompt; the
+      network block. 3 deliberate breakages, all caught. Suite 733 → 735.
+- 4P Bulk-suppress the audit's "not a maker" cards. The first full audit
+      (2026-11-27: 165 makers, 20 minutes, $3.93, no failures — 85 yes with 5
+      pre-launch, 78 no, 2 unsure, 480 drafted values) left 78 "no" cards at
+      the top of the queue, each needing its own Suppress. 26 carried a brand
+      suggestion: mostly founders, better merged into their brand from the
+      card, though some pointed at brands not worth an alias (Hublot, IWC, an
+      AliExpress label, a strap shop, a generic word). A "Not a maker (N)" link
+      in the /review header, shown only when there are any, opens
+      /review/bulk-suppress: every queue maker the audit judged "no",
+      alphabetical, in two groups — no brand suggested (ticked) and brand
+      suggested (unticked, the brand shown, and linked when tracked) — each with
+      the audit's reason and sources. "Suppress ticked" posts the ids, and the
+      server checks each one again against the same query (discovered,
+      non-suppressed, unreviewed, verdict "no"), so a stale page, a seed maker or
+      a made-up id is skipped and counted, never suppressed; a repeated id
+      counts once. Each suppression records "Audit: <reason>" (cut to the
+      300-character column) as its reason, which `cli suppressed` and the maker
+      page show; undo stays per maker. The redirect lands on /review with a
+      notice of how many were suppressed and skipped. A suggested brand that
+      resolves to the maker itself counts as none, matching the card. The
+      card's source-link formatting moved into a helper both pages share.
+      Checked in Chrome: the defaults tick the no-brand group, edits stick, the
+      post lands with the notice, the queue and link counts drop, and the
+      reasons are stored. Tests: the link and its count; the groups, ticks,
+      order, self-named brand, sources and empty page; the post's suppression,
+      reason and truncation, re-checks and skips, de-duplication, and the
+      default ticks end to end; the notice (plural, zero, skipped); admin-only.
+      13 deliberate breakages, all caught. Suite 735 → 747.
 
 ## Findings logged from the week-1 data review (2G)
 
@@ -1306,8 +1523,12 @@ means a one-off article can't resurrect a name.
 
 Open theme worth a future feature: an LLM-assisted "is this an active
 independent wristwatch maker?" check at discovery (or a flag in /review) would
-cut this manual vetting — scoped to inform, not auto-suppress. Planned as 4O,
-web-search-backed (see Roadmap, Tier 1).
+cut this manual vetting — scoped to inform, not auto-suppress. Shipped as 4O
+(`cli enrich --audit`), web-search-backed, with the "no" line drawn from these
+calls: customizers of other brands' watches, people whose brand goes by another
+name, clock / pocket-watch / kit makers, quartz fashion brands and auction-only
+defunct houses are all a "no"; group-owned and announced-but-not-shipping brands
+are a "yes".
 
 ## Potential future scoring refinements (not urgent)
 

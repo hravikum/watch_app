@@ -18,6 +18,7 @@ from sqlalchemy.orm import joinedload
 
 from watch_app.config import get_settings
 from watch_app import taste
+from watch_app.extraction.resolver import _normalize
 from watch_app.extraction.maker_admin import (
     RELATIONSHIP_STATES,
     RELATIONSHIP_STATE_LABELS,
@@ -1115,6 +1116,79 @@ def _review_counts(session) -> tuple[int, int]:
     return to_go, reviewed
 
 
+def _review_prelaunch_count(session) -> int:
+    """Discovered, non-suppressed makers flagged pre-launch, reviewed or not —
+    the /review?show=prelaunch list that keeps them findable for a later pass
+    once they ship (4O)."""
+    from watch_app.scoring.discovery import _load_seed_names
+
+    seed_names = _load_seed_names()
+    rows = session.query(Maker.canonical_name).filter(
+        Maker.is_suppressed.is_(False), Maker.is_pre_launch.is_(True)
+    )
+    return sum(1 for (name,) in rows if name not in seed_names)
+
+
+def _brand_targets(session) -> dict[str, tuple[int, str]]:
+    """normalized name or alias -> (maker id, canonical name) over every
+    non-suppressed maker, seed makers included (they're valid merge targets) —
+    to resolve an audit's brand suggestion to a maker already tracked."""
+    index: dict[str, tuple[int, str]] = {}
+    for m in session.query(Maker).filter(Maker.is_suppressed.is_(False)):
+        for name in [m.canonical_name, *(m.aliases or [])]:
+            if name:
+                index.setdefault(_normalize(name), (m.id, m.canonical_name))
+    return index
+
+
+def _brand_suggestion(m: Maker, targets: dict[str, tuple[int, str]]) -> dict | None:
+    """The audit's "this name belongs to brand X" for the card: X, plus the
+    maker it's already tracked as (so the card can offer the merge), or no
+    target (so the card suggests renaming this one to X)."""
+    if not m.audit_brand:
+        return None
+    target = targets.get(_normalize(m.audit_brand))
+    if target is not None and target[0] == m.id:
+        return None
+    return {
+        "name": m.audit_brand,
+        "maker_id": target[0] if target else None,
+        "target_name": target[1] if target else None,
+    }
+
+
+def _audit_source_links(m: Maker) -> list[dict]:
+    """The pages the web audit relied on, as links (url, title, host) — for
+    the review card and the bulk-suppress list."""
+    return [
+        {
+            "url": s["url"],
+            "title": s.get("title") or "",
+            "host": urlparse(s["url"]).netloc or s["url"],
+        }
+        for s in (m.audit_sources or [])
+        if isinstance(s, dict) and s.get("url")
+    ]
+
+
+def _not_a_maker_queue(session) -> list[Maker]:
+    """The queue's makers the web audit judged "no" — discovered (non-seed),
+    non-suppressed and not yet reviewed — alphabetical: what the
+    bulk-suppress page lists, and the count on its link (4P)."""
+    from watch_app.scoring.discovery import _load_seed_names
+
+    seed_names = _load_seed_names()
+    rows = session.query(Maker).filter(
+        Maker.is_suppressed.is_(False),
+        Maker.reviewed_at.is_(None),
+        Maker.audit_verdict == "no",
+    )
+    return sorted(
+        (m for m in rows if m.canonical_name not in seed_names),
+        key=lambda m: m.canonical_name.casefold(),
+    )
+
+
 def _review_evidence(
     session, maker_ids: list[int], max_recent: int = 3
 ) -> dict[int, dict]:
@@ -1185,6 +1259,10 @@ def _review_summary(m: Maker, auto: dict) -> tuple[list[dict], list[str]]:
             "auto": auto["is_independent"],
         }
     )
+    if m.is_pre_launch:
+        filled.append(
+            {"label": "Status", "text": "Pre-launch", "auto": auto["is_pre_launch"]}
+        )
     if not m.website:
         blank.append("Website")
     for field in taste.TASTE_FIELDS:
@@ -1204,7 +1282,9 @@ def _review_summary(m: Maker, auto: dict) -> tuple[list[dict], list[str]]:
     return filled, blank
 
 
-def _fetch_discovered_for_review(reviewed: bool = False) -> list[dict]:
+def _fetch_discovered_for_review(
+    reviewed: bool = False, pre_launch: bool = False
+) -> list[dict]:
     """Discovered (non-seed, non-suppressed) makers for the review grid, with
     their taste + factual fields, a value summary, and the evidence to judge
     them by.
@@ -1212,14 +1292,20 @@ def _fetch_discovered_for_review(reviewed: bool = False) -> list[dict]:
     By default this is the queue — makers not yet saved on /review — ordered
     like /triage: ranked makers first in rank order under the default preset
     (the ones that move rankings get checked first), then the unranked tail
-    newest-first. `reviewed=True` lists the already-reviewed makers instead,
-    most recently reviewed first, for corrections. Each dict carries a
-    per-field `auto` flag so the template can show what nobody has checked.
+    newest-first — except that makers the web audit judged "no" go first, so
+    the junk clears in one pass (4O). `reviewed=True` lists the
+    already-reviewed makers instead, most recently reviewed first, for
+    corrections; `pre_launch=True` lists the makers flagged pre-launch,
+    reviewed or not, newest first. Each dict carries a per-field `auto` flag
+    so the template can show what nobody has checked, plus the audit's
+    verdict, reason, sources and brand suggestion when it has run.
     """
     from watch_app.scoring.discovery import _load_seed_names
 
     seed_names = _load_seed_names()
-    tracked = taste.TASTE_FIELDS + ("country", "founded_year", "website", "is_independent")
+    tracked = taste.TASTE_FIELDS + (
+        "country", "founded_year", "website", "is_independent", "is_pre_launch",
+    )
     preset = get_settings().default_preset
     out: list[dict] = []
     with session_scope() as session:
@@ -1228,7 +1314,11 @@ def _fetch_discovered_for_review(reviewed: bool = False) -> list[dict]:
             for r in fetch_top_makers(session, preset, limit=100_000)
         }
         query = session.query(Maker).filter(Maker.is_suppressed.is_(False))
-        if reviewed:
+        if pre_launch:
+            query = query.filter(Maker.is_pre_launch.is_(True)).order_by(
+                Maker.first_seen_at.desc()
+            )
+        elif reviewed:
             query = query.filter(Maker.reviewed_at.isnot(None)).order_by(
                 Maker.reviewed_at.desc()
             )
@@ -1238,6 +1328,7 @@ def _fetch_discovered_for_review(reviewed: bool = False) -> list[dict]:
             )
         rows = [m for m in query.all() if m.canonical_name not in seed_names]
         evidence = _review_evidence(session, [m.id for m in rows])
+        targets = _brand_targets(session) if any(m.audit_brand for m in rows) else {}
         for m in rows:
             taste_values = {f: getattr(m, f) for f in taste.TASTE_FIELDS}
             auto = {f: (f in (m.enriched_fields or [])) for f in tracked}
@@ -1259,13 +1350,20 @@ def _fetch_discovered_for_review(reviewed: bool = False) -> list[dict]:
                     "rank": rank_by_id.get(m.id),
                     "summary": summary,
                     "blank": blank,
+                    "pre_launch": bool(m.is_pre_launch),
+                    "verdict": m.audit_verdict,
+                    "reason": m.audit_reason,
+                    "audit_sources": _audit_source_links(m),
+                    "brand": _brand_suggestion(m, targets),
                     **evidence[m.id],
                 }
             )
-    if not reviewed:
-        # Ranked makers first, in rank order; the unranked tail keeps the
-        # query's newest-first order (the sort is stable).
-        out.sort(key=lambda d: (d["rank"] is None, d["rank"] or 0))
+    if not reviewed and not pre_launch:
+        # Audited "no" first; then ranked makers, in rank order; the unranked
+        # tail keeps the query's newest-first order (the sort is stable).
+        out.sort(
+            key=lambda d: (d["verdict"] != "no", d["rank"] is None, d["rank"] or 0)
+        )
     return out
 
 
@@ -1275,6 +1373,8 @@ def review(
     confirm: str = Query(None),
     maker: int = Query(None),
     show: str = Query(None),
+    suppressed: int = Query(None),
+    skipped: int = Query(None),
 ) -> HTMLResponse:
     """Admin review queue for discovered makers (chunk 3H; a queue since 4N).
 
@@ -1285,20 +1385,31 @@ def review(
     is the sign-off: edits overwrite the drafts, the "auto" flags clear,
     `reviewed_at` is stamped, and the maker leaves the queue — enrichment never
     touches it again. `show=reviewed` lists the reviewed makers instead, for
-    corrections. Seed makers are intentionally absent — their taste is curated
-    in the YAML. Gated by WATCH_APP_ADMIN.
+    corrections, and `show=prelaunch` the makers flagged pre-launch (4O). Once
+    `cli enrich --audit` has run, cards also carry its verdict, reason,
+    sources and brand suggestion. Seed makers are intentionally absent — their
+    taste is curated in the YAML. Gated by WATCH_APP_ADMIN.
 
     `confirm=delete&maker=<id>` renders an in-card delete confirmation populated
     by a delete dry-run — the exact counts that would be removed — before the
     POST commits, mirroring the detail page's panel. A seed maker shows the
     blocker instead of a confirm button. (With HTMX the card fetches the same
     panel from /review/confirm-delete/<id> instead; this is the no-JS path.)
+
+    The header links the bulk-suppress page when the audit has judged queue
+    makers "no" (4P); `suppressed` / `skipped` are that page's result, shown
+    as a notice after its redirect.
     """
     _require_admin()
     show_reviewed = show == "reviewed"
-    makers = _fetch_discovered_for_review(reviewed=show_reviewed)
+    show_prelaunch = show == "prelaunch"
+    makers = _fetch_discovered_for_review(
+        reviewed=show_reviewed, pre_launch=show_prelaunch
+    )
     with session_scope() as session:
         to_go, reviewed_count = _review_counts(session)
+        prelaunch_count = _review_prelaunch_count(session)
+        not_a_maker_count = len(_not_a_maker_queue(session))
     delete_preview = None
     if confirm == "delete" and maker is not None:
         with session_scope() as session:
@@ -1312,6 +1423,11 @@ def review(
             "to_go": to_go,
             "reviewed_count": reviewed_count,
             "show_reviewed": show_reviewed,
+            "prelaunch_count": prelaunch_count,
+            "show_prelaunch": show_prelaunch,
+            "not_a_maker_count": not_a_maker_count,
+            "bulk_suppressed": suppressed,
+            "bulk_skipped": skipped or 0,
             "vocabulary": taste.VOCABULARY,
             "field_labels": taste.FIELD_LABELS,
             "multi_fields": list(taste.MULTI_VALUE_FIELDS),
@@ -1379,6 +1495,7 @@ def review_save(
     founded_year: str = Form(default=""),
     website: str = Form(default=""),
     is_independent: str = Form(default=""),
+    is_pre_launch: str = Form(default=""),
     canonical_name: str = Form(default=""),
     keep_old_name: str = Form(default=""),
 ) -> Response:
@@ -1462,9 +1579,10 @@ def review_save(
         fy = founded_year.strip()
         m.founded_year = int(fy) if fy.isdigit() else None
         m.is_independent = is_independent == "on"
+        m.is_pre_launch = is_pre_launch == "on"
 
         editable = set(taste.TASTE_FIELDS) | {
-            "country", "founded_year", "website", "is_independent",
+            "country", "founded_year", "website", "is_independent", "is_pre_launch",
         }
         m.enriched_fields = [
             f for f in (m.enriched_fields or []) if f not in editable
@@ -1599,6 +1717,76 @@ def review_delete(request: Request, maker_id: int) -> Response:
                 link=False,
             )
     return RedirectResponse(url="/review", status_code=303)
+
+
+# --- Bulk-suppress the audit's "not a maker" verdicts (admin-only, chunk 4P) ---
+#
+# The web audit (4O) sorts its "no" verdicts to the top of the queue, but each
+# card still took its own Suppress. This page lists them all at once, from
+# the header's "Not a maker (N)" link: the ones with no brand suggestion
+# ticked, the ones with a suggestion unticked — a founder's card is usually
+# better merged into its brand from the card itself, which makes the name an
+# alias. One post suppresses whatever is ticked, recording the audit's
+# reasoning as the suppression reason; undo stays per maker (Unsuppress on its
+# page, or `cli unsuppress`).
+
+
+@router.get("/review/bulk-suppress", response_class=HTMLResponse)
+def review_bulk_suppress_page(request: Request) -> HTMLResponse:
+    """The checklist: every queue maker the audit judged "no", in two groups —
+    no brand suggested (ticked) and brand suggested (unticked) — each with
+    the audit's reason and sources. A suggestion that resolves to the maker
+    itself shows no brand line on its card, so it counts as none here too."""
+    _require_admin()
+    with session_scope() as session:
+        makers = _not_a_maker_queue(session)
+        targets = _brand_targets(session) if any(m.audit_brand for m in makers) else {}
+        rows = [
+            {
+                "id": m.id,
+                "name": m.canonical_name,
+                "reason": m.audit_reason,
+                "sources": _audit_source_links(m),
+                "brand": _brand_suggestion(m, targets),
+            }
+            for m in makers
+        ]
+        to_go = _review_counts(session)[0]
+    return templates.TemplateResponse(
+        request=request,
+        name="review_bulk_suppress.html",
+        context={
+            "no_brand": [r for r in rows if r["brand"] is None],
+            "with_brand": [r for r in rows if r["brand"] is not None],
+            "to_go": to_go,
+        },
+    )
+
+
+@router.post("/review/bulk-suppress")
+def review_bulk_suppress(maker_id: list[int] = Form(default=[])) -> RedirectResponse:
+    """Suppress the ticked makers, recording "Audit: <its reason>" as each one's
+    suppression reason. Every id is checked again first: only makers still in
+    the queue with a "no" verdict are suppressed, so anything reviewed,
+    suppressed, re-audited or deleted since the page loaded — or a seed maker,
+    or an id that isn't a maker — is skipped and counted instead. Redirects to
+    /review, which shows both counts."""
+    _require_admin()
+    ticked = list(dict.fromkeys(maker_id))
+    suppressed = 0
+    with session_scope() as session:
+        eligible = {m.id: m for m in _not_a_maker_queue(session)}
+        for mid in ticked:
+            m = eligible.get(mid)
+            if m is None:
+                continue
+            reason = f"Audit: {m.audit_reason or 'not a maker'}"[:300]
+            if suppress_maker(session, str(mid), reason=reason, commit=True).done:
+                suppressed += 1
+    skipped = len(ticked) - suppressed
+    return RedirectResponse(
+        url=f"/review?suppressed={suppressed}&skipped={skipped}", status_code=303
+    )
 
 
 # --- Taste explorer (Layer 2a, chunk 3J) ---

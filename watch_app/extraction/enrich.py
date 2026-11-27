@@ -57,6 +57,13 @@ fills the seven taste/character dimensions for auto-discovered independents.
 It runs on the orchestrator's taste phase and via `cli enrich --taste`. See
 the "Taste tagging" section near the bottom of this module for why it has its
 own `taste_enriched_at` gate rather than riding the `enriched_at` path.
+
+## Web-researched audit (chunk 4O)
+
+`cli enrich --audit` researches each discovered maker in the /review queue
+with web search: a scope verdict, the brand a person / partial / model name
+belongs to, a pre-launch flag, and drafts for every field on the card, with
+the pages relied on. CLI-only — not on scan. See the section at the bottom.
 """
 from __future__ import annotations
 
@@ -69,8 +76,12 @@ from urllib.parse import urlparse
 from sqlalchemy.orm import Session
 
 from watch_app import taste
+from watch_app.extraction.resolver import _normalize
 from watch_app.http import get as http_get
 from watch_app.llm.client import (
+    AUDIT_VERDICTS,
+    KNOWN_WATCHMAKING_COUNTRIES,
+    lookup_maker_audit,
     lookup_maker_country,
     lookup_maker_independence,
     lookup_maker_taste,
@@ -480,16 +491,30 @@ def apply_enrichments(
     both website and country contributes 2 to the count).
 
     Defensive: re-checks current values before writing in case the row
-    was modified between propose and apply.
+    was modified between propose and apply. The row is re-read from the
+    database (populate_existing) rather than trusted from the session —
+    sessions don't expire on commit, so a CLI run would otherwise check
+    values loaded before its lookups started — and a maker reviewed on
+    /review in the meantime is skipped (4N/4O).
     """
     count = 0
     for prop in proposals:
         committable = prop.committable_proposals
         if not committable:
             continue
-        maker = session.query(Maker).filter_by(id=prop.maker_id).first()
+        maker = (
+            session.query(Maker)
+            .populate_existing()
+            .filter_by(id=prop.maker_id)
+            .first()
+        )
         if maker is None:
             logger.warning("Maker id=%d disappeared between propose and apply", prop.maker_id)
+            continue
+        if maker.reviewed_at is not None:
+            logger.info(
+                "Skipping %s: reviewed between propose and apply", maker.canonical_name
+            )
             continue
         wrote_any = False
         for fp in committable:
@@ -723,14 +748,26 @@ def apply_taste_proposals(
     `proposals` is stamped with taste_enriched_at (even on abstention) so it
     isn't re-attempted. The never-overwrite rule applies: a taste field that
     already has a value is left untouched. Written fields are added to
-    enriched_fields so the UI marks them "auto".
+    enriched_fields so the UI marks them "auto". Each row is re-read before
+    writing, and a maker reviewed since propose is skipped (see
+    apply_enrichments).
     """
     count = 0
     for prop in proposals:
-        maker = session.query(Maker).filter_by(id=prop.maker_id).first()
+        maker = (
+            session.query(Maker)
+            .populate_existing()
+            .filter_by(id=prop.maker_id)
+            .first()
+        )
         if maker is None:
             logger.warning(
                 "Maker id=%d disappeared between propose and apply", prop.maker_id
+            )
+            continue
+        if maker.reviewed_at is not None:
+            logger.info(
+                "Skipping %s: reviewed between propose and apply", maker.canonical_name
             )
             continue
         existing_fields = list(maker.enriched_fields or [])
@@ -783,3 +820,295 @@ def auto_tag_taste_for_discovered(session: Session, limit: int = 25) -> int:
             )
 
     return apply_taste_proposals(session, proposals)
+
+
+# ---------- Web-researched audit (chunk 4O) ----------
+#
+# One research pass per discovered maker waiting in the /review queue: the LLM
+# looks the brand up with web search (lookup_maker_audit) and drafts a scope
+# verdict, the brand a person / partial / model name belongs to, a pre-launch
+# flag, and every field on the card, citing the pages it relied on. Every
+# drafted value is checked here before anything is written: the website must
+# resolve and not be a dealer / social / press site, the country must be on the
+# known list, the founded year in range, taste in vocabulary.
+#
+# Write policy. The audit fills blank fields and replaces values still marked
+# "auto" — an earlier guess-only draft — and marks whatever it writes "auto",
+# so the queue shows it for checking. It never replaces a value without the
+# marker (one you entered, or one that predates the marker — treated the same)
+# and never touches a reviewed maker. is_independent has no blank state, so its
+# default True counts as unset; only a False without the marker is yours. A
+# "no" verdict writes no fields: that card is headed for suppress, delete,
+# merge or rename. Applying also stamps enriched_at / taste_enriched_at, so the
+# older guess-only passes leave an audited maker alone.
+#
+# CLI-only (`cli enrich --audit`), gated once per maker by audited_at.
+
+VERDICTS: tuple[str, ...] = AUDIT_VERDICTS
+MIN_FOUNDED_YEAR = 1700
+
+#: Consecutive failed lookups after which a run stops — the cause is then
+#: systemic (no API key, web search disabled, network down), not one maker.
+MAX_CONSECUTIVE_AUDIT_FAILURES = 3
+
+
+@dataclass
+class AuditProposal:
+    """One maker's research, verified and ready to apply.
+
+    `fields` holds only drafted values that passed their checks; `rejected`
+    maps a field to why its drafted value was dropped (the dry run shows
+    these). `error` is set when the lookup produced nothing — such a maker
+    isn't stamped, so the next run retries it.
+    """
+
+    maker_id: int
+    canonical_name: str
+    verdict: str | None = None
+    reason: str | None = None
+    brand_name: str | None = None
+    pre_launch: bool | None = None
+    fields: dict = dataclass_field(default_factory=dict)
+    rejected: dict = dataclass_field(default_factory=dict)
+    sources: list = dataclass_field(default_factory=list)
+    usage: dict = dataclass_field(default_factory=dict)
+    cached: bool = False
+    error: str | None = None
+
+
+def iter_unaudited_makers(session: Session) -> list[Maker]:
+    """Discovered makers waiting for the audit, in /review queue order.
+
+    Non-seed, not suppressed, not reviewed, never audited. Ranked makers come
+    first in rank order under the default preset, then the rest newest-first —
+    so `--limit N` researches the top of the review queue first.
+    """
+    from watch_app.config import get_settings
+    from watch_app.scoring.discovery import _load_seed_names
+    from watch_app.scoring.queries import fetch_top_makers
+
+    seed_names = _load_seed_names()
+    rank_by_id = {
+        r["maker_id"]: r["rank"]
+        for r in fetch_top_makers(
+            session, get_settings().default_preset, limit=100_000
+        )
+    }
+    makers = [
+        m
+        for m in session.query(Maker)
+        .filter(
+            Maker.is_suppressed.isnot(True),
+            Maker.reviewed_at.is_(None),
+            Maker.audited_at.is_(None),
+        )
+        .order_by(Maker.first_seen_at.desc())
+        .all()
+        if m.canonical_name not in seed_names
+    ]
+    # Stable sort: the unranked tail keeps the query's newest-first order.
+    makers.sort(
+        key=lambda m: (rank_by_id.get(m.id) is None, rank_by_id.get(m.id) or 0)
+    )
+    return makers
+
+
+def _verify_audit_fields(raw: dict) -> tuple[dict, dict]:
+    """Check each drafted value. Returns (accepted, rejected) where rejected
+    maps a field to the reason its value was dropped. Taste values outside the
+    vocabulary are reported even when the rest of the list survives — a
+    recurring one is a vocabulary gap worth knowing about."""
+    accepted: dict = {}
+    rejected: dict = {}
+
+    country = raw.get("country")
+    if country is not None:
+        if isinstance(country, str) and country in KNOWN_WATCHMAKING_COUNTRIES:
+            accepted["country"] = country
+        else:
+            rejected["country"] = f"not a known country: {country!r}"
+
+    year = raw.get("founded_year")
+    if year is not None:
+        try:
+            value = int(year) if not isinstance(year, bool) else None
+        except (TypeError, ValueError):
+            value = None
+        this_year = datetime.now(timezone.utc).year
+        if value is not None and MIN_FOUNDED_YEAR <= value <= this_year:
+            accepted["founded_year"] = value
+        else:
+            rejected["founded_year"] = f"not a year in {MIN_FOUNDED_YEAR}–{this_year}: {year!r}"
+
+    website = raw.get("website")
+    if website is not None:
+        if isinstance(website, str):
+            ok, reason = _verify_website(website.strip())
+            if ok:
+                accepted["website"] = website.strip()
+            else:
+                rejected["website"] = reason or "rejected"
+        else:
+            rejected["website"] = f"not a URL: {website!r}"
+
+    independent = raw.get("is_independent")
+    if independent is not None:
+        if isinstance(independent, bool):
+            accepted["is_independent"] = independent
+        else:
+            rejected["is_independent"] = f"not true/false: {independent!r}"
+
+    drafted_taste = {f: raw[f] for f in taste.TASTE_FIELDS if raw.get(f) is not None}
+    clean = taste.sanitize_taste(drafted_taste)
+    accepted.update(clean)
+    for field_name, value in drafted_taste.items():
+        if field_name not in clean:
+            rejected[field_name] = f"out of vocabulary: {value!r}"
+        elif field_name in taste.MULTI_VALUE_FIELDS:
+            dropped = [v for v in value if v not in clean[field_name]]
+            if dropped:
+                rejected[field_name] = f"dropped out-of-vocabulary {dropped!r}"
+    return accepted, rejected
+
+
+def _build_audit_proposal(maker: Maker, result: dict) -> AuditProposal:
+    """Turn a lookup result into a verified proposal. A "no" keeps its fields
+    empty; a brand_name that's just this maker's own name is dropped."""
+    verdict = result.get("verdict") if result.get("verdict") in VERDICTS else None
+    reason = result.get("reason")
+    brand = result.get("brand_name")
+    if isinstance(brand, str) and _normalize(brand) == _normalize(maker.canonical_name):
+        brand = None
+    pre_launch = result.get("pre_launch")
+    proposal = AuditProposal(
+        maker_id=maker.id,
+        canonical_name=maker.canonical_name,
+        verdict=verdict,
+        reason=reason.strip()[:300] if isinstance(reason, str) and reason.strip() else None,
+        brand_name=brand.strip()[:200] if isinstance(brand, str) and brand.strip() else None,
+        pre_launch=pre_launch if isinstance(pre_launch, bool) else None,
+        sources=list(result.get("sources") or []),
+        usage=dict(result.get("usage") or {}),
+        cached=bool(result.get("cached")),
+    )
+    if verdict != "no":
+        proposal.fields, proposal.rejected = _verify_audit_fields(
+            result.get("fields") or {}
+        )
+    return proposal
+
+
+def propose_audits(
+    session: Session,
+    limit: int | None = None,
+    progress: Callable[[int, int, AuditProposal], None] | None = None,
+) -> list[AuditProposal]:
+    """Research unaudited discovered makers, in review-queue order. No maker
+    writes — but each lookup's cache entry is committed the moment it returns,
+    so a dry run followed by --commit, or an interrupted run, never pays twice.
+
+    A maker whose lookup fails or produces nothing comes back with `error`
+    set; it isn't stamped, so the next run retries it. After
+    MAX_CONSECUTIVE_AUDIT_FAILURES failures in a row the run stops with a
+    RuntimeError — the cause is systemic, and what's been paid for is cached.
+    `progress(i, total, proposal)` is called after each maker (a full run is
+    long enough to want a heartbeat).
+    """
+    makers = iter_unaudited_makers(session)
+    if limit is not None:
+        makers = makers[:limit]
+    proposals: list[AuditProposal] = []
+
+    def add(proposal: AuditProposal) -> None:
+        proposals.append(proposal)
+        if progress is not None:
+            progress(len(proposals), len(makers), proposal)
+
+    consecutive_failures = 0
+    for maker in makers:
+        maker_id, name = maker.id, maker.canonical_name
+        try:
+            result = lookup_maker_audit(
+                session, name, country=maker.country, context=_gather_taste_context(maker)
+            )
+        except Exception as exc:
+            session.rollback()
+            logger.warning("Audit of %s failed: %s", name, exc)
+            result, error = None, f"lookup failed: {exc}"
+        else:
+            session.commit()  # keep what's been paid for, whatever happens next
+            error = None if result is not None else "no usable answer"
+        if error:
+            consecutive_failures += 1
+            if consecutive_failures >= MAX_CONSECUTIVE_AUDIT_FAILURES:
+                raise RuntimeError(
+                    f"Stopped after {consecutive_failures} failed lookups in a row; "
+                    f"last: {name} — {error}"
+                )
+            add(AuditProposal(maker_id, name, error=error))
+            continue
+        consecutive_failures = 0
+        add(_build_audit_proposal(maker, result))
+    return proposals
+
+
+def _is_human_value(maker: Maker, field_name: str, auto_fields: list[str]) -> bool:
+    """True if a field holds a value the audit must not replace: a non-blank
+    value without the "auto" marker. is_independent's default True doesn't
+    count — only a False without the marker is a deliberate call."""
+    if field_name in auto_fields:
+        return False
+    value = getattr(maker, field_name)
+    if field_name == "is_independent":
+        return value is False
+    return value not in (None, [], "")
+
+
+def apply_audits(session: Session, proposals: list[AuditProposal]) -> int:
+    """Write verified audit results; returns the number of field values changed.
+
+    Each row is re-read first (a full run can take most of an hour) and a maker
+    reviewed since its research ran is skipped. Proposals with `error` write
+    nothing and aren't stamped. See the write policy above.
+    """
+    count = 0
+    now = datetime.now(timezone.utc)
+    for prop in proposals:
+        if prop.error:
+            continue
+        maker = (
+            session.query(Maker)
+            .populate_existing()
+            .filter_by(id=prop.maker_id)
+            .first()
+        )
+        if maker is None:
+            logger.warning("Maker id=%d disappeared before its audit was applied", prop.maker_id)
+            continue
+        if maker.reviewed_at is not None:
+            logger.info("Skipping audit of %s: reviewed since it ran", maker.canonical_name)
+            continue
+
+        auto = list(maker.enriched_fields or [])
+        drafts = dict(prop.fields)
+        if prop.verdict != "no" and prop.pre_launch is True:
+            drafts["is_pre_launch"] = True
+        for field_name, value in drafts.items():
+            if _is_human_value(maker, field_name, auto):
+                continue
+            if getattr(maker, field_name) != value:
+                setattr(maker, field_name, value)
+                count += 1
+            if field_name not in auto:
+                auto.append(field_name)
+        maker.enriched_fields = auto
+
+        maker.audit_verdict = prop.verdict
+        maker.audit_reason = prop.reason
+        maker.audit_brand = prop.brand_name
+        maker.audit_sources = prop.sources or None
+        maker.audited_at = now
+        maker.enriched_at = now
+        maker.taste_enriched_at = now
+    session.commit()
+    return count

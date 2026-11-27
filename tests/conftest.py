@@ -70,6 +70,8 @@ def _stub_llm_enrichment(monkeypatch):
     We stub the four enrichment/taste lookups to abstain by default. Tests that
     exercise enrichment or taste directly patch these same names inside their
     own ``with patch(...)`` blocks, which override this default for their scope.
+    The web-search audit lookup (4O) is stubbed the same way: it isn't on the
+    scan path, but an unstubbed call would be a real, billable web search.
     """
     from watch_app.extraction import enrich
 
@@ -77,6 +79,7 @@ def _stub_llm_enrichment(monkeypatch):
     monkeypatch.setattr(enrich, "lookup_maker_country", lambda *a, **k: None)
     monkeypatch.setattr(enrich, "lookup_maker_independence", lambda *a, **k: None)
     monkeypatch.setattr(enrich, "lookup_maker_taste", lambda *a, **k: {})
+    monkeypatch.setattr(enrich, "lookup_maker_audit", lambda *a, **k: None)
 
 
 @pytest.fixture(autouse=True)
@@ -91,6 +94,11 @@ def _block_real_http(request, monkeypatch):
     Tests that exercise the real client are marked ``real_http`` (its httpx
     layer is still mocked there). Tests that drive ``_fetch_gphg_models``
     directly patch ``watch_app.http.get`` themselves, which overrides this.
+
+    enrich binds its own reference (``from watch_app.http import get as
+    http_get``), which patching the module attribute doesn't reach, so it is
+    blocked too: a 4O audit test fetched a real site through enrich's website
+    check. Tests that want a website to resolve patch ``enrich.http_get``.
     """
     if request.node.get_closest_marker("real_http"):
         return
@@ -103,3 +111,6 @@ def _block_real_http(request, monkeypatch):
         )
 
     monkeypatch.setattr(http_module, "get", _blocked)
+    from watch_app.extraction import enrich
+
+    monkeypatch.setattr(enrich, "http_get", _blocked)

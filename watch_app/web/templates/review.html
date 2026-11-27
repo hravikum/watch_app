@@ -12,7 +12,9 @@
     <span class="text-amber-700">auto</span>). Fix anything under Edit fields
     — including the name, if a scan grabbed it wrong — then Save: your values
     overwrite the drafts, the maker leaves this queue, and enrichment won't
-    touch it again. Suppress or delete anything that isn't a real maker.
+    touch it again. Suppress or delete anything that isn't a real maker. Once
+    the web audit has run (<code class="bg-stone-100 px-1 rounded text-stone-700">cli enrich --audit</code>),
+    cards also show its verdict, its reasoning and the pages it relied on.
   </p>
   <p class="mt-3 text-sm text-stone-500">
     <strong id="review-to-go" class="text-stone-900">{{ to_go }}</strong> to go
@@ -20,12 +22,39 @@
     · showing the {{ reviewed_count }} reviewed, most recent first ·
     <a href="/review"
        class="text-stone-700 hover:text-stone-900 underline decoration-stone-400 underline-offset-2">Back to the queue</a>
+    {% elif show_prelaunch %}
+    · showing the {{ prelaunch_count }} flagged pre-launch, reviewed or not — revisit them once they ship ·
+    <a href="/review"
+       class="text-stone-700 hover:text-stone-900 underline decoration-stone-400 underline-offset-2">Back to the queue</a>
     {% else %}
-    · ranked makers first, then the unranked newest-first ·
+    · likely non-makers first, then ranked makers, then the unranked newest-first ·
     <a href="/review?show=reviewed"
        class="text-stone-700 hover:text-stone-900 underline decoration-stone-400 underline-offset-2">Reviewed ({{ reviewed_count }})</a>
+    {% if not_a_maker_count %}
+    · <a href="/review/bulk-suppress" title="Suppress the cards the audit judged not to be makers, in one go"
+       class="text-red-700 hover:text-red-900 underline decoration-red-300 underline-offset-2">Not a maker ({{ not_a_maker_count }})</a>
+    {% endif %}
+    {% if prelaunch_count %}
+    · <a href="/review?show=prelaunch"
+       class="text-stone-700 hover:text-stone-900 underline decoration-stone-400 underline-offset-2">Pre-launch ({{ prelaunch_count }})</a>
+    {% endif %}
     {% endif %}
   </p>
+  {% if bulk_suppressed is not none %}
+  {# --- The result of the bulk-suppress page (4P), after its redirect --- #}
+  <p id="bulk-suppress-result" class="mt-3 text-sm text-stone-700 bg-white border border-stone-200 rounded-lg px-3 py-2 max-w-2xl">
+    {% if bulk_suppressed %}
+    Suppressed {{ bulk_suppressed }} maker{% if bulk_suppressed != 1 %}s{% endif %} the audit judged not to be makers.
+    Undo any of them from its page (Unsuppress) or with
+    <code class="bg-stone-100 px-1 rounded text-stone-700">cli unsuppress</code>.
+    {% else %}
+    Nothing was suppressed{% if not bulk_skipped %}: no boxes were ticked{% endif %}.
+    {% endif %}
+    {% if bulk_skipped %}
+    Skipped {{ bulk_skipped }} that no longer qualified (reviewed, suppressed or changed since the page loaded).
+    {% endif %}
+  </p>
+  {% endif %}
   <p class="mt-3 text-xs text-stone-500 max-w-2xl leading-relaxed">
     Seed makers aren't shown — their taste is curated in
     <code class="bg-stone-100 px-1.5 py-0.5 rounded text-stone-700">watch_app/data/known_makers.yaml</code>.
@@ -36,6 +65,8 @@
 <div class="bg-white border border-stone-200 rounded-xl p-8 text-center text-stone-500">
   {% if show_reviewed %}
   <p class="text-sm">Nothing reviewed yet — a maker lands here once you save it.</p>
+  {% elif show_prelaunch %}
+  <p class="text-sm">No makers flagged pre-launch.</p>
   {% elif reviewed_count %}
   <p class="text-sm">Queue's clear — every discovered maker has been reviewed.</p>
   <p class="text-xs mt-2">New discoveries show up here as scans run.</p>
@@ -65,6 +96,14 @@
           {% if not m.has_taste %}
             <span class="ml-2 text-[10px] uppercase tracking-widest text-stone-400 border border-stone-200 rounded px-1.5 py-0.5">untagged</span>
           {% endif %}
+          {% if m.verdict %}
+            <span class="ml-2 align-middle text-[10px] uppercase tracking-widest font-medium rounded px-1.5 py-0.5 border
+              {%- if m.verdict == 'no' %} text-red-700 bg-red-50 border-red-200
+              {%- elif m.verdict == 'unsure' %} text-amber-700 bg-amber-50 border-amber-200
+              {%- else %} text-stone-600 bg-stone-100 border-stone-200{%- endif %}">
+              {%- if m.verdict == 'yes' %}Real maker{% elif m.verdict == 'no' %}Not a maker{% else %}Unsure{% endif -%}
+            </span>
+          {% endif %}
         </h2>
         {# --- Evidence: what the tool found this maker in --- #}
         <div class="mt-1 text-xs text-stone-500 flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -89,6 +128,37 @@
           </li>
           {% endfor %}
         </ul>
+        {% endif %}
+        {# --- The web audit (4O): its reasoning, the brand a person / partial
+             name belongs to, and the pages it relied on --- #}
+        {% if m.reason or m.brand or m.audit_sources %}
+        <div class="mt-2 space-y-0.5 text-xs text-stone-600">
+          {% if m.reason %}<p><span class="text-stone-400">Audit:</span> {{ m.reason }}</p>{% endif %}
+          {% if m.brand %}
+          <p>
+            <span class="text-stone-400">Brand:</span>
+            <span class="font-medium text-stone-800">{{ m.brand.name }}</span>
+            {% if m.brand.maker_id %}
+            — already tracked as
+            <a href="/makers/{{ m.brand.maker_id }}"
+               class="underline decoration-stone-300 underline-offset-2 hover:text-stone-900">{{ m.brand.target_name }}</a> ·
+            <a href="/makers/{{ m.id }}?confirm=merge&into={{ m.brand.maker_id }}"
+               class="font-medium text-stone-800 underline decoration-stone-400 underline-offset-2 hover:text-stone-900">merge this into it →</a>
+            {% else %}
+            — not tracked yet: rename this card to it under Edit fields (keep the alias box ticked)
+            {% endif %}
+          </p>
+          {% endif %}
+          {% if m.audit_sources %}
+          <p class="truncate">
+            <span class="text-stone-400">Sources:</span>
+            {% for s in m.audit_sources %}
+            <a href="{{ s.url }}" target="_blank" rel="noopener noreferrer" title="{{ s.title }}"
+               class="underline decoration-stone-300 underline-offset-2 hover:text-stone-900">{{ s.host }}</a>{% if not loop.last %} ·{% endif %}
+            {% endfor %}
+          </p>
+          {% endif %}
+        </div>
         {% endif %}
       </div>
       <div class="flex items-center gap-2 shrink-0">
@@ -184,6 +254,12 @@
              class="rounded border-stone-300 text-stone-900 focus:ring-stone-300" />
       Independent
       {% if m.auto["is_independent"] %}<span class="text-[10px] uppercase tracking-widest text-amber-700">auto</span>{% endif %}
+    </label>
+    <label class="inline-flex items-center gap-2 mb-5 ml-6 text-sm text-stone-700">
+      <input type="checkbox" name="is_pre_launch" {% if m.pre_launch %}checked{% endif %}
+             class="rounded border-stone-300 text-stone-900 focus:ring-stone-300" />
+      Pre-launch <span class="text-stone-400">(announced, not shipping yet)</span>
+      {% if m.auto["is_pre_launch"] %}<span class="text-[10px] uppercase tracking-widest text-amber-700">auto</span>{% endif %}
     </label>
 
     {# --- Taste: multi-value (checkbox groups) --- #}

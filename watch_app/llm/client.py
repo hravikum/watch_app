@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session
 
@@ -580,3 +581,396 @@ def lookup_maker_taste(
     )
 
     return parsed
+
+
+# --- Web-researched audit (chunk 4O) ---------------------------------------
+#
+# One call per maker with the server-side web search tool, so the model looks
+# the brand up instead of answering from memory — the search a human otherwise
+# ran for every /review card. Uses the basic tool version (web_search_20250305):
+# the newer versions run search through code execution, whose response blocks
+# the pinned SDK (0.39.0) may not parse. The SDK passes the tool definition
+# through as plain JSON and constructs unknown response blocks leniently (their
+# type, content and citations survive as attributes / dicts), which is all this
+# needs — so no SDK bump.
+
+#: Model for the audit. Newer than ENRICHMENT_MODEL, supports web search, and
+#: its tokens cost a tenth of Haiku 4.5's — the per-search fee dominates the
+#: cost either way. The other lookups stay on ENRICHMENT_MODEL (their cache is
+#: keyed by model, so switching them would re-bill every cached answer).
+AUDIT_MODEL = "claude-haiku-5-5"
+AUDIT_PROMPT_VERSION = "v5-2026-11-26"
+#: Cap on searches per maker — each one costs WEB_SEARCH_PRICE on top of tokens.
+AUDIT_MAX_SEARCHES = 3
+#: Room for any prose the model writes before it calls the answer tool. The
+#: first live run (v1, 1,500 tokens, answer as a JSON object at the end of the
+#: reply) never reached a parseable answer; output tokens are cheap here.
+AUDIT_MAX_TOKENS = 4096
+#: The client tool the model answers through (see _audit_tool).
+AUDIT_TOOL_NAME = "record_audit"
+AUDIT_VERDICTS: tuple[str, ...] = ("yes", "no", "unsure")
+
+#: Prices for the CLI's cost line only (USD, checked 2026-11-26 against
+#: https://platform.claude.com/docs/en/about-claude/pricing). An estimate — the
+#: billing console is the source of truth.
+AUDIT_PRICE_PER_MTOK_IN = 0.10
+AUDIT_PRICE_PER_MTOK_OUT = 0.50
+WEB_SEARCH_PRICE = 0.01
+
+#: The drafted fields an audit returns, in card order.
+AUDIT_FIELD_NAMES: tuple[str, ...] = (
+    "country",
+    "founded_year",
+    "website",
+    "is_independent",
+    "aesthetic_tags",
+    "complication_focus",
+    "maker_type",
+    "price_band",
+    "output_scale",
+    "distribution",
+    "movement_origin",
+)
+
+
+def audit_cost(usage: dict) -> float:
+    """Estimated USD for one audit call's usage (tokens + searches)."""
+    return (
+        usage.get("input_tokens", 0) * AUDIT_PRICE_PER_MTOK_IN / 1_000_000
+        + usage.get("output_tokens", 0) * AUDIT_PRICE_PER_MTOK_OUT / 1_000_000
+        + usage.get("web_search_requests", 0) * WEB_SEARCH_PRICE
+    )
+
+
+def _field(obj, name: str):
+    """Read `name` from an SDK object or a plain dict — the pinned SDK hands
+    back the nested content of block types it doesn't know as dicts."""
+    if isinstance(obj, dict):
+        return obj.get(name)
+    return getattr(obj, name, None)
+
+
+def _last_json_object(text: str) -> dict | None:
+    """The last top-level JSON object in `text` — the fallback for a reply
+    that writes its answer out instead of calling the answer tool. The model
+    may narrate before answering, and citations can split the answer across
+    several text blocks (joined before this is called)."""
+    decoder = json.JSONDecoder()
+    found: dict | None = None
+    i = text.find("{")
+    while i != -1:
+        try:
+            obj, end = decoder.raw_decode(text, i)
+        except json.JSONDecodeError:
+            i = text.find("{", i + 1)
+            continue
+        if isinstance(obj, dict):
+            found = obj
+        i = text.find("{", end)
+    return found
+
+
+def _norm_url(url: str) -> str:
+    return url.strip().rstrip("/")
+
+
+def _site(url: str) -> str:
+    """The site a URL belongs to, so two pages from one site count once."""
+    return urlparse(url).netloc.lower().removeprefix("www.")
+
+
+#: Text a model may write where it means "no value". The answer tool types
+#: brand_name as a string, and the v2 prompt said "otherwise null", so the
+#: second live run got the word "null" back as a brand name.
+_NO_VALUE_TEXT = frozenset({"", "null", "none", "n/a", "unknown"})
+
+
+def _without_blanks(answer: dict) -> dict:
+    """The answer minus values that say nothing: None, empty text and stand-ins
+    like "null" — at the top level and inside lists, dropping a list left
+    empty. Nothing in the taste vocabulary uses these words."""
+
+    def blank(value) -> bool:
+        return value is None or (
+            isinstance(value, str) and value.strip().lower() in _NO_VALUE_TEXT
+        )
+
+    clean: dict = {}
+    for key, value in answer.items():
+        if isinstance(value, list):
+            value = [item for item in value if not blank(item)]
+            if not value:
+                continue
+        elif blank(value):
+            continue
+        clean[key] = value
+    return clean
+
+
+def _audit_tool() -> dict:
+    """The client tool the model answers through, next to web search in the
+    same request. Its input comes back as structured data, so the answer can't
+    get lost at the end of a long cited reply the way a trailing JSON object
+    did on the first live run. (The API's JSON-output mode isn't an option:
+    it refuses citations, and web search always has them on.) The schema gives
+    types only: the prompt explains each field and its vocabulary, and
+    enrich.py checks every value, so an out-of-vocabulary pick still surfaces
+    as a vocabulary gap instead of being forced onto the nearest option."""
+    from watch_app import taste
+
+    text = {"type": "string"}
+    text_list = {"type": "array", "items": {"type": "string"}}
+    flag = {"type": "boolean"}
+    properties = {
+        "verdict": {"type": "string", "enum": list(AUDIT_VERDICTS)},
+        "reason": text,
+        "brand_name": text,
+        "pre_launch": flag,
+        "country": text,
+        "founded_year": {"type": "integer"},
+        "website": text,
+        "is_independent": flag,
+        **{
+            f: text_list if f in taste.MULTI_VALUE_FIELDS else text
+            for f in taste.TASTE_FIELDS
+        },
+        "sources": text_list,
+    }
+    return {
+        "name": AUDIT_TOOL_NAME,
+        "description": (
+            "Record your verdict on the name and the card fields you could "
+            "confirm. Call it once, after your searches."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": properties,
+            "required": ["verdict", "reason"],
+        },
+    }
+
+
+def _audit_prompt(maker_name: str, country: str | None, context: str | None) -> str:
+    from watch_app import taste
+
+    def opts(field: str) -> str:
+        return ", ".join(taste.VOCABULARY[field])
+
+    country_hint = f" (thought to be based in {country})" if country else ""
+    context_block = ""
+    if context:
+        context_block = (
+            "\n\nPress mentions that led the tool to this name (they may be "
+            "about something else entirely):\n" + context + "\n\n"
+            "Judge the name as these mentions use it. If they use it for "
+            "something other than a maker — a watchmaking term or phrase "
+            "(\"Split\" from \"split-seconds\"), or another company's watch — the "
+            "verdict is \"no\" even if some brand of that name exists; say so in "
+            "the reason. Mentions of a maker's own watches and models count as "
+            "the maker."
+        )
+    countries = ", ".join(sorted(KNOWN_WATCHMAKING_COUNTRIES))
+    return (
+        f"You are checking {maker_name!r}{country_hint} for a tool that discovers "
+        f"independent wristwatch makers. A scan found the name in the press, so "
+        f"it may not be a brand at all. Use web search to find out what it is "
+        f"before answering.{context_block}\n\n"
+        f"Verdict:\n"
+        f"- \"yes\": a real, active maker of wristwatches under its own name. "
+        f"Group-owned brands count (ownership is a separate field). A brand that "
+        f"has announced or presented watches but isn't shipping yet counts — set "
+        f"pre_launch to true. A person's name counts only when it is itself the "
+        f"brand's name.\n"
+        f"- \"no\": anything else — a phrase, model name or partial name grabbed "
+        f"by mistake; a person (founder, owner, watchmaker) whose brand goes by "
+        f"another name; a customizer that reworks other brands' watches; a "
+        f"retailer or dealer; a movement or parts supplier; a maker of only "
+        f"clocks, pocket watches or kits; a quartz fashion brand; a house that "
+        f"is defunct and only appears in auction or vintage coverage.\n"
+        f"- \"unsure\": the search couldn't settle it.\n\n"
+        f"When you've finished searching, answer by calling the "
+        f"{AUDIT_TOOL_NAME} tool once, on its own — don't write your answer out "
+        f"as text. Leave out any field you couldn't confirm — a missing value "
+        f"is far better than a wrong one. For a \"no\", leave out everything "
+        f"from country down. The fields:\n"
+        f"- verdict: \"yes\", \"no\" or \"unsure\"\n"
+        f"- reason: one short sentence explaining the verdict\n"
+        f"- brand_name: only when the name belongs to a brand that goes by a "
+        f"different name — its founder or owner, a short form of its name, one "
+        f"of its own models — that brand's name: the name will count as that "
+        f"brand from now on. Leave it out for a general term or phrase, or a "
+        f"name the brand doesn't own (say, a designer another company's watch "
+        f"pays homage to), even when these mentions are about one brand's "
+        f"watch\n"
+        f"- pre_launch: true if announced but not shipping yet, false if "
+        f"shipping\n"
+        f"- sources: for every verdict, a \"no\" included — the URLs, from your "
+        f"search results, of the two or three pages that best support it, "
+        f"each from a different site\n"
+        f"- country: one of: {countries}\n"
+        f"- founded_year: the year the brand was founded, as a number\n"
+        f"- website: the brand's own official website (not a retailer, "
+        f"marketplace, social media or press page)\n"
+        f"- is_independent: true if independent, false if owned by a larger "
+        f"group\n"
+        f"- aesthetic_tags (list, 1-3 of): {opts('aesthetic_tags')}\n"
+        f"- complication_focus (list, 1-3 of) — what they're known for: "
+        f"{opts('complication_focus')}\n"
+        f"- maker_type (one of): {opts('maker_type')}\n"
+        f"- price_band (one of): {opts('price_band')} (entry <$2k, mid $2k-10k, "
+        f"high $10k-50k, haute $50k+)\n"
+        f"- output_scale (one of) — watches per year: {opts('output_scale')}\n"
+        f"- distribution (one of): {opts('distribution')}\n"
+        f"- movement_origin (one of): {opts('movement_origin')} (in-house = "
+        f"own movements, modified-base = reworked stock ebauche, stock-base = "
+        f"unmodified stock movement)\n"
+    )
+
+
+def lookup_maker_audit(
+    session: Session,
+    maker_name: str,
+    country: str | None = None,
+    context: str | None = None,
+) -> dict | None:
+    """Research one maker on the web and draft its review card (chunk 4O).
+
+    One Messages call with two tools: web search (at most AUDIT_MAX_SEARCHES
+    searches) and AUDIT_TOOL_NAME, which the model calls with its answer. A
+    reply that writes the answer out as a JSON object instead is still read.
+    Returns a dict with:
+
+    - verdict / reason / brand_name / pre_launch — as the model gave them
+    - fields — the drafted values that came back non-null (AUDIT_FIELD_NAMES),
+      UNVERIFIED: the caller must check and sanitize them (enrich.py does)
+    - sources — [{url, title}], at most three and one per site, limited to URLs
+      that appeared in this response's search results so a source can't be
+      invented: the URLs the model listed first, topped up with the ones its
+      answer cited
+    - usage — input/output tokens and web_search_requests, for the cost line
+    - cached — True when served from the cache (free)
+
+    Returns None, and caches nothing, when the call produced no usable answer —
+    stopped early (pause_turn; or max_tokens, since an answer cut off part-way
+    can't be trusted), no answer at all, or no valid verdict — so a re-run
+    tries again. The warning it logs says which, with the end of the reply.
+    Otherwise cached by (model, prompt_version, name, country, context) like the
+    other lookups; the caller commits, so a long run keeps what it has paid for.
+    """
+    input_content = _normalize_for_hashing(
+        {"maker": maker_name, "country": country or "", "context": context or ""}
+    )
+    cached = get_cached(
+        session=session,
+        model=AUDIT_MODEL,
+        prompt_version=AUDIT_PROMPT_VERSION,
+        input_content=input_content,
+    )
+    if cached is not None:
+        logger.debug("Audit cache hit for %r", maker_name)
+        return {**cached, "cached": True}
+
+    logger.info("Researching %r via LLM + web search", maker_name)
+    client = _get_client()
+    message = client.messages.create(
+        model=AUDIT_MODEL,
+        max_tokens=AUDIT_MAX_TOKENS,
+        messages=[
+            {"role": "user", "content": _audit_prompt(maker_name, country, context)}
+        ],
+        tools=[
+            {
+                "type": "web_search_20250305",
+                "name": "web_search",
+                "max_uses": AUDIT_MAX_SEARCHES,
+            },
+            _audit_tool(),
+        ],
+    )
+
+    if message.stop_reason in ("pause_turn", "max_tokens"):
+        logger.warning(
+            "Audit of %r stopped early (%s) — no result; it will be retried",
+            maker_name,
+            message.stop_reason,
+        )
+        return None
+
+    text = ""
+    answer: dict | None = None
+    cited: list[str] = []
+    result_urls: dict[str, str] = {}    # normalized url -> url as returned
+    result_titles: dict[str, str] = {}  # normalized url -> page title
+    for block in message.content:
+        btype = getattr(block, "type", None)
+        if btype == "text":
+            text += block.text
+            for citation in getattr(block, "citations", None) or []:
+                url = _field(citation, "url")
+                if url:
+                    cited.append(url)
+        elif btype == "tool_use" and getattr(block, "name", None) == AUDIT_TOOL_NAME:
+            if isinstance(getattr(block, "input", None), dict):
+                answer = block.input
+        elif btype == "web_search_tool_result":
+            content = getattr(block, "content", None)
+            if isinstance(content, list):  # an error result is a single dict
+                for item in content:
+                    url = _field(item, "url")
+                    if url:
+                        result_urls.setdefault(_norm_url(url), url)
+                        result_titles.setdefault(_norm_url(url), _field(item, "title") or "")
+
+    server_use = _field(message.usage, "server_tool_use") or {}
+    searches = _field(server_use, "web_search_requests") or 0
+    parsed = answer if answer is not None else _last_json_object(text)
+    if parsed is not None:
+        parsed = _without_blanks(parsed)
+    if parsed is None or parsed.get("verdict") not in AUDIT_VERDICTS:
+        logger.warning(
+            "Audit of %r gave no usable answer (stop_reason=%s, %s search(es), %s); "
+            "the reply ended: %r",
+            maker_name,
+            message.stop_reason,
+            searches,
+            "no answer" if parsed is None else f"verdict {parsed.get('verdict')!r}",
+            text[-300:],
+        )
+        return None
+
+    listed = parsed.get("sources")
+    sources: list[dict] = []
+    for url in (listed if isinstance(listed, list) else []) + cited:
+        if not isinstance(url, str):
+            continue
+        key = _norm_url(url)
+        if key in result_urls and all(
+            _site(s["url"]) != _site(result_urls[key]) for s in sources
+        ):
+            sources.append({"url": result_urls[key], "title": result_titles.get(key, "")})
+        if len(sources) == 3:
+            break
+
+    result = {
+        "verdict": parsed.get("verdict"),
+        "reason": parsed.get("reason"),
+        "brand_name": parsed.get("brand_name"),
+        "pre_launch": parsed.get("pre_launch"),
+        "fields": {
+            f: parsed[f] for f in AUDIT_FIELD_NAMES if parsed.get(f) is not None
+        },
+        "sources": sources,
+        "usage": {
+            "input_tokens": _field(message.usage, "input_tokens") or 0,
+            "output_tokens": _field(message.usage, "output_tokens") or 0,
+            "web_search_requests": searches,
+        },
+    }
+    set_cached(
+        session=session,
+        model=AUDIT_MODEL,
+        prompt_version=AUDIT_PROMPT_VERSION,
+        input_content=input_content,
+        response=result,
+    )
+    return {**result, "cached": False}

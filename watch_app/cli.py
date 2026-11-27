@@ -510,6 +510,20 @@ def enrich(
              "press-mention context. Skips makers that already have tags. "
              "No effect without --taste.",
     ),
+    audit: bool = typer.Option(
+        False,
+        "--audit",
+        help="Research each unreviewed discovered maker with web search: a "
+             "'real maker?' verdict, the brand a person/partial name belongs "
+             "to, a pre-launch flag, and drafts for every field, with sources. "
+             "Dry-run unless --commit is given. Uses paid web searches.",
+    ),
+    limit: int = typer.Option(
+        None,
+        "--limit",
+        help="With --audit: research at most N makers, in /review queue order "
+             "(run in batches; each run picks up the next unaudited ones).",
+    ),
 ) -> None:
     """Enrich auto-discovered makers with missing metadata via LLM lookup.
 
@@ -542,6 +556,16 @@ def enrich(
     Add --retag to also re-attempt makers tried before but left untagged
     (earlier abstentions) — useful right after the context-aware prompt
     landed. It skips makers that already have tags, so it never clobbers.
+
+    With --audit (4O), instead researches each unreviewed discovered maker on
+    the web — one call per maker, up to three searches — and drafts a verdict
+    (is this a real, active wristwatch maker?), the brand a person / partial /
+    model name belongs to, a pre-launch flag, and every field on its /review
+    card, with the pages it relied on. Drafts land marked "auto" for checking
+    in /review; nothing you entered and no reviewed maker is touched. Results
+    are cached as they arrive, so dry-run then --commit doesn't pay twice and
+    an interrupted run resumes. Use --limit to work in batches. Roughly
+    $0.02–0.04 per maker; the run ends with its cost.
     """
     from rich.console import Console
     from rich.table import Table
@@ -555,6 +579,10 @@ def enrich(
 
     console = Console()
     mode = "COMMIT" if commit else "DRY-RUN"
+
+    if audit:
+        _run_audit(console, commit=commit, limit=limit)
+        return
 
     if taste:
         from watch_app import taste as taste_vocab
@@ -701,6 +729,158 @@ def enrich(
 
         written = apply_enrichments(session, proposals)
         console.print(f"\n[green]Wrote {written} field value(s) to the database.[/green]")
+
+
+def _audit_drafts_text(prop) -> str:
+    """The Drafts cell for one audited maker: a line per drafted value, then
+    any value the checks dropped (dimmed, with the reason)."""
+    from urllib.parse import urlparse
+
+    from watch_app import taste as taste_vocab
+
+    labels = {
+        "country": "Country",
+        "founded_year": "Founded",
+        "website": "Website",
+        "is_independent": "Independent",
+        **taste_vocab.FIELD_LABELS,
+    }
+    lines = []
+    for name, value in prop.fields.items():
+        if name == "website":
+            shown = urlparse(value).netloc or value
+        elif name == "is_independent":
+            shown = "yes" if value else "no"
+        elif isinstance(value, list):
+            shown = ", ".join(taste_vocab.display_label(v) for v in value)
+        elif name in taste_vocab.TASTE_FIELDS:
+            shown = taste_vocab.display_label(value)
+        else:
+            shown = str(value)
+        lines.append(f"{labels[name]}: {shown}")
+    for name, why in prop.rejected.items():
+        lines.append(f"[dim]✗ {labels.get(name, name)}: {why}[/dim]")
+    return "\n".join(lines) or "[dim]—[/dim]"
+
+
+def _run_audit(console, *, commit: bool, limit: int | None) -> None:
+    """`enrich --audit` (4O): research, show the results and the run's cost,
+    and with --commit write them."""
+    from urllib.parse import urlparse
+
+    from rich.table import Table
+
+    from watch_app.extraction.enrich import (
+        apply_audits,
+        iter_unaudited_makers,
+        propose_audits,
+    )
+    from watch_app.llm.client import AUDIT_MAX_SEARCHES, AUDIT_MODEL, audit_cost
+
+    mode = "COMMIT" if commit else "DRY-RUN"
+    console.print(
+        f"[bold]Web-researched audit — {AUDIT_MODEL}, up to {AUDIT_MAX_SEARCHES} "
+        f"searches per maker ({mode})[/bold]"
+    )
+    with session_scope() as session:
+        waiting = len(iter_unaudited_makers(session))
+        if waiting == 0:
+            console.print(
+                "[green]Every unreviewed discovered maker has been audited. "
+                "Nothing to do.[/green]"
+            )
+            return
+        batch = min(waiting, limit) if limit is not None else waiting
+        console.print(
+            f"{waiting} maker(s) waiting; researching [yellow]{batch}[/yellow] "
+            f"in /review queue order..."
+        )
+
+        def progress(i: int, total: int, prop) -> None:
+            status = prop.error or prop.verdict or "no verdict"
+            cached = " [dim](cached)[/dim]" if prop.cached else ""
+            console.print(f"  [{i}/{total}] {prop.canonical_name} — {status}{cached}")
+
+        try:
+            proposals = propose_audits(session, limit=limit, progress=progress)
+        except RuntimeError as exc:
+            console.print(f"[red]{exc}[/red]")
+            console.print(
+                "Everything researched so far is cached — fix the cause and "
+                "re-run to resume."
+            )
+            raise typer.Exit(code=1)
+
+        table = Table(title="Audit results", show_lines=True)
+        table.add_column("Maker", style="cyan")
+        table.add_column("Verdict")
+        table.add_column("Why")
+        table.add_column("Drafts")
+        table.add_column("Sources")
+        verdicts = {"yes": 0, "no": 0, "unsure": 0}
+        failed = pre_launch = 0
+        live = {"input_tokens": 0, "output_tokens": 0, "web_search_requests": 0}
+        for p in proposals:
+            if p.error:
+                failed += 1
+                table.add_row(
+                    p.canonical_name,
+                    "[red]failed[/red]",
+                    f"[dim]{p.error} — retried next run[/dim]",
+                    "",
+                    "",
+                )
+                continue
+            if p.verdict in verdicts:
+                verdicts[p.verdict] += 1
+            flagged = p.pre_launch is True and p.verdict != "no"
+            pre_launch += flagged
+            if not p.cached:
+                for key in live:
+                    live[key] += p.usage.get(key, 0)
+            why = p.reason or ""
+            if p.brand_name:
+                why += f"\n→ brand: {p.brand_name}"
+            table.add_row(
+                p.canonical_name,
+                (p.verdict or "—") + ("\npre-launch" if flagged else ""),
+                why,
+                _audit_drafts_text(p),
+                "\n".join(urlparse(s["url"]).netloc or s["url"] for s in p.sources),
+            )
+        console.print(table)
+        console.print(
+            f"\n[bold]Summary:[/bold] {len(proposals)} researched — "
+            f"{verdicts['yes']} yes"
+            + (f" ({pre_launch} pre-launch)" if pre_launch else "")
+            + f", {verdicts['no']} no, {verdicts['unsure']} unsure, {failed} failed."
+        )
+        console.print(
+            f"Cost of this run: {live['web_search_requests']} searches, "
+            f"{live['input_tokens']:,} input / {live['output_tokens']:,} output "
+            f"tokens ≈ ${audit_cost(live):.2f} (cached results are free)."
+        )
+        if failed:
+            console.print(
+                f"[dim]Not counted: the {failed} failed lookup(s), which still "
+                f"paid for any searches they ran (up to {AUDIT_MAX_SEARCHES} "
+                f"each).[/dim]"
+            )
+
+        if not commit:
+            console.print(
+                "\n[yellow]Dry run.[/yellow] Re-run with [bold]--commit[/bold] "
+                "(same --limit) to write — these results are cached, so that "
+                "costs nothing."
+            )
+            return
+
+        written = apply_audits(session, proposals)
+        console.print(
+            f"\n[green]Recorded {len(proposals) - failed} audit(s) and wrote "
+            f"{written} field value(s).[/green] Drafts are marked auto — check "
+            f"them in /review."
+        )
 
 
 @app.command("draft-taste")

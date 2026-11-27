@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Not a maker · Review · Watch App{% endblock %}
+
+{# One maker on the checklist: tick box, name (its page opens in a new tab),
+   the audit's reason, the brand it suggested, and the pages it relied on. #}
+{% macro row(r, checked) %}
+<li class="flex items-start gap-3 px-4 py-3">
+  <input type="checkbox" name="maker_id" value="{{ r.id }}" id="bulk-{{ r.id }}" class="mt-0.5 rounded border-stone-300 text-stone-900 focus:ring-stone-300"{% if checked %} checked{% endif %} />
+  <div class="min-w-0 text-xs text-stone-600 space-y-0.5">
+    <p>
+      <label for="bulk-{{ r.id }}" class="text-sm font-medium text-stone-900 cursor-pointer">{{ r.name }}</label>
+      <a href="/makers/{{ r.id }}" target="_blank" rel="noopener"
+         class="ml-1 text-stone-400 hover:text-stone-900">page ↗</a>
+    </p>
+    {% if r.reason %}<p><span class="text-stone-400">Audit:</span> {{ r.reason }}</p>{% endif %}
+    {% if r.brand %}
+    <p>
+      <span class="text-stone-400">Brand:</span>
+      <span class="font-medium text-stone-800">{{ r.brand.name }}</span>
+      {% if r.brand.maker_id %}
+      — tracked as
+      <a href="/makers/{{ r.brand.maker_id }}" target="_blank" rel="noopener"
+         class="underline decoration-stone-300 underline-offset-2 hover:text-stone-900">{{ r.brand.target_name }}</a>
+      {% else %}
+      — not tracked yet
+      {% endif %}
+    </p>
+    {% endif %}
+    {% if r.sources %}
+    <p class="truncate">
+      <span class="text-stone-400">Sources:</span>
+      {% for s in r.sources %}
+      <a href="{{ s.url }}" target="_blank" rel="noopener noreferrer" title="{{ s.title }}"
+         class="underline decoration-stone-300 underline-offset-2 hover:text-stone-900">{{ s.host }}</a>{% if not loop.last %} ·{% endif %}
+      {% endfor %}
+    </p>
+    {% endif %}
+  </div>
+</li>
+{% endmacro %}
+
+{% block content %}
+<header class="mb-8">
+  <h1 class="text-2xl font-semibold tracking-tight text-stone-900">Not a maker</h1>
+  <p class="mt-2 text-sm text-stone-600 max-w-2xl leading-relaxed">
+    Every card in the review queue that the web audit judged not to be a real
+    maker. Untick anything you want to keep, then suppress the rest in one go:
+    they leave the queue and the rankings, each with the audit's reasoning
+    recorded as the reason. Suppression keeps the maker's row, so later scans
+    still match the name instead of rediscovering it, and it's reversible from
+    a maker's page (Unsuppress) or with
+    <code class="bg-stone-100 px-1 rounded text-stone-700">cli unsuppress</code>.
+  </p>
+  <p class="mt-3 text-sm text-stone-500">
+    <strong class="text-stone-900">{{ to_go }}</strong> to go in the queue ·
+    <a href="/review"
+       class="text-stone-700 hover:text-stone-900 underline decoration-stone-400 underline-offset-2">Back to the queue</a>
+  </p>
+</header>
+
+{% if not no_brand and not with_brand %}
+<div class="bg-white border border-stone-200 rounded-xl p-8 text-center text-stone-500">
+  <p class="text-sm">No &ldquo;not a maker&rdquo; cards in the queue.</p>
+</div>
+{% else %}
+<form method="post" action="/review/bulk-suppress">
+  {% if no_brand %}
+  <section class="mb-8">
+    <h2 class="text-sm font-semibold text-stone-900">
+      No brand suggested <span class="font-normal text-stone-400">({{ no_brand | length }})</span>
+    </h2>
+    <p class="mt-1 text-xs text-stone-500">Ticked: these are suppressed unless you untick them.</p>
+    <ul class="mt-3 bg-white border border-stone-200 rounded-xl divide-y divide-stone-100">
+      {% for r in no_brand %}{{ row(r, True) }}{% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if with_brand %}
+  <section class="mb-8">
+    <h2 class="text-sm font-semibold text-stone-900">
+      Brand suggested <span class="font-normal text-stone-400">({{ with_brand | length }})</span>
+    </h2>
+    <p class="mt-1 text-xs text-stone-500 max-w-2xl leading-relaxed">
+      Unticked. The audit thinks each name belongs to a brand, usually as its
+      founder. If that's a brand you track, merge from the card in the queue
+      instead: the name becomes the brand's alias, so its mentions count
+      there. Tick the ones to suppress, such as a brand you don't track or a
+      name that shouldn't become an alias.
+    </p>
+    <ul class="mt-3 bg-white border border-stone-200 rounded-xl divide-y divide-stone-100">
+      {% for r in with_brand %}{{ row(r, False) }}{% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <div class="flex items-center justify-end gap-3">
+    <a href="/review"
+       class="text-xs uppercase tracking-[0.1em] font-medium text-stone-600 hover:text-stone-900 px-3 py-2">Cancel</a>
+    <button type="submit"
+            class="text-xs uppercase tracking-[0.1em] font-medium text-white bg-stone-900 hover:bg-stone-700 transition rounded-lg px-4 py-2">
+      Suppress ticked
+    </button>
+  </div>
+</form>
+{% endif %}
+{% endblock %}
